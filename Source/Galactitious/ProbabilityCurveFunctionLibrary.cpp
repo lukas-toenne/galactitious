@@ -20,8 +20,6 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 			{
 				*(MipData++) = Point.OutVal;
 			}
-			//// Bulk data was already allocated for the correct size when we called CreateTransient above
-			//FMemory::Memcpy(MipData, UncompressedData.GetData(), NewTexture->PlatformData->Mips[0].BulkData.GetBulkDataSize());
 
 			NewTexture->PlatformData->Mips[0].BulkData.Unlock();
 		}
@@ -32,7 +30,42 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 	return NewTexture;
 }
 
-void UProbabilityCurveFunctionLibrary::SampleCurveAsset(UCurveFloat* CurveAsset, FInterpCurveFloat& SampledCurve)
+bool UProbabilityCurveFunctionLibrary::SampleCurveAsset(UCurveFloat* CurveAsset, int32 Resolution, FInterpCurveFloat& SampledCurve)
 {
-	//CurveAsset->FloatCurve
+	SampledCurve.bIsLooped = false;
+	SampledCurve.LoopKeyOffset = 0.0f;
+
+	if (Resolution < 1)
+	{
+		SampledCurve.Points.Empty();
+		return false;
+	}
+
+	SampledCurve.Points.SetNum(Resolution);
+
+	const FRichCurve& FloatCurve = CurveAsset->FloatCurve;
+	float MinTime, MaxTime;
+	FloatCurve.GetTimeRange(MinTime, MaxTime);
+	const float DeltaX = Resolution > 1 ? (MaxTime - MinTime) / (float)(Resolution - 1) : MaxTime - MinTime;
+	const float InvDeltaX = 1.0f / DeltaX;
+
+	float X = MinTime;
+	float Value = CurveAsset->FloatCurve.Eval(X);
+	float PrevValue = Value;
+	float NextValue = CurveAsset->FloatCurve.Eval(X + DeltaX);
+	for (FInterpCurvePointFloat& Point : SampledCurve.Points)
+	{
+		Point.InVal = X;
+		Point.OutVal = NextValue;
+		Point.ArriveTangent = (Value - PrevValue) * InvDeltaX;
+		Point.LeaveTangent = (NextValue - Value) * InvDeltaX;
+		Point.InterpMode = EInterpCurveMode::CIM_Linear;
+
+		X += DeltaX;
+		PrevValue = Value;
+		Value = NextValue;
+		NextValue = CurveAsset->FloatCurve.Eval(X + DeltaX);
+	}
+
+	return true;
 }
