@@ -230,27 +230,46 @@ void UProbabilityCurveFunctionLibrary::NormalizeCurve(const FInterpCurveFloat& C
 
 void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curve, FInterpCurveFloat& InvertedCurve)
 {
-	//InvertedCurve.bIsLooped = false;
-	//InvertedCurve.LoopKeyOffset = 0.0f;
+	const float MonotoneEpsilon = 1.0e-9f;
 
-	//if (Curve.Points.Num() == 0)
-	//{
-	//	InvertedCurve.Points.Empty();
-	//	return;
-	//}
+	InvertedCurve.bIsLooped = Curve.bIsLooped;
+	InvertedCurve.LoopKeyOffset = Curve.LoopKeyOffset;
+	InvertedCurve.Points.Empty();
 
-	//InvertedCurve.Points.SetNum(Curve.Points.Num());
+	float LastValue = 0.0f;
+	for (int i = 0; i < Curve.Points.Num(); ++i)
+	{
+		const FInterpCurvePointFloat& Point = Curve.Points[i];
+		if (!ensureMsgf(i == 0 || Point.OutVal >= LastValue, TEXT("Curve values must increase monotonically to be invertible")))
+		{
+			break;
+		}
 
-	//float LastValue = 0.0f;
-	//for (int i = 0; i < Curve.Points.Num(); ++i)
-	//{
-	//	const FInterpCurvePointFloat& Point = Curve.Points[i];
-	//	FInterpCurvePointFloat& InvertedPoint = InvertedCurve.Points[i];
+		FInterpCurvePointFloat& InvPoint = InvertedCurve.Points.Emplace_GetRef();
+		InvPoint.InVal = Point.OutVal;
+		InvPoint.OutVal = Point.InVal;
+		const bool bArriveZero = FMath::IsNearlyZero(Point.ArriveTangent, MonotoneEpsilon);
+		const bool bLeaveZero = FMath::IsNearlyZero(Point.LeaveTangent, MonotoneEpsilon);
+		InvPoint.ArriveTangent = bArriveZero ? 0.0f : 1.0f / Point.ArriveTangent;
+		InvPoint.LeaveTangent = bLeaveZero ? 0.0f : 1.0f / Point.LeaveTangent;
+		InvPoint.InterpMode = Point.InterpMode;
 
-	//	InvertedPoint.InVal = Point.OutVal;
-	//	InvertedPoint.OutVal = Point.InVal;
-	//	InvertedPoint.ArriveTangent = Point.ArriveTangent * InvScale;
-	//	InvertedPoint.LeaveTangent = Point.LeaveTangent * InvScale;
-	//	InvertedPoint.InterpMode = Point.InterpMode;
-	//}
+		const FInterpCurvePointFloat& NextPoint = (i < Curve.Points.Num() - 1 ? Curve.Points[i + 1] : Point);
+		const bool bRequireJumpPoint =
+			Point.InterpMode == EInterpCurveMode::CIM_Constant ||
+			(i < Curve.Points.Num() - 1 && NextPoint.OutVal < Point.OutVal + MonotoneEpsilon);
+		if (bRequireJumpPoint)
+		{
+			FInterpCurvePointFloat& JumpPoint = InvertedCurve.Points.Emplace_GetRef();
+			JumpPoint.InVal = Point.OutVal + MonotoneEpsilon;
+			JumpPoint.OutVal = NextPoint.InVal;
+
+			JumpPoint.LeaveTangent = InvPoint.LeaveTangent;
+			InvPoint.LeaveTangent = 0.0f;
+			JumpPoint.ArriveTangent = 0.0f;
+
+			JumpPoint.InterpMode = InvPoint.InterpMode;
+			InvPoint.InterpMode = EInterpCurveMode::CIM_Constant;
+		}
+	}
 }
