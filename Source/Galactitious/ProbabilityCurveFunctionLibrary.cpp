@@ -101,102 +101,187 @@ void UProbabilityCurveFunctionLibrary::ConvertCurveAsset(UCurveFloat* CurveAsset
 	}
 }
 
+namespace
+{
+	/**
+	 * Find extrema of the cubic hermite spline through points p0 and p1 with derivatives m0 and m1.
+	 * Returns the number N of possible extrema. Only the first N values of OutExtrema are valid.
+	 */
+	int FindExtrema(float p0, float p1, float m0, float m1, float OutExtrema[2])
+	{
+		const float a = 6.0f * (p0 - p1) + 3.0f * (m0 + m1);
+		const float b = 6.0f * (p1 - p0) - 4.0f * m0 - 2.0f * m1;
+		const float c = m0;
+
+		// Quadratic formula
+		const bool aIsZero = FMath::IsNearlyZero(a);
+		const bool bIsZero = FMath::IsNearlyZero(b);
+		if (aIsZero)
+		{
+			if (bIsZero)
+			{
+				// Curve is constant: f(t) == c
+				return 0;
+			}
+			else
+			{
+				OutExtrema[0] = -c / b;
+				return 1;
+			}
+		}
+		else
+		{
+			const float q = b * b - 4.0f * a * c;
+			if (q < .0f)
+			{
+				// No real extrema
+				return 0;
+			}
+			else if (FMath::IsNearlyZero(q))
+			{
+				// One extremum
+				OutExtrema[0] = - b / (2.0f * a);
+				return 1;
+			}
+			else
+			{
+				const float sq = FMath::Sqrt(q);
+				// Keep extrema sorted
+				if (a >= .0f)
+				{
+					OutExtrema[0] = (-b - sq) / (2.0f * a);
+					OutExtrema[1] = (-b + sq) / (2.0f * a);
+				}
+				else
+				{
+					OutExtrema[0] = (-b + sq) / (2.0f * a);
+					OutExtrema[1] = (-b - sq) / (2.0f * a);
+				}
+				return 2;
+			}
+		}
+	}
+} // namespace
+
 void UProbabilityCurveFunctionLibrary::IntegrateCurve(const FInterpCurveFloat& Curve, float Offset, FInterpCurveFloat& IntegratedCurve)
 {
 	IntegratedCurve.bIsLooped = false;
 	IntegratedCurve.LoopKeyOffset = 0.0f;
-
+	IntegratedCurve.Points.Empty();
 	if (Curve.Points.Num() == 0)
 	{
-		IntegratedCurve.Points.Empty();
 		return;
 	}
 
-	IntegratedCurve.Points.SetNum(Curve.Points.Num());
+	// Reserve up to 3 points per segment to account for additional extrema points where needed.
+	// See cubic spline integration case below.
+	IntegratedCurve.Points.Reserve((Curve.Points.Num() - 1) * 3 + 1);
 
 	float Value = Offset;
+	// First point
+	{
+		const FInterpCurvePointFloat& Point = Curve.Points[0];
+		IntegratedCurve.Points.Add(FInterpCurvePointFloat(Point.InVal, Value, Point.OutVal, .0f, EInterpCurveMode::CIM_Unknown));
+	}
 
 	for (int i = 0; i < Curve.Points.Num() - 1; ++i)
 	{
 		const FInterpCurvePointFloat& Point = Curve.Points[i];
 		const FInterpCurvePointFloat& NextPoint = Curve.Points[i + 1];
-		const float DeltaTime = NextPoint.InVal - Point.InVal;
-		const float InvDeltaTime = FMath::IsNearlyZero(DeltaTime) ? 0.0f : 1.0f / DeltaTime;
-		FInterpCurvePointFloat& IntPoint = IntegratedCurve.Points[i];
-		FInterpCurvePointFloat& NextIntPoint = IntegratedCurve.Points[i + 1];
 
-		// First point
-		if (i == 0)
+		if (Point.InterpMode == EInterpCurveMode::CIM_Constant)
 		{
-			IntPoint.ArriveTangent = Point.OutVal;
-		}
+			const float Time0 = Point.InVal;
+			const float Time1 = NextPoint.InVal;
+			const float DeltaTime = Time1 - Time0;
+			const float Slope0 = Point.OutVal;
+			FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
 
-		IntPoint.InVal = Point.InVal;
-		IntPoint.OutVal = Value;
+			Value += Slope0 * DeltaTime;
 
-		switch (Point.InterpMode)
-		{
-		case EInterpCurveMode::CIM_Constant:
-		case EInterpCurveMode::CIM_Unknown:
-		{
-			float Slope = Point.OutVal;
-
-			IntPoint.LeaveTangent = Slope;
-			NextIntPoint.ArriveTangent = Slope;
-			IntPoint.InterpMode = EInterpCurveMode::CIM_Linear;
-
-			Value += Slope * DeltaTime;
+			CurrentPoint.LeaveTangent = Slope0;
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_Linear;
+			IntegratedCurve.Points.Add(FInterpCurvePointFloat(Time1, Value, Slope0, .0f, EInterpCurveMode::CIM_Unknown));
 			break;
 		}
-
-		case EInterpCurveMode::CIM_Linear:
+		else if (Point.InterpMode == EInterpCurveMode::CIM_Linear)
 		{
-			float Slope0 = Point.OutVal;
-			float Slope1 = NextPoint.OutVal;
+			const float Time0 = Point.InVal;
+			const float Time1 = NextPoint.InVal;
+			const float DeltaTime = Time1 - Time0;
+			const float Slope0 = Point.OutVal;
+			const float Slope1 = NextPoint.OutVal;
+			FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
 
-			IntPoint.LeaveTangent = Slope0;
-			NextIntPoint.ArriveTangent = Slope1;
-			IntPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+			Value += (Slope0 + Slope1) * DeltaTime * 0.5f;
 
-			Value += ((Slope1 - Slope0) / 2.0f + Slope0) * DeltaTime;
-			break;
+			CurrentPoint.LeaveTangent = Slope0;
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+			IntegratedCurve.Points.Add(FInterpCurvePointFloat(Time1, Value, Slope1, .0f, EInterpCurveMode::CIM_Unknown));
 		}
-
-		case EInterpCurveMode::CIM_CurveAuto:
-		case EInterpCurveMode::CIM_CurveAutoClamped:
-		case EInterpCurveMode::CIM_CurveBreak:
-		case EInterpCurveMode::CIM_CurveUser:
+		else if (Point.IsCurveKey())
 		{
-			float Slope0 = Point.OutVal;
-			float Slope1 = NextPoint.OutVal;
-			float Curv0 = Point.LeaveTangent;
-			float Curv1 = NextPoint.ArriveTangent;
+			// Cannot go above cubic splines, so use linear interpolation between extrema to minimize errors.
 
-			IntPoint.LeaveTangent = Slope0;
-			NextIntPoint.ArriveTangent = Slope1;
-			IntPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+			const float TotalDeltaTime = NextPoint.InVal - Point.InVal;
+			float CurrentTime = Point.InVal;
+			float CurrentSlope = Point.OutVal;
 
-			// XXX Using curvature can lead to overshooting curves, only linear interpolation used below
-			//Value +=
-			//	((((2.0f * (Slope1 - Slope0) - Curv0 - Curv1) / 4.0f * DeltaTime
-			//	   + (Slope0 - Slope1 + Curv1) / 3.0f) * DeltaTime
-			//	  + Curv0 / 2.0f) * DeltaTime
-			//	 + Slope0) * DeltaTime;
-			Value += ((Slope1 - Slope0) / 2.0f * DeltaTime + Slope0) * DeltaTime;
-			break;
+			float Extrema[2];
+			int NumExtrema = FindExtrema(
+				Point.OutVal, NextPoint.OutVal, Point.LeaveTangent * TotalDeltaTime, NextPoint.ArriveTangent * TotalDeltaTime,
+				Extrema);
+			for (int a = 0; a < NumExtrema; ++a)
+			{
+				if (Extrema[a] <= .0f || Extrema[a] >= 1.0f)
+				{
+					continue;
+				}
+
+				const float NextTime = CurrentTime + Extrema[a] * TotalDeltaTime;
+				const float NextSlope = Curve.Eval(NextTime);
+				FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
+
+				Value += (CurrentSlope + NextSlope) * (NextTime - CurrentTime) * 0.5f;
+
+				CurrentPoint.LeaveTangent = CurrentSlope;
+				CurrentPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+				IntegratedCurve.Points.Add(FInterpCurvePointFloat(NextTime, Value, NextSlope, .0f, EInterpCurveMode::CIM_Unknown));
+
+				CurrentTime = NextTime;
+				CurrentSlope = NextSlope;
+			}
+
+			// Last point of segment
+			const float NextTime = NextPoint.InVal;
+			const float NextSlope = NextPoint.OutVal;
+			FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
+
+			Value += (CurrentSlope + NextSlope) * (NextTime - CurrentTime) * 0.5f;
+
+			CurrentPoint.LeaveTangent = CurrentSlope;
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+			IntegratedCurve.Points.Add(FInterpCurvePointFloat(NextTime, Value, NextSlope, .0f, EInterpCurveMode::CIM_Unknown));
 		}
+		else
+		{
+			const float Time1 = NextPoint.InVal;
+			FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
+
+			// Unknown
+			CurrentPoint.LeaveTangent = .0f;
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_Unknown;
+			IntegratedCurve.Points.Add(FInterpCurvePointFloat(Time1, Value, .0f, .0f, EInterpCurveMode::CIM_Unknown));
 		}
 	}
 
 	// Last point
 	{
 		const FInterpCurvePointFloat& Point = Curve.Points[Curve.Points.Num() - 1];
-		FInterpCurvePointFloat& IntPoint = IntegratedCurve.Points[Curve.Points.Num() - 1];
+		FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
 
-		IntPoint.InVal = Point.InVal;
-		IntPoint.OutVal = Value;
-		IntPoint.LeaveTangent = Point.OutVal;
-		IntPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
+		CurrentPoint.LeaveTangent = Point.OutVal;
+		CurrentPoint.InterpMode = EInterpCurveMode::CIM_CurveBreak;
 	}
 }
 
@@ -383,7 +468,7 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 				float x = Point.InVal;
 				FVector Position = Transform.TransformPosition(FVector(x, .0f, Curve.Eval(x, .0f)));
 
-				for (int32 a = 0; a < Settings.CurveResolution; ++a)
+				for (int32 a = 0; a < Settings.CurveResolution ; ++a)
 				{
 					// TODO Forward differencing is more efficient for eval at constant intervals,
 					// not necessary for debug drawing though.
