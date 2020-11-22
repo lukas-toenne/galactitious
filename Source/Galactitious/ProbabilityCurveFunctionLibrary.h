@@ -29,4 +29,9 @@ class GALACTITIOUS_API UProbabilityCurveFunctionLibrary : public UBlueprintFunct
 
     UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
     static void InvertCurve(const FInterpCurveFloat& Curve, FInterpCurveFloat& InvertedCurve);
+
+	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve, meta = (WorldContext = "WorldContextObject"))
+	static void DrawDebugCurve(
+        const UObject* WorldContextObject, const FInterpCurveFloat& Curve, const FTransform& Transform,
+        int32 Resolution = 12, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0);
 };
