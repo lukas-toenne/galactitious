@@ -22,7 +22,9 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 
 	int32 Width = Resolution;
 	int32 Height = 1;
-	EPixelFormat PixelFormat = PF_R32_FLOAT;
+	// Grayscale would suffice for storing a curve, but cannot be exported by UImageWriteBlueprintLibrary::ExportToDisk.
+	// Use full RGBA instead.
+	EPixelFormat PixelFormat = PF_A32B32G32R32F;
 
 	UTexture2D* NewTexture = UTexture2D::CreateTransient(Width, Height, PixelFormat);
 	if (NewTexture)
@@ -32,11 +34,12 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 		NewTexture->AddressY = TextureAddress::TA_Clamp;
 
 		{
-			float* MipData = static_cast<float*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+			FVector4* MipData = static_cast<FVector4*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
 			float Time = MinTime;
 			for (int i = 0; i < Resolution; ++i)
 			{
-				*(MipData++) = Curve.Eval(Time);
+				float Value = Curve.Eval(Time);
+				(MipData++)->Set(Value, Value, Value, 1.0f);
 				Time += DeltaTime;
 			}
 
