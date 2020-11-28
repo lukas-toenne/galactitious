@@ -52,6 +52,19 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 	return NewTexture;
 }
 
+bool UProbabilityCurveFunctionLibrary::GetAssetFilename(const UObject* Asset, FString& Filename)
+{
+	Filename.Empty();
+	if (const UPackage* Package = Asset->GetPackage())
+	{
+		// This is a package in memory that has not yet been saved. Determine the extension and convert to a filename
+		const FString* PackageExtension =
+			Package->ContainsMap() ? &FPackageName::GetMapPackageExtension() : &FPackageName::GetAssetPackageExtension();
+		return FPackageName::TryConvertLongPackageNameToFilename(Package->GetName(), Filename, *PackageExtension);
+	}
+	return false;
+}
+
 namespace
 {
 	EInterpCurveMode ConvertInterpolationMode(ERichCurveInterpMode Mode)

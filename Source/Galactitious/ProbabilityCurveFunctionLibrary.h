@@ -42,6 +42,9 @@ GENERATED_BODY()
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
 	static UTexture2D* CurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution);
 
+	UFUNCTION(BlueprintPure, Category = ProbabilityCurve)
+	static bool GetAssetFilename(const UObject* Asset, FString& Filename);
+
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
 	static void ConvertCurveAsset(UCurveFloat *CurveAsset, FInterpCurveFloat& Curve);
 
