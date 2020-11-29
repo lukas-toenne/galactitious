@@ -331,8 +331,105 @@ void UProbabilityCurveFunctionLibrary::NormalizeCurve(const FInterpCurveFloat& C
 	}
 }
 
-void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curve, FInterpCurveFloat& InvertedCurve)
+namespace
 {
+	bool FindCurveRoot(const FInterpCurveFloat& Curve, float OutVal, float InValEstimate, float& InVal, float MaxIter = 100)
+	{
+		return false;
+	}
+
+	bool EstimateCurveRoot(const FInterpCurveFloat& Curve, float OutVal, float& InVal)
+	{
+		if (Curve.Points.Num() == 0)
+		{
+			return false;
+		}
+		
+		float OutValMin, OutValMax;
+		Curve.CalcBounds(OutValMin, OutValMax, Curve.Points[0].OutVal);
+
+		const float OutValRange = OutValMax - OutValMin;
+		const float Alpha = (FMath::IsNearlyZero(OutValRange) ? .0f : (OutVal - OutValMin) / OutValRange);
+
+		const float InValMin = Curve.Points[0].InVal;
+		const float InValMax = Curve.Points.Last().InVal;
+		InVal = FMath::Lerp(InValMin, InValMax, Alpha);
+		return true;
+	}
+} // namespace
+
+void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curve, int32 Resolution, FInterpCurveFloat& InvertedCurve)
+{
+#if 1
+	if (!ensure(Resolution > 0))
+	{
+		return;
+	}
+
+	InvertedCurve.bIsLooped = Curve.bIsLooped;
+	InvertedCurve.LoopKeyOffset = Curve.LoopKeyOffset;
+	InvertedCurve.Points.Empty();
+
+	// First point
+	{
+		const FInterpCurvePointFloat& Point = Curve.Points[0];
+		InvertedCurve.Points.Add(FInterpCurvePointFloat(Point.OutVal, Point.InVal, .0f, .0f, EInterpCurveMode::CIM_Unknown));
+	}
+
+	for (int i = 0; i < Curve.Points.Num() - 1; ++i)
+	{
+		const FInterpCurvePointFloat& Point = Curve.Points[i];
+		const FInterpCurvePointFloat& NextPoint = Curve.Points[i + 1];
+
+		// Check monotonicity
+		if (NextPoint.OutVal <= Point.OutVal + KINDA_SMALL_NUMBER)
+		{
+			continue;
+		}
+
+		if (Point.InterpMode == EInterpCurveMode::CIM_Constant)
+		{
+			FInterpCurvePointFloat& CurrentPoint = InvertedCurve.Points.Last();
+
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_Constant;
+			InvertedCurve.Points.Add(FInterpCurvePointFloat(NextPoint.OutVal, NextPoint.InVal, .0f, .0f, EInterpCurveMode::CIM_Unknown));
+			break;
+		}
+		else if (Point.InterpMode == EInterpCurveMode::CIM_Linear)
+		{
+			FInterpCurvePointFloat& CurrentPoint = InvertedCurve.Points.Last();
+
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_Linear;
+			InvertedCurve.Points.Add(FInterpCurvePointFloat(NextPoint.OutVal, NextPoint.InVal, .0f, .0f, EInterpCurveMode::CIM_Unknown));
+		}
+		else if (Point.IsCurveKey())
+		{
+			const float DeltaTime = (NextPoint.InVal - Point.InVal) / Resolution;
+			float NextTime = Point.InVal + DeltaTime;
+			for (int a = 0; a < Resolution; ++a)
+			{
+				FInterpCurvePointFloat& CurrentPoint = InvertedCurve.Points.Last();
+				const float NextValue = Curve.Eval(NextTime);
+
+				// Check monotonicity
+				if (NextValue > CurrentPoint.InVal + KINDA_SMALL_NUMBER)
+				{
+					CurrentPoint.InterpMode = EInterpCurveMode::CIM_Linear;
+					InvertedCurve.Points.Add(FInterpCurvePointFloat(NextValue, NextTime, .0f, .0f, EInterpCurveMode::CIM_Unknown));
+				}
+
+				NextTime += DeltaTime;
+			}
+		}
+		else
+		{
+			FInterpCurvePointFloat& CurrentPoint = InvertedCurve.Points.Last();
+
+			CurrentPoint.InterpMode = EInterpCurveMode::CIM_Unknown;
+			InvertedCurve.Points.Add(FInterpCurvePointFloat(NextPoint.OutVal, NextPoint.InVal, .0f, .0f, EInterpCurveMode::CIM_Unknown));
+		}
+	}
+#else
 	const float MonotoneEpsilon = 1.0e-9f;
 
 	InvertedCurve.bIsLooped = Curve.bIsLooped;
@@ -375,6 +472,7 @@ void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curv
 			InvPoint.InterpMode = EInterpCurveMode::CIM_Constant;
 		}
 	}
+#endif
 }
 
 void UProbabilityCurveFunctionLibrary::DrawDebugCurve(

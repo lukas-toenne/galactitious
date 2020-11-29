@@ -55,7 +55,7 @@ GENERATED_BODY()
 	static void NormalizeCurve(const FInterpCurveFloat& Curve, FInterpCurveFloat& NormalizedCurve);
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
-	static void InvertCurve(const FInterpCurveFloat& Curve, FInterpCurveFloat& InvertedCurve);
+	static void InvertCurve(const FInterpCurveFloat& Curve, int32 Resolution, FInterpCurveFloat& InvertedCurve);
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve, meta = (WorldContext = "WorldContextObject"))
 	static void DrawDebugCurve(
