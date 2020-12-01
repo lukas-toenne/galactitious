@@ -3,35 +3,52 @@
 
 #include "ProbabilityCurveFunctionLibrary.h"
 
+#include "Curves/CurveFloat.h"
+#include "Curves/CurveLinearColor.h"
+
 #include "DrawDebugHelpers.h"
 
-UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution)
+namespace
 {
-	if (!ensureMsgf(Resolution >= 1, TEXT("Sampling resolution must be at least 1")))
+	UTexture2D* CreateCurveTexture(int32 Resolution)
 	{
+		if (!ensureMsgf(Resolution >= 1, TEXT("Sampling resolution must be at least 1")))
+		{
+			return nullptr;
+		}
+
+		int32 Width = Resolution;
+		int32 Height = 1;
+		// Grayscale would suffice for storing a curve, but cannot be exported by UImageWriteBlueprintLibrary::ExportToDisk.
+		// Use full RGBA instead.
+		EPixelFormat PixelFormat = PF_A32B32G32R32F;
+
+		UTexture2D* NewTexture = UTexture2D::CreateTransient(Width, Height, PixelFormat);
+		if (NewTexture)
+		{
+			NewTexture->MipGenSettings = TMGS_NoMipmaps;
+			NewTexture->AddressX = TextureAddress::TA_Clamp;
+			NewTexture->AddressY = TextureAddress::TA_Clamp;
+
+			return NewTexture;
+		}
+
 		return nullptr;
 	}
-	if (!ensure(Curve.Points.Num() > 0))
+} // namespace
+
+UTexture2D* UProbabilityCurveFunctionLibrary::FloatCurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution)
+{
+	if (UTexture2D* NewTexture = CreateCurveTexture(Resolution))
 	{
-		return nullptr;
-	}
+		if (!ensure(Curve.Points.Num() > 0))
+		{
+			return nullptr;
+		}
 
-	const float MinTime = Curve.Points[0].InVal;
-	const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
-	const float DeltaTime = (MaxTime - MinTime) / (float)(Resolution - 1);
-
-	int32 Width = Resolution;
-	int32 Height = 1;
-	// Grayscale would suffice for storing a curve, but cannot be exported by UImageWriteBlueprintLibrary::ExportToDisk.
-	// Use full RGBA instead.
-	EPixelFormat PixelFormat = PF_A32B32G32R32F;
-
-	UTexture2D* NewTexture = UTexture2D::CreateTransient(Width, Height, PixelFormat);
-	if (NewTexture)
-	{
-		NewTexture->MipGenSettings = TMGS_NoMipmaps;
-		NewTexture->AddressX = TextureAddress::TA_Clamp;
-		NewTexture->AddressY = TextureAddress::TA_Clamp;
+		const float MinTime = Curve.Points[0].InVal;
+		const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
+		const float DeltaTime = (MaxTime - MinTime) / (float)(Resolution - 1);
 
 		{
 			FVector4* MipData = static_cast<FVector4*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
@@ -42,14 +59,48 @@ UTexture2D* UProbabilityCurveFunctionLibrary::CurveToTexture2D(const FInterpCurv
 				(MipData++)->Set(Value, Value, Value, 1.0f);
 				Time += DeltaTime;
 			}
+		}
+
+		NewTexture->PlatformData->Mips[0].BulkData.Unlock();
+
+		NewTexture->UpdateResource();
+		return NewTexture;
+	}
+
+	return nullptr;
+}
+
+UTexture2D* UProbabilityCurveFunctionLibrary::ColorCurveToTexture2D(const FInterpCurveLinearColor& Curve, int32 Resolution)
+{
+	if (UTexture2D* NewTexture = CreateCurveTexture(Resolution))
+	{
+		if (!ensure(Curve.Points.Num() > 0))
+		{
+			return nullptr;
+		}
+
+		const float MinTime = Curve.Points[0].InVal;
+		const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
+		const float DeltaTime = (MaxTime - MinTime) / (float)(Resolution - 1);
+
+		{
+			FVector4* MipData = static_cast<FVector4*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
+			float Time = MinTime;
+			for (int i = 0; i < Resolution; ++i)
+			{
+				FLinearColor Value = Curve.Eval(Time);
+				*(MipData++) = Value;
+				Time += DeltaTime;
+			}
 
 			NewTexture->PlatformData->Mips[0].BulkData.Unlock();
 		}
 
 		NewTexture->UpdateResource();
+		return NewTexture;
 	}
 
-	return NewTexture;
+	return nullptr;
 }
 
 bool UProbabilityCurveFunctionLibrary::GetAssetFilename(const UObject* Asset, FString& Filename)
@@ -82,9 +133,70 @@ namespace
 		}
 		return CIM_Unknown;
 	}
+
+	void ConvertRichCurve(const FRichCurve& RichCurve, FInterpCurveFloat& Curve)
+	{
+		Curve.bIsLooped = false;
+		Curve.LoopKeyOffset = 0.0f;
+
+		const int32 NumKeys = RichCurve.GetNumKeys();
+		if (NumKeys == 0)
+		{
+			Curve.Points.Empty();
+			return;
+		}
+
+		Curve.Points.SetNum(NumKeys);
+
+		for (auto KeyIter = RichCurve.GetKeyIterator(); KeyIter; ++KeyIter)
+		{
+			FInterpCurvePointFloat& Point = Curve.Points[KeyIter.GetIndex()];
+
+			Point.InVal = KeyIter->Time;
+			Point.OutVal = KeyIter->Value;
+			Point.ArriveTangent = KeyIter->ArriveTangent;
+			Point.LeaveTangent = KeyIter->LeaveTangent;
+			Point.InterpMode = ConvertInterpolationMode(KeyIter->InterpMode);
+		}
+	}
+} // namespace
+
+void UProbabilityCurveFunctionLibrary::ConvertFloatCurveAsset(UCurveFloat* CurveAsset, FInterpCurveFloat& Curve)
+{
+	if (!ensure(CurveAsset != nullptr))
+	{
+		Curve.Points.Empty();
+		return;
+	}
+
+	ConvertRichCurve(CurveAsset->FloatCurve, Curve);
 }
 
-void UProbabilityCurveFunctionLibrary::ConvertCurveAsset(UCurveFloat* CurveAsset, FInterpCurveFloat& Curve)
+namespace
+{
+	bool EnsureCompatibleInterpMode(EInterpCurveMode ModeA, EInterpCurveMode ModeB)
+	{
+		if (ensureMsgf(
+				ModeA != EInterpCurveMode::CIM_Unknown && ModeB != EInterpCurveMode::CIM_Unknown,
+				TEXT("Incompatible interpolation mode: unknown mode")))
+		{
+			if (ensureMsgf(
+					(ModeA == EInterpCurveMode::CIM_Constant) == (ModeB == EInterpCurveMode::CIM_Constant),
+					TEXT("Incompatible interpolation mode: only one key is constant")))
+			{
+				if (ensureMsgf(
+						(ModeA == EInterpCurveMode::CIM_Linear) == (ModeB == EInterpCurveMode::CIM_Linear),
+						TEXT("Incompatible interpolation mode: only one key is linear")))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+}
+
+void UProbabilityCurveFunctionLibrary::ConvertColorCurveAsset(UCurveLinearColor* CurveAsset, FInterpCurveLinearColor& Curve)
 {
 	Curve.bIsLooped = false;
 	Curve.LoopKeyOffset = 0.0f;
@@ -95,25 +207,71 @@ void UProbabilityCurveFunctionLibrary::ConvertCurveAsset(UCurveFloat* CurveAsset
 		return;
 	}
 
-	const FRichCurve& FloatCurve = CurveAsset->FloatCurve;
-	const int32 NumKeys = FloatCurve.GetNumKeys();
-	if (NumKeys == 0)
+	for (int i = 0; i < 4; ++i)
 	{
-		Curve.Points.Empty();
-		return;
-	}
+		FInterpCurveFloat FloatCurve;
+		ConvertRichCurve(CurveAsset->FloatCurves[i], FloatCurve);
 
-	Curve.Points.SetNum(NumKeys);
+		int32 LastValidIndex = 0;
+		for (auto KeyIter = FloatCurve.Points.CreateConstIterator(); KeyIter; ++KeyIter)
+		{
+			bool bPointFound = false;
+			int32 ExistingIndex = -1;
 
-	for (auto KeyIter = FloatCurve.GetKeyIterator(); KeyIter; ++KeyIter)
-	{
-		FInterpCurvePointFloat& Point = Curve.Points[KeyIter.GetIndex()];
+			if (Curve.Points.Num() > 0)
+			{
+				ExistingIndex = Curve.GetPointIndexForInputValue(KeyIter->InVal);
+				if (ExistingIndex >= 0)
+				{
+					FInterpCurvePointLinearColor& ExistingPoint = Curve.Points[ExistingIndex];
+					if (FMath::IsNearlyEqual(KeyIter->InVal, ExistingPoint.InVal))
+					{
+						if (EnsureCompatibleInterpMode(KeyIter->InterpMode, ExistingPoint.InterpMode))
+						{
+							ExistingPoint.OutVal.Component(i) = KeyIter->OutVal;
+							ExistingPoint.ArriveTangent.Component(i) = KeyIter->ArriveTangent;
+							ExistingPoint.LeaveTangent.Component(i) = KeyIter->LeaveTangent;
+						}
+						bPointFound = true;
+					}
+				}
+			}
 
-		Point.InVal = KeyIter->Time;
-		Point.OutVal = KeyIter->Value;
-		Point.ArriveTangent = KeyIter->ArriveTangent;
-		Point.LeaveTangent = KeyIter->LeaveTangent;
-		Point.InterpMode = ConvertInterpolationMode(KeyIter->InterpMode);
+			if (!bPointFound)
+			{
+				FInterpCurvePointLinearColor NewPoint;
+				NewPoint.InterpMode = KeyIter->InterpMode;
+				NewPoint.InVal = KeyIter->InVal;
+				NewPoint.OutVal.Component(i) = KeyIter->OutVal;
+				NewPoint.ArriveTangent.Component(i) = KeyIter->ArriveTangent;
+				NewPoint.LeaveTangent.Component(i) = KeyIter->LeaveTangent;
+
+				// Fill other components from existing curves
+				FLinearColor CurrentValue = Curve.Eval(KeyIter->InVal);
+				FLinearColor CurrentTangent = Curve.EvalDerivative(KeyIter->InVal);
+				for (int k = 0; k < i - 1; ++k)
+				{
+					NewPoint.OutVal.Component(k) = CurrentValue.Component(k);
+					NewPoint.ArriveTangent.Component(k) = CurrentTangent.Component(k);
+					NewPoint.LeaveTangent.Component(k) = CurrentTangent.Component(k);
+				}
+
+				Curve.Points.Insert(NewPoint, ExistingIndex + 1);
+			}
+
+			// Interpolate points between last valid index and the new point
+			for (int FillIndex = LastValidIndex + 1; FillIndex < ExistingIndex; ++FillIndex)
+			{
+				FInterpCurvePointLinearColor& FillPoint = Curve.Points[FillIndex];
+				float FillValue = FloatCurve.Eval(FillPoint.InVal);
+				float FillTangent = FloatCurve.EvalDerivative(FillPoint.InVal);
+				FillPoint.OutVal.Component(i) = FillValue;
+				FillPoint.ArriveTangent.Component(i) = FillTangent;
+				FillPoint.LeaveTangent.Component(i) = FillTangent;
+
+				LastValidIndex = FillIndex;
+			}
+		}
 	}
 }
 

@@ -40,13 +40,19 @@ class GALACTITIOUS_API UProbabilityCurveFunctionLibrary : public UBlueprintFunct
 GENERATED_BODY()
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
-	static UTexture2D* CurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution);
+	static UTexture2D* FloatCurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution);
+
+	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
+	static UTexture2D* ColorCurveToTexture2D(const FInterpCurveLinearColor& ColorCurve, int32 Resolution);
 
 	UFUNCTION(BlueprintPure, Category = ProbabilityCurve)
 	static bool GetAssetFilename(const UObject* Asset, FString& Filename);
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
-	static void ConvertCurveAsset(UCurveFloat *CurveAsset, FInterpCurveFloat& Curve);
+	static void ConvertFloatCurveAsset(UCurveFloat *CurveAsset, FInterpCurveFloat& Curve);
+
+	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
+	static void ConvertColorCurveAsset(UCurveLinearColor* CurveAsset, FInterpCurveLinearColor& Curve);
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
 	static void IntegrateCurve(const FInterpCurveFloat& Curve, float Offset, FInterpCurveFloat& IntegratedCurve);
