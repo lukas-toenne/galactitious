@@ -8,7 +8,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 
 UTexture2D* FTextureBaker::BakeTextureInternal(
-	const FString& Name, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings,
+	const FString& TexturePath, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings,
 	TFunctionRef<void(float X, uint8* OutData)> ValueFn)
 {
 	const int32 Width = Resolution;
@@ -17,13 +17,13 @@ UTexture2D* FTextureBaker::BakeTextureInternal(
 
 	check(Resolution >= 1);
 
-	const FString TextureName = ObjectTools::SanitizeObjectName(Name);
+	const FString TextureName = ObjectTools::SanitizeObjectName(FPaths::GetBaseFilename(TexturePath));
 	if (TextureName.IsEmpty())
 	{
 		return nullptr;
 	}
 
-	const FString PackageName = UPackageTools::SanitizePackageName(FPaths::Combine(TEXT("/Game/Textures"), TextureName));
+	const FString PackageName = UPackageTools::SanitizePackageName(TexturePath);
 	UPackage* AssetPackage = CreatePackage(*PackageName);
 
 	UTexture2D* Texture = NewObject<UTexture2D>(AssetPackage, FName(TextureName), RF_Public | RF_Standalone);

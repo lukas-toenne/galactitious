@@ -18,13 +18,13 @@ struct GALACTITIOUSEDITOR_API FTextureBaker
 public:
 	template <typename ValueType>
 	static UTexture2D* BakeTexture(
-		const FString& Name, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
+		const FString& TexturePath, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
 		TextureMipGenSettings MipGenSettings, TFunctionRef<ValueType(float X)> ValueFn)
 	{
 		const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(SourceFormat);
 		check(sizeof(ValueType) == BytesPerPixel);
 		return BakeTextureInternal(
-			Name, Resolution, PixelFormat, SourceFormat, MipGenSettings, [ValueFn, BytesPerPixel](float X, uint8* OutData) {
+			TexturePath, Resolution, PixelFormat, SourceFormat, MipGenSettings, [ValueFn, BytesPerPixel](float X, uint8* OutData) {
 				ValueType Value = ValueFn(X);
 				memcpy(OutData, &Value, BytesPerPixel);
 			});
@@ -32,6 +32,6 @@ public:
 
 private:
 	static UTexture2D* BakeTextureInternal(
-		const FString& Name, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
+		const FString& TexturePath, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
 		TextureMipGenSettings MipGenSettings, TFunctionRef<void(float X, uint8* OutData)> ValueFn);
 };

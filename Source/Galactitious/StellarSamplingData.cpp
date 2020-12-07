@@ -38,6 +38,10 @@ UStellarSamplingData::UStellarSamplingData()
 #if WITH_EDITOR
 void UStellarSamplingData::BuildFromStellarClasses()
 {
+	if (!ensureMsgf(SamplingTexture != nullptr, TEXT("Sampling texture not set")))
+	{
+		return;
+	}
 	if (!ensureMsgf(StellarClassesTable != nullptr, TEXT("Stellar classes table is not set")))
 	{
 		return;
@@ -140,7 +144,7 @@ void UStellarSamplingData::BuildFromStellarClasses()
 	}
 
 	SamplingTexture = FTextureBaker::BakeTexture<FVector4_16>(
-		"LuminositySampling", 512, PF_A32B32G32R32F, TSF_RGBA16F, TMGS_NoMipmaps,
+		SamplingTexture->GetPathName(), 512, PF_A32B32G32R32F, TSF_RGBA16F, TMGS_NoMipmaps,
 		[LogLuminositySamplingCurve, LogStarCountSamplingCurve](float X) -> FVector4_16 {
 			FVector4_16 Result;
 			Result.X = LogLuminositySamplingCurve.Eval(X);
