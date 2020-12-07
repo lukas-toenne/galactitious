@@ -37,8 +37,9 @@ struct FDrawDebugCurveSettings
 UCLASS()
 class GALACTITIOUS_API UProbabilityCurveFunctionLibrary : public UBlueprintFunctionLibrary
 {
-GENERATED_BODY()
+	GENERATED_BODY()
 
+public:
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
 	static UTexture2D* FloatCurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution);
 

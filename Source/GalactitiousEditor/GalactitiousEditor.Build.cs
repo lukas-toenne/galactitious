@@ -2,19 +2,14 @@
 
 using UnrealBuildTool;
 
-public class Galactitious : ModuleRules
+public class GalactitiousEditor : ModuleRules
 {
-	public Galactitious(ReadOnlyTargetRules Target) : base(Target)
+	public GalactitiousEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] {  });
-
-		if (Target.bBuildEditor == true)
-		{
-			PrivateDependencyModuleNames.Add("GalactitiousEditor");
-		}
+		PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd" });
 	}
 }

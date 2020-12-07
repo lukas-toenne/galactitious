@@ -10,6 +10,6 @@ public class GalactitiousEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V2;
 
-		ExtraModuleNames.AddRange( new string[] { "Galactitious" } );
+		ExtraModuleNames.AddRange( new string[] { "Galactitious", "GalactitiousEditor" } );
 	}
 }
