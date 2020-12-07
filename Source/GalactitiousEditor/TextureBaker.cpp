@@ -8,14 +8,13 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 
 UTexture2D* FTextureBaker::BakeTextureInternal(
-	const FString& TexturePath, int32 Resolution, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings,
-	TFunctionRef<void(float X, uint8* OutData)> ValueFn)
+	const FString& TexturePath, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
+	TextureMipGenSettings MipGenSettings,
+	TFunctionRef<void(float X, float Y, uint8* OutData)> ValueFn)
 {
-	const int32 Width = Resolution;
-	const int32 Height = 1;
 	const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(SourceFormat);
 
-	check(Resolution >= 1);
+	check(Width >= 1 && Height >= 1);
 
 	const FString TextureName = ObjectTools::SanitizeObjectName(FPaths::GetBaseFilename(TexturePath));
 	if (TextureName.IsEmpty())
@@ -41,16 +40,20 @@ UTexture2D* FTextureBaker::BakeTextureInternal(
 			TextureData.AddUninitialized(Width * Height * BytesPerPixel);
 
 			uint8* Data = TextureData.GetData();
-			const float dX = 1.0f / FMath::Max(Resolution - 1, 1);
+			const float dX = 1.0f / FMath::Max(Width - 1, 1);
+			const float dY = 1.0f / FMath::Max(Height - 1, 1);
+
+			float Y = 0.0f;
 			for (int32 j = 0; j < Height; j++)
 			{
 				float X = 0.0f;
 				for (int32 i = 0; i < Width; i++)
 				{
-					ValueFn(X, Data);
+					ValueFn(X, Y, Data);
 					X += dX;
 					Data += BytesPerPixel;
 				}
+				Y += dY;
 			}
 
 			Texture->Source.Init(Width, Height, /*NumSlices=*/1, 1, SourceFormat, TextureData.GetData());

@@ -14,4 +14,14 @@ class GALACTITIOUS_API UTelescopeData : public UDataAsset
 public:
 	GENERATED_BODY()
 
+	UPROPERTY(EditAnywhere)
+	float ApertureObscuration;
+
+	UPROPERTY(EditAnywhere)
+	UTexture2D* AiryDiskTexture;
+
+#if WITH_EDITOR
+	UFUNCTION(BlueprintCallable, CallInEditor)
+	void BakeTextures();
+#endif
 };
