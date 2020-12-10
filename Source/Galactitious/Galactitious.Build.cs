@@ -14,7 +14,7 @@ public class Galactitious : ModuleRules
 
 		if (Target.bBuildEditor == true)
 		{
-			PrivateDependencyModuleNames.Add("GalactitiousEditor");
+			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
 	}
 }

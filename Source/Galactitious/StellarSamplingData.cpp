@@ -3,9 +3,7 @@
 
 #include "StellarSamplingData.h"
 
-#if WITH_EDITOR
-#include "GalactitiousEditor/TextureBaker.h"
-#endif
+#include "TextureBakerFunctionLibrary.h"
 
 namespace
 {
@@ -143,7 +141,7 @@ void UStellarSamplingData::BuildFromStellarClasses()
 		}
 	}
 
-	SamplingTexture = FTextureBaker::BakeTexture<FVector4_16>(
+	SamplingTexture = UTextureBakerFunctionLibrary::BakeTextureAsset<FVector4_16>(
 		SamplingTexture->GetPathName(), 512, 1, PF_A32B32G32R32F, TSF_RGBA16F, TMGS_NoMipmaps,
 		[LogLuminositySamplingCurve, LogStarCountSamplingCurve](float X, float Y) -> FVector4_16 {
 			FVector4_16 Result;

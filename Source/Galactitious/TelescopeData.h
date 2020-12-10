@@ -15,7 +15,10 @@ public:
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere)
-	float ApertureObscuration;
+	float ApertureObscuration = 0.15f;
+
+	UPROPERTY(EditAnywhere)
+	float AiryDiskScale = 8.0f;
 
 	UPROPERTY(EditAnywhere)
 	UTexture2D* AiryDiskTexture;
