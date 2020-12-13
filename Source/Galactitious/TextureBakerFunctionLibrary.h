@@ -36,9 +36,11 @@ public:
 				Texture, Width, Height, PixelFormat, SourceFormat, MipGenSettings,
 				[ValueFn, BytesPerPixel](float X, float Y, uint8* OutData) {
 					ValueType Value = ValueFn(X, Y);
-				memcpy(OutData, &Value, BytesPerPixel));
-				})
+					memcpy(OutData, &Value, BytesPerPixel);
+				});
+			return Texture;
 		}
+		return nullptr;
 	}
 
 #if WITH_EDITOR
@@ -56,8 +58,10 @@ public:
 				[ValueFn, BytesPerPixel](float X, float Y, uint8* OutData) {
 					ValueType Value = ValueFn(X, Y);
 					memcpy(OutData, &Value, BytesPerPixel);
-				})
+				});
+			return Texture;
 		}
+		return nullptr;
 	}
 #endif
 
