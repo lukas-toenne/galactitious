@@ -1,9 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "StellarSamplingData.h"
 
-#include "TextureBakerFunctionLibrary.h"
+#include "GalaxyNiagaraFunctionLibrary.h"
+#include "NiagaraParameterCollection.h"
+#include "ProbabilityCurveFunctionLibrary.h"
 
 namespace
 {
@@ -27,16 +28,35 @@ namespace
 
 		return true;
 	}
-} // namespace
 
-UStellarSamplingData::UStellarSamplingData()
-{
-}
+// Utility macros to perform additional update hacks made necessary due to Niagara bugs
+#define NIAGARA_UPDATE_HACK_BEGIN(_Collection, _UpdatedParameters)                                   \
+	{                                                                                                \
+		/** Restart any systems using this collection. */                                            \
+		FNiagaraSystemUpdateContext _UpdateContext(_Collection, true);                               \
+		/** XXX BUG in UE 4.26: Parameter overrides do not work, have to modify the default instance \
+		/*  https://issues.unrealengine.com/issue/UE-97301                                           \
+		 */                                                                                          \
+		UNiagaraParameterCollectionInstance* _UpdatedParameters = _Collection->GetDefaultInstance();
 
 #if WITH_EDITOR
-void UStellarSamplingData::BuildFromStellarClasses()
+#define NIAGARA_UPDATE_HACK_END(_Collection)                             \
+	/** Push the change to anyone already bound. */                      \
+	_Collection->GetDefaultInstance()->GetParameterStore().Tick();       \
+	/** XXX this is necessary to update editor windows using old data */ \
+	_Collection->OnChangedDelegate.Broadcast();                          \
+	}
+#else
+#define NIAGARA_UPDATE_HACK_END()                   \
+	/** Push the change to anyone already bound. */ \
+	_Collection->GetDefaultInstance()->GetParameterStore().Tick();  \
+	}
+#endif
+} // namespace
+
+void UStarSettings::UpdateNiagaraParameters()
 {
-	if (!ensureMsgf(SamplingTexture != nullptr, TEXT("Sampling texture not set")))
+	if (!ensureMsgf(NiagaraParameters != nullptr, TEXT("Niagara parameter collection not set")))
 	{
 		return;
 	}
@@ -77,8 +97,7 @@ void UStellarSamplingData::BuildFromStellarClasses()
 	TArray<FStellarClass> StellarClasses;
 	StellarClasses.Reserve(StellarClassesTable->GetRowMap().Num());
 	StellarClassesTable->ForeachRow<FStellarClass>(
-		"CreateLuminositySamplingTextures",
-		[&StellarClasses](const FName& Key, const FStellarClass& Value) { StellarClasses.Add(Value); });
+		"CreateLuminositySampling", [&StellarClasses](const FName& Key, const FStellarClass& Value) { StellarClasses.Add(Value); });
 
 	// Sort by luminosity in increasing order
 	StellarClasses.Sort(
@@ -93,31 +112,41 @@ void UStellarSamplingData::BuildFromStellarClasses()
 	// XXX Arbitrary: double min. luminosity of the last class as max. luminosity
 	const float MaxLuminosity = 2.0f * StellarClasses.Last().MinLuminosity;
 
-	AverageLuminosity = 0.0f;
+	// Average luminosity of i-th class
+	auto AverageClassLuminosity = [StellarClasses, MaxLuminosity](int32 i) -> float {
+		const float MinClassLuminosity = StellarClasses[i].MinLuminosity;
+		const float MaxClassLuminosity = i < StellarClasses.Num() - 1 ? StellarClasses[i + 1].MinLuminosity : MaxLuminosity;
+		return 0.5f * (MinClassLuminosity + MaxClassLuminosity) * StellarClasses[i].Fraction;
+	};
+
+	float AverageLuminosity = 0.0f;
 	for (int32 i = 0; i < StellarClasses.Num(); ++i)
 	{
-		const float LuminosityStart = StellarClasses[i].MinLuminosity;
-		const float LuminosityEnd = i < StellarClasses.Num() - 1 ? StellarClasses[i + 1].MinLuminosity : MaxLuminosity;
-		AverageLuminosity += 0.5f * (LuminosityStart + LuminosityEnd) * StellarClasses[i].Fraction;
+		AverageLuminosity += AverageClassLuminosity(i);
 	}
 
 	// Stores logarithmic Luminosity ln(L) for more sensible values.
 	// Luminosity varies by many orders of magnitude.
-	FInterpCurveFloat LogLuminositySamplingCurve;
+	FRichCurve LogLuminositySamplingCurve;
 	// Number of stars represented by one particle.
-	FInterpCurveFloat LogStarCountSamplingCurve;
+	FRichCurve LogStarCountSamplingCurve;
 	float TotalProbability = 0.0f;
-	for (const FStellarClass& StellarClass : StellarClasses)
+	for (int32 i = 0; i < StellarClasses.Num(); ++i)
 	{
+		const FStellarClass& StellarClass = StellarClasses[i];
+		const float Luminosity = StellarClass.MinLuminosity;
+
 		// Probability is tweaked such that stars with luminosity > Lf
 		// can be represented by a single particle without changing overall Luminosity too much.
-		const float Probability = StellarClass.MinLuminosity < AverageLuminosity
-									  ? StellarClass.Fraction * StellarClass.MinLuminosity / AverageLuminosity
-									  : StellarClass.Fraction;
-		const float StarCount = StellarClass.MinLuminosity < AverageLuminosity ? AverageLuminosity / StellarClass.MinLuminosity : 1.0f;
+		const float Probability =
+			Luminosity < AverageLuminosity ? StellarClass.Fraction * Luminosity / AverageLuminosity : StellarClass.Fraction;
+		const float StarCount = Luminosity < AverageLuminosity ? AverageLuminosity / Luminosity : 1.0f;
 
-		LogLuminositySamplingCurve.AddPoint(TotalProbability, FMath::Loge(StellarClass.MinLuminosity));
-		LogStarCountSamplingCurve.AddPoint(TotalProbability, FMath::Loge(StarCount));
+		FKeyHandle Handle;
+		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(StellarClass.MinLuminosity));
+		LogLuminositySamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
+		Handle = LogStarCountSamplingCurve.AddKey(TotalProbability, FMath::Loge(StarCount));
+		LogStarCountSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
 
 		TotalProbability += Probability;
 	}
@@ -125,31 +154,54 @@ void UStellarSamplingData::BuildFromStellarClasses()
 	{
 		const float StarCount = MaxLuminosity < AverageLuminosity ? AverageLuminosity / MaxLuminosity : 1.0f;
 
-		LogLuminositySamplingCurve.AddPoint(TotalProbability, FMath::Loge(MaxLuminosity));
-		LogStarCountSamplingCurve.AddPoint(TotalProbability, FMath::Loge(StarCount));
+		FKeyHandle Handle;
+		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(MaxLuminosity));
+		LogLuminositySamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
+		Handle = LogStarCountSamplingCurve.AddKey(TotalProbability, FMath::Loge(StarCount));
+		LogStarCountSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
 	}
 	// Normalize probability
 	if (!FMath::IsNearlyZero(TotalProbability))
 	{
-		for (FInterpCurvePointFloat& CurvePoint : LogLuminositySamplingCurve.Points)
+		for (FRichCurveKey& Key : LogLuminositySamplingCurve.Keys)
 		{
-			CurvePoint.InVal /= TotalProbability;
+			Key.Time /= TotalProbability;
+			Key.ArriveTangent *= TotalProbability;
+			Key.LeaveTangent *= TotalProbability;
 		}
-		for (FInterpCurvePointFloat& CurvePoint : LogStarCountSamplingCurve.Points)
+		for (FRichCurveKey& Key : LogStarCountSamplingCurve.Keys)
 		{
-			CurvePoint.InVal /= TotalProbability;
+			Key.Time /= TotalProbability;
+			Key.ArriveTangent *= TotalProbability;
+			Key.LeaveTangent *= TotalProbability;
 		}
 	}
 
-	SamplingTexture = UTextureBakerFunctionLibrary::BakeTextureAsset<FVector4_16>(
-		SamplingTexture->GetPathName(), 512, 1, PF_A32B32G32R32F, TSF_RGBA16F, TMGS_NoMipmaps,
-		[LogLuminositySamplingCurve, LogStarCountSamplingCurve](float X, float Y) -> FVector4_16 {
-			FVector4_16 Result;
-			Result.X = LogLuminositySamplingCurve.Eval(X);
-			Result.Y = LogStarCountSamplingCurve.Eval(X);
-			Result.Z = 0.0f;
-			Result.W = 1.0f;
-			return Result;
-		});
+	NIAGARA_UPDATE_HACK_BEGIN(NiagaraParameters->Collection, UpdatedParameters)
+	const bool bOverride = false;
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("LuminositySamplingCurve"), LogLuminositySamplingCurve, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("StarCountSamplingCurve"), LogStarCountSamplingCurve, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("AverageLuminosity"), AverageLuminosity, bOverride);
+	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
 }
-#endif
+
+void UGalaxyShapeSettings::UpdateNiagaraParameters()
+{
+	if (!ensureMsgf(NiagaraParameters != nullptr, TEXT("Niagara parameter collection not set")))
+	{
+		return;
+	}
+
+	NIAGARA_UPDATE_HACK_BEGIN(NiagaraParameters->Collection, UpdatedParameters)
+	const bool bOverride = false;
+	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Radius"), Radius, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Velocity"), Velocity, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Perturbation"), Perturbation, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("WindingFrequency"), WindingFrequency, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("ThicknessCurve"), ThicknessCurve->FloatCurve, bOverride);
+
+	FRichCurve RadialSamplingCurve;
+	UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(RadialDensityCurve->FloatCurve, RadialSamplingCurve);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("RadialSamplingCurve"), RadialSamplingCurve, bOverride);
+	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
+}

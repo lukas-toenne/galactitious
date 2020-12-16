@@ -8,46 +8,68 @@
 
 #include "StellarSamplingData.generated.h"
 
-USTRUCT(Blueprintable, BlueprintType)
+USTRUCT(BlueprintType)
 struct GALACTITIOUS_API FStellarClass : public FTableRowBase
 {
 	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(EditAnywhere)
 	float MinTemperature = 0.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(EditAnywhere)
 	float MinMass = 0.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(EditAnywhere)
 	float MinRadius = 0.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(EditAnywhere)
 	float MinLuminosity = 0.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(EditAnywhere)
 	float Fraction = 0.0f;
 };
 
 UCLASS(BlueprintType)
-class GALACTITIOUS_API UStellarSamplingData : public UDataAsset
+class GALACTITIOUS_API UGalaxyShapeSettings : public UDataAsset
 {
-public:
 	GENERATED_BODY()
 
-	UStellarSamplingData();
+	UFUNCTION(BlueprintCallable, CallInEditor)
+	void UpdateNiagaraParameters();
+
+	UPROPERTY(EditAnywhere)
+	class UNiagaraParameterCollectionInstance* NiagaraParameters;
+
+	UPROPERTY(EditAnywhere)
+	float Radius = 100.0f;
+
+	UPROPERTY(EditAnywhere)
+	float Velocity = 10.0f;
+
+	UPROPERTY(EditAnywhere)
+	float Perturbation = 0.7f;
+
+	UPROPERTY(EditAnywhere)
+	float WindingFrequency = -1.5f;
+
+	UPROPERTY(EditAnywhere)
+	UCurveFloat* RadialDensityCurve;
+
+	UPROPERTY(EditAnywhere)
+	UCurveFloat* ThicknessCurve;
+};
+
+UCLASS(BlueprintType)
+class GALACTITIOUS_API UStarSettings : public UDataAsset
+{
+	GENERATED_BODY()
+
+	UFUNCTION(BlueprintCallable, CallInEditor)
+	void UpdateNiagaraParameters();
+
+	UPROPERTY(EditAnywhere)
+	class UNiagaraParameterCollectionInstance* NiagaraParameters;
 
 	UPROPERTY(EditAnywhere, meta = (RequiredAssetDataTags = "RowStructure=StellarClass"))
 	UDataTable* StellarClassesTable;
-
-	UPROPERTY(EditAnywhere)
-	float AverageLuminosity;
-
-	UPROPERTY(EditAnywhere)
-	UTexture2D* SamplingTexture;
-
-#if WITH_EDITOR
-	UFUNCTION(BlueprintCallable, CallInEditor)
-	void BuildFromStellarClasses();
-#endif
 };

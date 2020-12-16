@@ -65,6 +65,9 @@ public:
 	}
 #endif
 
+	TFunction<float(float X, float Y)> FloatCurveEvalFunction(const struct FInterpCurveFloat& Curve);
+	TFunction<FLinearColor(float X, float Y)> LinearColorCurveEvalFunction(const struct FInterpCurveLinearColor& Curve);
+
 private:
 	static void BakeTextureInternal(
 		UTexture2D* Texture, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,

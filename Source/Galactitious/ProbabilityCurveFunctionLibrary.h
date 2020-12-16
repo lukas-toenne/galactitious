@@ -7,6 +7,8 @@
 #include "Curves/CurveFloat.h"
 #include "ProbabilityCurveFunctionLibrary.generated.h"
 
+struct FRichCurve;
+
 USTRUCT(BlueprintType)
 struct FDrawDebugCurveSettings
 {
@@ -41,15 +43,6 @@ class GALACTITIOUS_API UProbabilityCurveFunctionLibrary : public UBlueprintFunct
 
 public:
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
-	static UTexture2D* FloatCurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution);
-
-	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
-	static UTexture2D* ColorCurveToTexture2D(const FInterpCurveLinearColor& ColorCurve, int32 Resolution);
-
-	UFUNCTION(BlueprintPure, Category = ProbabilityCurve)
-	static bool GetAssetFilename(const UObject* Asset, FString& Filename);
-
-	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
 	static void ConvertFloatCurveAsset(UCurveFloat *CurveAsset, FInterpCurveFloat& Curve);
 
 	UFUNCTION(BlueprintCallable, Category = ProbabilityCurve)
@@ -68,4 +61,14 @@ public:
 	static void DrawDebugCurve(
 		const UObject* WorldContextObject, const FInterpCurveFloat& Curve, const FTransform& Transform,
 		const FDrawDebugCurveSettings& Settings, bool bPersistentLines = false, float LifeTime = -1.f, uint8 DepthPriority = 0);
+
+	// Internal functions for types not supported by blueprints
+	static void ConvertFromRichCurve(const FRichCurve& RichCurve, FInterpCurveFloat& Curve);
+	static void ConvertToRichCurve(const FInterpCurveFloat& Curve, FRichCurve& RichCurve);
+
+	static void IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve);
+	static void NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve);
+	static void InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve);
+
+	static void ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& QuantileCurve);
 };

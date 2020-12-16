@@ -1,126 +1,19 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "ProbabilityCurveFunctionLibrary.h"
+
+#include "DrawDebugHelpers.h"
 
 #include "Curves/CurveFloat.h"
 #include "Curves/CurveLinearColor.h"
 
-#include "DrawDebugHelpers.h"
+DEFINE_LOG_CATEGORY_STATIC(LogProbabilityCurve, Log, All);
 
 namespace
 {
-	UTexture2D* CreateCurveTexture(int32 Resolution)
+	EInterpCurveMode ConvertInterpolationMode(ERichCurveInterpMode InterpMode, ERichCurveTangentMode TangentMode)
 	{
-		if (!ensureMsgf(Resolution >= 1, TEXT("Sampling resolution must be at least 1")))
-		{
-			return nullptr;
-		}
-
-		int32 Width = Resolution;
-		int32 Height = 1;
-		// Grayscale would suffice for storing a curve, but cannot be exported by UImageWriteBlueprintLibrary::ExportToDisk.
-		// Use full RGBA instead.
-		EPixelFormat PixelFormat = PF_A32B32G32R32F;
-
-		UTexture2D* NewTexture = UTexture2D::CreateTransient(Width, Height, PixelFormat);
-		if (NewTexture)
-		{
-			NewTexture->MipGenSettings = TMGS_NoMipmaps;
-			NewTexture->AddressX = TextureAddress::TA_Clamp;
-			NewTexture->AddressY = TextureAddress::TA_Clamp;
-
-			return NewTexture;
-		}
-
-		return nullptr;
-	}
-} // namespace
-
-UTexture2D* UProbabilityCurveFunctionLibrary::FloatCurveToTexture2D(const FInterpCurveFloat& Curve, int32 Resolution)
-{
-	if (UTexture2D* NewTexture = CreateCurveTexture(Resolution))
-	{
-		if (!ensure(Curve.Points.Num() > 0))
-		{
-			return nullptr;
-		}
-
-		const float MinTime = Curve.Points[0].InVal;
-		const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
-		const float DeltaTime = (MaxTime - MinTime) / (float)(Resolution - 1);
-
-		{
-			FVector4* MipData = static_cast<FVector4*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
-			float Time = MinTime;
-			for (int i = 0; i < Resolution; ++i)
-			{
-				float Value = Curve.Eval(Time);
-				(MipData++)->Set(Value, Value, Value, 1.0f);
-				Time += DeltaTime;
-			}
-		}
-
-		NewTexture->PlatformData->Mips[0].BulkData.Unlock();
-
-		NewTexture->UpdateResource();
-		return NewTexture;
-	}
-
-	return nullptr;
-}
-
-UTexture2D* UProbabilityCurveFunctionLibrary::ColorCurveToTexture2D(const FInterpCurveLinearColor& Curve, int32 Resolution)
-{
-	if (UTexture2D* NewTexture = CreateCurveTexture(Resolution))
-	{
-		if (!ensure(Curve.Points.Num() > 0))
-		{
-			return nullptr;
-		}
-
-		const float MinTime = Curve.Points[0].InVal;
-		const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
-		const float DeltaTime = (MaxTime - MinTime) / (float)(Resolution - 1);
-
-		{
-			FVector4* MipData = static_cast<FVector4*>(NewTexture->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE));
-			float Time = MinTime;
-			for (int i = 0; i < Resolution; ++i)
-			{
-				FLinearColor Value = Curve.Eval(Time);
-				*(MipData++) = Value;
-				Time += DeltaTime;
-			}
-
-			NewTexture->PlatformData->Mips[0].BulkData.Unlock();
-		}
-
-		NewTexture->UpdateResource();
-		return NewTexture;
-	}
-
-	return nullptr;
-}
-
-bool UProbabilityCurveFunctionLibrary::GetAssetFilename(const UObject* Asset, FString& Filename)
-{
-	Filename.Empty();
-	if (const UPackage* Package = Asset->GetPackage())
-	{
-		// This is a package in memory that has not yet been saved. Determine the extension and convert to a filename
-		const FString* PackageExtension =
-			Package->ContainsMap() ? &FPackageName::GetMapPackageExtension() : &FPackageName::GetAssetPackageExtension();
-		return FPackageName::TryConvertLongPackageNameToFilename(Package->GetName(), Filename, *PackageExtension);
-	}
-	return false;
-}
-
-namespace
-{
-	EInterpCurveMode ConvertInterpolationMode(ERichCurveInterpMode Mode)
-	{
-		switch (Mode)
+		switch (InterpMode)
 		{
 		case RCIM_None:
 			return CIM_Unknown;
@@ -129,34 +22,48 @@ namespace
 		case RCIM_Linear:
 			return CIM_Linear;
 		case RCIM_Cubic:
-			return CIM_CurveBreak;
+		{
+			switch (TangentMode)
+			{
+			case RCTM_Auto:
+				return CIM_CurveAuto;
+			case RCTM_Break:
+				return CIM_CurveBreak;
+			case RCTM_User:
+				return CIM_CurveUser;
+			case RCTM_None:
+				return CIM_Unknown;
+			}
+		}
 		}
 		return CIM_Unknown;
 	}
 
-	void ConvertRichCurve(const FRichCurve& RichCurve, FInterpCurveFloat& Curve)
+	void ConvertInterpolationMode(EInterpCurveMode CurveMode, ERichCurveInterpMode& OutInterpMode, ERichCurveTangentMode& OutTangentMode)
 	{
-		Curve.bIsLooped = false;
-		Curve.LoopKeyOffset = 0.0f;
-
-		const int32 NumKeys = RichCurve.GetNumKeys();
-		if (NumKeys == 0)
+		switch (CurveMode)
 		{
-			Curve.Points.Empty();
-			return;
-		}
-
-		Curve.Points.SetNum(NumKeys);
-
-		for (auto KeyIter = RichCurve.GetKeyIterator(); KeyIter; ++KeyIter)
-		{
-			FInterpCurvePointFloat& Point = Curve.Points[KeyIter.GetIndex()];
-
-			Point.InVal = KeyIter->Time;
-			Point.OutVal = KeyIter->Value;
-			Point.ArriveTangent = KeyIter->ArriveTangent;
-			Point.LeaveTangent = KeyIter->LeaveTangent;
-			Point.InterpMode = ConvertInterpolationMode(KeyIter->InterpMode);
+		case CIM_Unknown:
+			OutInterpMode = RCIM_None;
+			OutTangentMode = RCTM_None;
+		case CIM_Constant:
+			OutInterpMode = RCIM_Constant;
+			OutTangentMode = RCTM_None;
+		case CIM_Linear:
+			OutInterpMode = RCIM_Linear;
+			OutTangentMode = RCTM_None;
+		case CIM_CurveAuto:
+			OutInterpMode = RCIM_Cubic;
+			OutTangentMode = RCTM_Auto;
+		case CIM_CurveAutoClamped:
+			OutInterpMode = RCIM_Cubic;
+			OutTangentMode = RCTM_Auto;
+		case CIM_CurveBreak:
+			OutInterpMode = RCIM_Cubic;
+			OutTangentMode = RCTM_Break;
+		case CIM_CurveUser:
+			OutInterpMode = RCIM_Cubic;
+			OutTangentMode = RCTM_User;
 		}
 	}
 } // namespace
@@ -169,7 +76,7 @@ void UProbabilityCurveFunctionLibrary::ConvertFloatCurveAsset(UCurveFloat* Curve
 		return;
 	}
 
-	ConvertRichCurve(CurveAsset->FloatCurve, Curve);
+	ConvertFromRichCurve(CurveAsset->FloatCurve, Curve);
 }
 
 namespace
@@ -194,7 +101,7 @@ namespace
 		}
 		return false;
 	}
-}
+} // namespace
 
 void UProbabilityCurveFunctionLibrary::ConvertColorCurveAsset(UCurveLinearColor* CurveAsset, FInterpCurveLinearColor& Curve)
 {
@@ -210,7 +117,7 @@ void UProbabilityCurveFunctionLibrary::ConvertColorCurveAsset(UCurveLinearColor*
 	for (int i = 0; i < 4; ++i)
 	{
 		FInterpCurveFloat FloatCurve;
-		ConvertRichCurve(CurveAsset->FloatCurves[i], FloatCurve);
+		ConvertFromRichCurve(CurveAsset->FloatCurves[i], FloatCurve);
 
 		int32 LastValidIndex = 0;
 		for (auto KeyIter = FloatCurve.Points.CreateConstIterator(); KeyIter; ++KeyIter)
@@ -314,7 +221,7 @@ namespace
 			else if (FMath::IsNearlyZero(q))
 			{
 				// One extremum
-				OutExtrema[0] = - b / (2.0f * a);
+				OutExtrema[0] = -b / (2.0f * a);
 				return 1;
 			}
 			else
@@ -355,7 +262,7 @@ void UProbabilityCurveFunctionLibrary::IntegrateCurve(const FInterpCurveFloat& C
 	// First point
 	{
 		const FInterpCurvePointFloat& Point = Curve.Points[0];
-		IntegratedCurve.Points.Add(FInterpCurvePointFloat(Point.InVal, Value, Point.OutVal, .0f, EInterpCurveMode::CIM_Unknown));
+		IntegratedCurve.Points.Add(FInterpCurvePointFloat(Point.InVal, Value, .0f, Point.OutVal, EInterpCurveMode::CIM_Unknown));
 	}
 
 	for (int i = 0; i < Curve.Points.Num() - 1; ++i)
@@ -403,8 +310,7 @@ void UProbabilityCurveFunctionLibrary::IntegrateCurve(const FInterpCurveFloat& C
 
 			float Extrema[2];
 			int NumExtrema = FindExtrema(
-				Point.OutVal, NextPoint.OutVal, Point.LeaveTangent * TotalDeltaTime, NextPoint.ArriveTangent * TotalDeltaTime,
-				Extrema);
+				Point.OutVal, NextPoint.OutVal, Point.LeaveTangent * TotalDeltaTime, NextPoint.ArriveTangent * TotalDeltaTime, Extrema);
 			for (int a = 0; a < NumExtrema; ++a)
 			{
 				if (Extrema[a] <= .0f || Extrema[a] >= 1.0f)
@@ -451,7 +357,7 @@ void UProbabilityCurveFunctionLibrary::IntegrateCurve(const FInterpCurveFloat& C
 
 	// Last point
 	{
-		const FInterpCurvePointFloat& Point = Curve.Points[Curve.Points.Num() - 1];
+		const FInterpCurvePointFloat& Point = Curve.Points.Last();
 		FInterpCurvePointFloat& CurrentPoint = IntegratedCurve.Points.Last();
 
 		CurrentPoint.LeaveTangent = Point.OutVal;
@@ -502,7 +408,7 @@ namespace
 		{
 			return false;
 		}
-		
+
 		float OutValMin, OutValMax;
 		Curve.CalcBounds(OutValMin, OutValMax, Curve.Points[0].OutVal);
 
@@ -613,9 +519,8 @@ void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curv
 		InvPoint.InterpMode = Point.InterpMode;
 
 		const FInterpCurvePointFloat& NextPoint = (i < Curve.Points.Num() - 1 ? Curve.Points[i + 1] : Point);
-		const bool bRequireJumpPoint =
-			Point.InterpMode == EInterpCurveMode::CIM_Constant ||
-			(i < Curve.Points.Num() - 1 && NextPoint.OutVal < Point.OutVal + MonotoneEpsilon);
+		const bool bRequireJumpPoint = Point.InterpMode == EInterpCurveMode::CIM_Constant ||
+									   (i < Curve.Points.Num() - 1 && NextPoint.OutVal < Point.OutVal + MonotoneEpsilon);
 		if (bRequireJumpPoint)
 		{
 			FInterpCurvePointFloat& JumpPoint = InvertedCurve.Points.Emplace_GetRef();
@@ -634,8 +539,8 @@ void UProbabilityCurveFunctionLibrary::InvertCurve(const FInterpCurveFloat& Curv
 }
 
 void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
-	const UObject* WorldContextObject, const FInterpCurveFloat& Curve, const FTransform& Transform,
-	const FDrawDebugCurveSettings& Settings, bool bPersistentLines, float LifeTime, uint8 DepthPriority)
+	const UObject* WorldContextObject, const FInterpCurveFloat& Curve, const FTransform& Transform, const FDrawDebugCurveSettings& Settings,
+	bool bPersistentLines, float LifeTime, uint8 DepthPriority)
 {
 	if (!ensure(Settings.CurveResolution >= 1))
 	{
@@ -683,7 +588,9 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 					ArrivePos = Position;
 				}
 
-				DrawDebugLine(World, ArrivePos, Position, Settings.TangentColor, bPersistentLines, LifeTime, DepthPriority, Settings.TangentThickness);
+				DrawDebugLine(
+					World, ArrivePos, Position, Settings.TangentColor, bPersistentLines, LifeTime, DepthPriority,
+					Settings.TangentThickness);
 			}
 
 			if (i < Curve.Points.Num() - 1)
@@ -710,7 +617,8 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 					LeavePos = Position;
 				}
 
-				DrawDebugLine(World, Position, LeavePos, Settings.TangentColor, bPersistentLines, LifeTime, DepthPriority, Settings.TangentThickness);
+				DrawDebugLine(
+					World, Position, LeavePos, Settings.TangentColor, bPersistentLines, LifeTime, DepthPriority, Settings.TangentThickness);
 			}
 		}
 
@@ -724,13 +632,15 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 			{
 				FVector Position = Transform.TransformPosition(FVector(Point.InVal, .0f, Point.OutVal));
 				FVector NextPosition = Transform.TransformPosition(FVector(NextPoint.InVal, .0f, Point.OutVal));
-				DrawDebugLine(World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority, Settings.LineThickness);
+				DrawDebugLine(
+					World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority, Settings.LineThickness);
 			}
 			else if (Point.InterpMode == EInterpCurveMode::CIM_Linear)
 			{
 				FVector Position = Transform.TransformPosition(FVector(Point.InVal, .0f, Point.OutVal));
 				FVector NextPosition = Transform.TransformPosition(FVector(NextPoint.InVal, .0f, NextPoint.OutVal));
-				DrawDebugLine(World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority, Settings.LineThickness);
+				DrawDebugLine(
+					World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority, Settings.LineThickness);
 			}
 			// Any of the curve modes
 			else if (Point.IsCurveKey())
@@ -740,7 +650,7 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 				float x = Point.InVal;
 				FVector Position = Transform.TransformPosition(FVector(x, .0f, Curve.Eval(x, .0f)));
 
-				for (int32 a = 0; a < Settings.CurveResolution ; ++a)
+				for (int32 a = 0; a < Settings.CurveResolution; ++a)
 				{
 					// TODO Forward differencing is more efficient for eval at constant intervals,
 					// not necessary for debug drawing though.
@@ -748,7 +658,9 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 					x += dx;
 					FVector NextPosition = Transform.TransformPosition(FVector(x, .0f, Curve.Eval(x, .0f)));
 
-					DrawDebugLine(World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority, Settings.LineThickness);
+					DrawDebugLine(
+						World, Position, NextPosition, Settings.LineColor, bPersistentLines, LifeTime, DepthPriority,
+						Settings.LineThickness);
 
 					Position = NextPosition;
 				}
@@ -760,4 +672,359 @@ void UProbabilityCurveFunctionLibrary::DrawDebugCurve(
 			}
 		}
 	}
+}
+
+void UProbabilityCurveFunctionLibrary::ConvertFromRichCurve(const FRichCurve& RichCurve, FInterpCurveFloat& Curve)
+{
+	Curve.bIsLooped = false;
+	Curve.LoopKeyOffset = 0.0f;
+
+	const int32 NumKeys = RichCurve.GetNumKeys();
+	if (NumKeys == 0)
+	{
+		Curve.Points.Empty();
+		return;
+	}
+
+	Curve.Points.SetNum(NumKeys);
+
+	for (auto KeyIter = RichCurve.GetKeyIterator(); KeyIter; ++KeyIter)
+	{
+		FInterpCurvePointFloat& Point = Curve.Points[KeyIter.GetIndex()];
+
+		Point.InVal = KeyIter->Time;
+		Point.OutVal = KeyIter->Value;
+		Point.ArriveTangent = KeyIter->ArriveTangent;
+		Point.LeaveTangent = KeyIter->LeaveTangent;
+		Point.InterpMode = ConvertInterpolationMode(KeyIter->InterpMode, KeyIter->TangentMode);
+	}
+}
+
+void UProbabilityCurveFunctionLibrary::ConvertToRichCurve(const FInterpCurveFloat& Curve, FRichCurve& RichCurve)
+{
+	if (Curve.bIsLooped)
+	{
+		RichCurve.PreInfinityExtrap = ERichCurveExtrapolation::RCCE_Cycle;
+		RichCurve.PostInfinityExtrap = ERichCurveExtrapolation::RCCE_Cycle;
+	}
+	else
+	{
+		RichCurve.PreInfinityExtrap = ERichCurveExtrapolation::RCCE_None;
+		RichCurve.PostInfinityExtrap = ERichCurveExtrapolation::RCCE_None;
+	}
+
+	const int32 NumKeys = Curve.Points.Num();
+	if (NumKeys == 0)
+	{
+		RichCurve.Reset();
+		return;
+	}
+
+	for (const FInterpCurvePointFloat& Point : Curve.Points)
+	{
+		FKeyHandle KeyHandle = RichCurve.UpdateOrAddKey(Point.InVal, Point.OutVal);
+		FRichCurveKey& Key = RichCurve.GetKey(KeyHandle);
+		ERichCurveInterpMode InterpMode;
+		ERichCurveTangentMode TangentMode;
+		ConvertInterpolationMode(Point.InterpMode, InterpMode, TangentMode);
+		Key.InterpMode = InterpMode;
+		Key.TangentMode = TangentMode;
+		Key.TangentWeightMode = ERichCurveTangentWeightMode::RCTWM_WeightedNone;
+		Key.ArriveTangent = Point.ArriveTangent;
+		Key.LeaveTangent = Point.LeaveTangent;
+	}
+}
+
+namespace
+{
+	using RichCurveIterator = TIndexedContainerIterator<const TArray<FRichCurveKey>, FRichCurveKey, int32>;
+
+	void AddRichCurveKey(
+		FRichCurve& Curve, float Time, float Value, float ArriveTangent, float LeaveTangent, ERichCurveInterpMode InterpMode = RCIM_None,
+		ERichCurveTangentMode TangentMode = RCTM_Auto)
+	{
+		FKeyHandle Handle = Curve.AddKey(Time, Value);
+		FRichCurveKey& Key = Curve.GetKey(Handle);
+		Key.InterpMode = InterpMode;
+		Key.TangentMode = TangentMode;
+		Key.ArriveTangent = ArriveTangent;
+		Key.LeaveTangent = LeaveTangent;
+	}
+} // namespace
+
+void UProbabilityCurveFunctionLibrary::IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve)
+{
+	IntegratedCurve.PreInfinityExtrap = RCCE_Constant;
+	IntegratedCurve.PostInfinityExtrap = RCCE_Constant;
+	IntegratedCurve.Reset();
+	if (Curve.GetNumKeys() == 0)
+	{
+		return;
+	}
+
+	float Value = Offset;
+	// First point
+	{
+		const FRichCurveKey& Point = Curve.Keys[0];
+		AddRichCurveKey(IntegratedCurve, Point.Time, Value, .0f, Point.Value);
+	}
+
+	for (auto KeyIter(Curve.GetKeyIterator()); KeyIter && KeyIter + 1; ++KeyIter)
+	{
+		const FRichCurveKey& Point = *KeyIter;
+		const FRichCurveKey& NextPoint = *(KeyIter + 1);
+
+		if (Point.InterpMode == RCIM_Constant)
+		{
+			const float Time0 = Point.Time;
+			const float Time1 = NextPoint.Time;
+			const float DeltaTime = Time1 - Time0;
+			const float Slope0 = Point.Value;
+			FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+			Value += Slope0 * DeltaTime;
+
+			CurrentPoint.LeaveTangent = Slope0;
+			CurrentPoint.InterpMode = RCIM_Linear;
+			AddRichCurveKey(IntegratedCurve, Time1, Value, Slope0, .0f);
+			break;
+		}
+		else if (Point.InterpMode == RCIM_Linear)
+		{
+			const float Time0 = Point.Time;
+			const float Time1 = NextPoint.Time;
+			const float DeltaTime = Time1 - Time0;
+			const float Slope0 = Point.Value;
+			const float Slope1 = NextPoint.Value;
+			FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+			Value += (Slope0 + Slope1) * DeltaTime * 0.5f;
+
+			CurrentPoint.LeaveTangent = Slope0;
+			CurrentPoint.InterpMode = RCIM_Cubic;
+			CurrentPoint.TangentMode = RCTM_Break;
+			AddRichCurveKey(IntegratedCurve, Time1, Value, Slope1, .0f);
+		}
+		else if (Point.InterpMode == RCIM_Cubic)
+		{
+			// Cannot go above cubic splines, so use linear interpolation between extrema to minimize errors.
+
+			const float TotalDeltaTime = NextPoint.Time - Point.Time;
+			float CurrentTime = Point.Time;
+			float CurrentSlope = Point.Value;
+
+			float Extrema[2];
+			int NumExtrema = FindExtrema(
+				Point.Value, NextPoint.Value, Point.LeaveTangent * TotalDeltaTime, NextPoint.ArriveTangent * TotalDeltaTime, Extrema);
+			for (int a = 0; a < NumExtrema; ++a)
+			{
+				if (Extrema[a] <= .0f || Extrema[a] >= 1.0f)
+				{
+					continue;
+				}
+
+				const float NextTime = CurrentTime + Extrema[a] * TotalDeltaTime;
+				const float NextSlope = Curve.Eval(NextTime);
+				FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+				Value += (CurrentSlope + NextSlope) * (NextTime - CurrentTime) * 0.5f;
+
+				CurrentPoint.LeaveTangent = CurrentSlope;
+				CurrentPoint.InterpMode = RCIM_Cubic;
+				CurrentPoint.TangentMode = RCTM_Break;
+				AddRichCurveKey(IntegratedCurve, NextTime, Value, NextSlope, .0f);
+
+				CurrentTime = NextTime;
+				CurrentSlope = NextSlope;
+			}
+
+			// Last point of segment
+			const float NextTime = NextPoint.Time;
+			const float NextSlope = NextPoint.Value;
+			FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+			Value += (CurrentSlope + NextSlope) * (NextTime - CurrentTime) * 0.5f;
+
+			CurrentPoint.LeaveTangent = CurrentSlope;
+			CurrentPoint.InterpMode = RCIM_Cubic;
+			CurrentPoint.TangentMode = RCTM_Break;
+			AddRichCurveKey(IntegratedCurve, NextTime, Value, NextSlope, .0f);
+		}
+		else
+		{
+			const float Time1 = NextPoint.Time;
+			FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+			// Unknown
+			CurrentPoint.LeaveTangent = .0f;
+			CurrentPoint.InterpMode = RCIM_None;
+			AddRichCurveKey(IntegratedCurve, Time1, Value, .0f, .0f);
+		}
+	}
+
+	// Last point
+	{
+		const FRichCurveKey& Point = Curve.Keys.Last();
+		FRichCurveKey& CurrentPoint = IntegratedCurve.Keys.Last();
+
+		CurrentPoint.LeaveTangent = Point.Value;
+		CurrentPoint.InterpMode = RCIM_Cubic;
+		CurrentPoint.TangentMode = RCTM_Break;
+	}
+
+	IntegratedCurve.AutoSetTangents();
+}
+
+void UProbabilityCurveFunctionLibrary::NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve)
+{
+	NormalizedCurve.PreInfinityExtrap = Curve.PreInfinityExtrap;
+	NormalizedCurve.PostInfinityExtrap = Curve.PostInfinityExtrap;
+	NormalizedCurve.Reset();
+
+	if (Curve.GetNumKeys() == 0)
+	{
+		return;
+	}
+
+	float MinValue, MaxValue;
+	Curve.GetValueRange(MinValue, MaxValue);
+	const float InvScale = FMath::IsNearlyZero(MaxValue - MinValue) ? 0.0f : 1.0f / (MaxValue - MinValue);
+
+	for (auto KeyIter(Curve.GetKeyIterator()); KeyIter; ++KeyIter)
+	{
+		const FRichCurveKey& Point = *KeyIter;
+
+		AddRichCurveKey(
+			NormalizedCurve, Point.Time, (Point.Value - MinValue) * InvScale, Point.ArriveTangent * InvScale, Point.LeaveTangent * InvScale,
+			Point.InterpMode, Point.TangentMode);
+	}
+
+	NormalizedCurve.AutoSetTangents();
+}
+
+void UProbabilityCurveFunctionLibrary::InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve)
+{
+#if 1
+	if (!ensure(Resolution > 0))
+	{
+		return;
+	}
+
+	InvertedCurve.PreInfinityExtrap = Curve.PreInfinityExtrap;
+	InvertedCurve.PostInfinityExtrap = Curve.PostInfinityExtrap;
+	InvertedCurve.Reset();
+
+	// First point
+	{
+		const FRichCurveKey& Point = Curve.Keys[0];
+		AddRichCurveKey(InvertedCurve, Point.Value, Point.Time, .0f, .0f);
+	}
+
+	for (auto KeyIter(Curve.GetKeyIterator()); KeyIter && KeyIter + 1; ++KeyIter)
+	{
+		const FRichCurveKey& Point = *KeyIter;
+		const FRichCurveKey& NextPoint = *(KeyIter + 1);
+
+		// Check monotonicity
+		if (NextPoint.Value <= Point.Value + KINDA_SMALL_NUMBER)
+		{
+			continue;
+		}
+
+		if (Point.InterpMode == RCIM_Constant)
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_Constant;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+			break;
+		}
+		else if (Point.InterpMode == RCIM_Linear)
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_Linear;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+		}
+		else if (Point.InterpMode == RCIM_Cubic)
+		{
+			const float DeltaTime = (NextPoint.Time - Point.Time) / Resolution;
+			float NextTime = Point.Time + DeltaTime;
+			for (int a = 0; a < Resolution; ++a)
+			{
+				FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+				const float NextValue = Curve.Eval(NextTime);
+
+				// Check monotonicity
+				if (NextValue > CurrentPoint.Time + KINDA_SMALL_NUMBER)
+				{
+					CurrentPoint.InterpMode = RCIM_Linear;
+					AddRichCurveKey(InvertedCurve, NextValue, NextTime, .0f, .0f);
+				}
+
+				NextTime += DeltaTime;
+			}
+		}
+		else
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_None;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+		}
+	}
+
+	InvertedCurve.AutoSetTangents();
+#else
+	const float MonotoneEpsilon = 1.0e-9f;
+
+	InvertedCurve.bIsLooped = Curve.bIsLooped;
+	InvertedCurve.LoopKeyOffset = Curve.LoopKeyOffset;
+	InvertedCurve.Points.Empty();
+
+	float LastValue = 0.0f;
+	for (int i = 0; i < Curve.Points.Num(); ++i)
+	{
+		const FInterpCurvePointFloat& Point = Curve.Points[i];
+		if (!ensureMsgf(i == 0 || Point.OutVal >= LastValue, TEXT("Curve values must increase monotonically to be invertible")))
+		{
+			break;
+		}
+
+		FInterpCurvePointFloat& InvPoint = InvertedCurve.Points.Emplace_GetRef();
+		InvPoint.InVal = Point.OutVal;
+		InvPoint.OutVal = Point.InVal;
+		const bool bArriveZero = FMath::IsNearlyZero(Point.ArriveTangent, MonotoneEpsilon);
+		const bool bLeaveZero = FMath::IsNearlyZero(Point.LeaveTangent, MonotoneEpsilon);
+		InvPoint.ArriveTangent = bArriveZero ? 0.0f : 1.0f / Point.ArriveTangent;
+		InvPoint.LeaveTangent = bLeaveZero ? 0.0f : 1.0f / Point.LeaveTangent;
+		InvPoint.InterpMode = Point.InterpMode;
+
+		const FInterpCurvePointFloat& NextPoint = (i < Curve.Points.Num() - 1 ? Curve.Points[i + 1] : Point);
+		const bool bRequireJumpPoint = Point.InterpMode == EInterpCurveMode::CIM_Constant ||
+									   (i < Curve.Points.Num() - 1 && NextPoint.OutVal < Point.OutVal + MonotoneEpsilon);
+		if (bRequireJumpPoint)
+		{
+			FInterpCurvePointFloat& JumpPoint = InvertedCurve.Points.Emplace_GetRef();
+			JumpPoint.InVal = Point.OutVal + MonotoneEpsilon;
+			JumpPoint.OutVal = NextPoint.InVal;
+
+			JumpPoint.LeaveTangent = InvPoint.LeaveTangent;
+			InvPoint.LeaveTangent = 0.0f;
+			JumpPoint.ArriveTangent = 0.0f;
+
+			JumpPoint.InterpMode = InvPoint.InterpMode;
+			InvPoint.InterpMode = EInterpCurveMode::CIM_Constant;
+		}
+	}
+#endif
+}
+
+void UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& QuantileCurve)
+{
+	FRichCurve IntegratedDensityCurve;
+	UProbabilityCurveFunctionLibrary::IntegrateRichCurve(DensityCurve, 0.0f, IntegratedDensityCurve);
+	FRichCurve CumulativeDensityCurve;
+	UProbabilityCurveFunctionLibrary::NormalizeRichCurve(IntegratedDensityCurve, CumulativeDensityCurve);
+	UProbabilityCurveFunctionLibrary::InvertRichCurve(CumulativeDensityCurve, 10, QuantileCurve);
 }

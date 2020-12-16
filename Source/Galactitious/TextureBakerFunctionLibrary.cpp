@@ -100,3 +100,31 @@ UTexture2D* UTextureBakerFunctionLibrary::CreateTextureAssetInternal(
 	return Texture;
 }
 #endif
+
+TFunction<float(float X, float Y)> UTextureBakerFunctionLibrary::FloatCurveEvalFunction(const FInterpCurveFloat& Curve)
+{
+	if (!ensure(Curve.Points.Num() > 0))
+	{
+		return [](float X, float Y) -> float { return 0.0f; };
+	}
+
+	const float MinTime = Curve.Points[0].InVal;
+	const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
+	const float DeltaTime = MaxTime - MinTime;
+
+	return [Curve, DeltaTime](float X, float Y) -> float { return Curve.Eval(X * DeltaTime); };
+}
+
+TFunction<FLinearColor(float X, float Y)> UTextureBakerFunctionLibrary::LinearColorCurveEvalFunction(const FInterpCurveLinearColor& Curve)
+{
+	if (!ensure(Curve.Points.Num() > 0))
+	{
+		return [](float X, float Y) -> FLinearColor { return FLinearColor::Black; };
+	}
+
+	const float MinTime = Curve.Points[0].InVal;
+	const float MaxTime = Curve.Points[Curve.Points.Num() - 1].InVal;
+	const float DeltaTime = MaxTime - MinTime;
+
+	return [Curve, DeltaTime](float X, float Y) -> FLinearColor { return Curve.Eval(X * DeltaTime); };
+}
