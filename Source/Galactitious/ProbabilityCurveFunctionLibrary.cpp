@@ -902,9 +902,117 @@ void UProbabilityCurveFunctionLibrary::NormalizeRichCurve(const FRichCurve& Curv
 	NormalizedCurve.AutoSetTangents();
 }
 
-void UProbabilityCurveFunctionLibrary::InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve)
+namespace
+{
+	bool TryInvertCubicSegment(float& OutLeaveTangent, float& OutArriveTangent)
+	{
+		// Spline inverse approximation using series reversion.
+		// See: Ramachandran, Mallayya: Interpolation by Inverse Cubic Spline Method
+
+		bool bUseLinearFallback = false;
+
+		const float t0 = Point.Time;
+		const float t1 = NextPoint.Time;
+		const float dt = t1 - t0;
+		// if (FMath::IsNearlyZero(dt))
+		//{
+		//	continue;
+		//}
+
+		const float p0 = Point.Value;
+		const float p1 = NextPoint.Value;
+		const float h = p1 - p0;
+
+		const float m0 = Point.LeaveTangent * dt;
+		const float m1 = NextPoint.ArriveTangent * dt;
+
+		const float a0 = p0;
+		const float a1 = m0;
+		const float a2 = 3.0f * (p1 - p0) - 2.0f * m0 - m1;
+		const float a3 = 2.0f * (p0 - p1) + m0 + m1;
+
+		if (FMath::IsNearlyZero(a1))
+		{
+			continue;
+		}
+
+		const float b1 = 1.0f / a1;
+		const float b2 = -a2 / (a1 * a1 * a1);
+		const float b3 = (2.0f * a2 * a2 - a3 * a1) / (a1 * a1 * a1 * a1 * a1);
+		// const float b0 = p0 * (p0 * (-p0 * b3 + b2) - b1);
+
+		// const float q0 = t0;
+		// const float q1 = b0 + (b1 + (b2 + b3 * p1) * p1) * p1;
+		// ensure(FMath::IsNearlyEqual(q1, 1.0f));
+		const float n0 = b1;
+		const float n1 = b1 + (2.0f * b2 + 3.0f * b3 * h) * h;
+
+		CurrentPoint.InterpMode = RCIM_Cubic;
+		CurrentPoint.TangentMode = RCTM_Break;
+		CurrentPoint.LeaveTangent = n0 * dt;
+		AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, n1 * dt, .0f);
+	}
+} // namespace
+
+void UProbabilityCurveFunctionLibrary::InvertRichCurve(const FRichCurve& Curve, FRichCurve& InvertedCurve)
 {
 #if 1
+	InvertedCurve.PreInfinityExtrap = Curve.PreInfinityExtrap;
+	InvertedCurve.PostInfinityExtrap = Curve.PostInfinityExtrap;
+	InvertedCurve.Reset();
+
+	// First point
+	{
+		const FRichCurveKey& Point = Curve.Keys[0];
+		AddRichCurveKey(InvertedCurve, Point.Value, Point.Time, .0f, .0f);
+	}
+
+	for (auto KeyIter(Curve.GetKeyIterator()); KeyIter && KeyIter + 1; ++KeyIter)
+	{
+		const FRichCurveKey& Point = *KeyIter;
+		const FRichCurveKey& NextPoint = *(KeyIter + 1);
+
+		// Check monotonicity
+		if (NextPoint.Value <= Point.Value + KINDA_SMALL_NUMBER)
+		{
+			continue;
+		}
+
+		if (Point.InterpMode == RCIM_Constant)
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_Constant;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+			break;
+		}
+		else if (Point.InterpMode == RCIM_Linear)
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_Linear;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+		}
+		else if (Point.InterpMode == RCIM_Cubic)
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_Cubic;
+			CurrentPoint.TangentMode = RCTM_Break;
+			CurrentPoint.LeaveTangent = n0 * dt;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, n1 * dt, .0f);
+		}
+		else
+		{
+			FRichCurveKey& CurrentPoint = InvertedCurve.Keys.Last();
+
+			CurrentPoint.InterpMode = RCIM_None;
+			AddRichCurveKey(InvertedCurve, NextPoint.Value, NextPoint.Time, .0f, .0f);
+		}
+	}
+
+	InvertedCurve.AutoSetTangents();
+#elif 0
 	if (!ensure(Resolution > 0))
 	{
 		return;
@@ -1026,5 +1134,5 @@ void UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(const FRichCurve
 	UProbabilityCurveFunctionLibrary::IntegrateRichCurve(DensityCurve, 0.0f, IntegratedDensityCurve);
 	FRichCurve CumulativeDensityCurve;
 	UProbabilityCurveFunctionLibrary::NormalizeRichCurve(IntegratedDensityCurve, CumulativeDensityCurve);
-	UProbabilityCurveFunctionLibrary::InvertRichCurve(CumulativeDensityCurve, 10, QuantileCurve);
+	UProbabilityCurveFunctionLibrary::InvertRichCurve(CumulativeDensityCurve, QuantileCurve);
 }

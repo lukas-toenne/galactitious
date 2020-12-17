@@ -68,7 +68,7 @@ public:
 
 	static void IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve);
 	static void NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve);
-	static void InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve);
+	static void InvertRichCurve(const FRichCurve& Curve, FRichCurve& InvertedCurve);
 
 	static void ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& QuantileCurve);
 };
