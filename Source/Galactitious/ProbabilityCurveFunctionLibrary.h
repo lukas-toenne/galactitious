@@ -66,9 +66,10 @@ public:
 	static void ConvertFromRichCurve(const FRichCurve& RichCurve, FInterpCurveFloat& Curve);
 	static void ConvertToRichCurve(const FInterpCurveFloat& Curve, FRichCurve& RichCurve);
 
-	static void IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve);
+	static void IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve, float& TotalArea);
+	static void TransformRichCurve(const FRichCurve& Curve, float Scale, float Offset, FRichCurve& ScaledCurve);
 	static void NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve);
 	static void InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve);
 
-	static void ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& QuantileCurve);
+	static void ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& NormalizedDensityCurve, FRichCurve& QuantileCurve);
 };

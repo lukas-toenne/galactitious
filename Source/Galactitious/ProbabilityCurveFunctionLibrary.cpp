@@ -752,7 +752,8 @@ namespace
 	}
 } // namespace
 
-void UProbabilityCurveFunctionLibrary::IntegrateRichCurve(const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve)
+void UProbabilityCurveFunctionLibrary::IntegrateRichCurve(
+	const FRichCurve& Curve, float Offset, FRichCurve& IntegratedCurve, float& TotalArea)
 {
 	IntegratedCurve.PreInfinityExtrap = RCCE_Constant;
 	IntegratedCurve.PostInfinityExtrap = RCCE_Constant;
@@ -872,34 +873,43 @@ void UProbabilityCurveFunctionLibrary::IntegrateRichCurve(const FRichCurve& Curv
 		CurrentPoint.TangentMode = RCTM_Break;
 	}
 
+	TotalArea = Value;
+
 	IntegratedCurve.AutoSetTangents();
 }
 
-void UProbabilityCurveFunctionLibrary::NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve)
+void UProbabilityCurveFunctionLibrary::TransformRichCurve(const FRichCurve& Curve, float Scale, float Offset, FRichCurve& ScaledCurve)
 {
-	NormalizedCurve.PreInfinityExtrap = Curve.PreInfinityExtrap;
-	NormalizedCurve.PostInfinityExtrap = Curve.PostInfinityExtrap;
-	NormalizedCurve.Reset();
+	ScaledCurve.PreInfinityExtrap = Curve.PreInfinityExtrap;
+	ScaledCurve.PostInfinityExtrap = Curve.PostInfinityExtrap;
+	ScaledCurve.Reset();
 
 	if (Curve.GetNumKeys() == 0)
 	{
 		return;
 	}
 
-	float MinValue, MaxValue;
-	Curve.GetValueRange(MinValue, MaxValue);
-	const float InvScale = FMath::IsNearlyZero(MaxValue - MinValue) ? 0.0f : 1.0f / (MaxValue - MinValue);
-
 	for (auto KeyIter(Curve.GetKeyIterator()); KeyIter; ++KeyIter)
 	{
 		const FRichCurveKey& Point = *KeyIter;
 
 		AddRichCurveKey(
-			NormalizedCurve, Point.Time, (Point.Value - MinValue) * InvScale, Point.ArriveTangent * InvScale, Point.LeaveTangent * InvScale,
+			ScaledCurve, Point.Time, Point.Value * Scale + Offset, Point.ArriveTangent * Scale, Point.LeaveTangent * Scale,
 			Point.InterpMode, Point.TangentMode);
 	}
 
-	NormalizedCurve.AutoSetTangents();
+	ScaledCurve.AutoSetTangents();
+}
+
+void UProbabilityCurveFunctionLibrary::NormalizeRichCurve(const FRichCurve& Curve, FRichCurve& NormalizedCurve)
+{
+	float MinValue, MaxValue;
+	Curve.GetValueRange(MinValue, MaxValue);
+	const float Range = MaxValue - MinValue;
+	if (!FMath::IsNearlyZero(Range))
+	{
+		TransformRichCurve(Curve, 1.0f / Range, -MinValue / Range, NormalizedCurve);
+	}
 }
 
 void UProbabilityCurveFunctionLibrary::InvertRichCurve(const FRichCurve& Curve, int32 Resolution, FRichCurve& InvertedCurve)
@@ -1020,10 +1030,18 @@ void UProbabilityCurveFunctionLibrary::InvertRichCurve(const FRichCurve& Curve, 
 #endif
 }
 
-void UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(const FRichCurve& DensityCurve, FRichCurve& QuantileCurve)
+void UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(
+	const FRichCurve& DensityCurve, FRichCurve& NormalizedDensityCurve, FRichCurve& QuantileCurve)
 {
 	FRichCurve IntegratedDensityCurve;
-	UProbabilityCurveFunctionLibrary::IntegrateRichCurve(DensityCurve, 0.0f, IntegratedDensityCurve);
+	float IntegratedDensity;
+	UProbabilityCurveFunctionLibrary::IntegrateRichCurve(DensityCurve, 0.0f, IntegratedDensityCurve, IntegratedDensity);
+
+	if (!FMath::IsNearlyZero(IntegratedDensity))
+	{
+		UProbabilityCurveFunctionLibrary::TransformRichCurve(DensityCurve, 1.0f / IntegratedDensity, 0.0f, NormalizedDensityCurve);
+	}
+
 	FRichCurve CumulativeDensityCurve;
 	UProbabilityCurveFunctionLibrary::NormalizeRichCurve(IntegratedDensityCurve, CumulativeDensityCurve);
 	UProbabilityCurveFunctionLibrary::InvertRichCurve(CumulativeDensityCurve, 10, QuantileCurve);
