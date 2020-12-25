@@ -83,7 +83,7 @@ void UStarSettings::UpdateNiagaraParameters()
 	//   P(Ls_i <= Ls < Ls_(i+1)) = M_i / M
 	//                            = / Ls_i < Lf: P_i * Ls_i / E(L)  [lower probability]
 	//                              \ Ls_i > Lf: P_i * Lf / E(L)    [higher probability]
-	// Integrated of picking star luminosity Ls for particle:
+	// Quantile function for picking star luminosity Ls for particle:
 	//   P(Ls_i <= Ls) = sum(P_k * Ls_k, k=1..i)
 
 	// ### Define particle luminosity:
@@ -111,6 +111,8 @@ void UStarSettings::UpdateNiagaraParameters()
 
 	// XXX Arbitrary: double min. luminosity of the last class as max. luminosity
 	const float MaxLuminosity = 2.0f * StellarClasses.Last().MinLuminosity;
+	// XXX Arbitrary: use constant temperature for the most luminous class
+	const float MaxTemperature = StellarClasses.Last().MinTemperature;
 
 	// Average luminosity of i-th class
 	auto AverageClassLuminosity = [StellarClasses, MaxLuminosity](int32 i) -> float {
@@ -128,37 +130,35 @@ void UStarSettings::UpdateNiagaraParameters()
 	// Stores logarithmic Luminosity ln(L) for more sensible values.
 	// Luminosity varies by many orders of magnitude.
 	FRichCurve LogLuminositySamplingCurve;
-	// Number of stars represented by one particle.
-	FRichCurve LogStarCountSamplingCurve;
+	// Temperature of stars
+	FRichCurve TemperatureSamplingCurve;
 	float TotalProbability = 0.0f;
 	for (int32 i = 0; i < StellarClasses.Num(); ++i)
 	{
 		const FStellarClass& StellarClass = StellarClasses[i];
-		const float Luminosity = StellarClass.MinLuminosity;
 
 		// Probability is tweaked such that stars with luminosity > Lf
 		// can be represented by a single particle without changing overall Luminosity too much.
-		const float Probability =
-			Luminosity < AverageLuminosity ? StellarClass.Fraction * Luminosity / AverageLuminosity : StellarClass.Fraction;
-		const float StarCount = Luminosity < AverageLuminosity ? AverageLuminosity / Luminosity : 1.0f;
+		const float Luminosity = StellarClass.MinLuminosity;
+		const float Probability = StellarClass.Fraction * Luminosity / AverageLuminosity;
 
 		FKeyHandle Handle;
-		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(StellarClass.MinLuminosity));
+		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(Luminosity));
 		LogLuminositySamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
-		Handle = LogStarCountSamplingCurve.AddKey(TotalProbability, FMath::Loge(StarCount));
-		LogStarCountSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
+		Handle = TemperatureSamplingCurve.AddKey(TotalProbability, StellarClass.MinTemperature);
+		TemperatureSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
 
 		TotalProbability += Probability;
 	}
 	// Final point
 	{
-		const float StarCount = MaxLuminosity < AverageLuminosity ? AverageLuminosity / MaxLuminosity : 1.0f;
+		const float Luminosity = MaxLuminosity;
 
 		FKeyHandle Handle;
-		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(MaxLuminosity));
+		Handle = LogLuminositySamplingCurve.AddKey(TotalProbability, FMath::Loge(Luminosity));
 		LogLuminositySamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
-		Handle = LogStarCountSamplingCurve.AddKey(TotalProbability, FMath::Loge(StarCount));
-		LogStarCountSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
+		Handle = TemperatureSamplingCurve.AddKey(TotalProbability, MaxTemperature);
+		TemperatureSamplingCurve.SetKeyInterpMode(Handle, RCIM_Linear);
 	}
 	// Normalize probability
 	if (!FMath::IsNearlyZero(TotalProbability))
@@ -169,7 +169,7 @@ void UStarSettings::UpdateNiagaraParameters()
 			Key.ArriveTangent *= TotalProbability;
 			Key.LeaveTangent *= TotalProbability;
 		}
-		for (FRichCurveKey& Key : LogStarCountSamplingCurve.Keys)
+		for (FRichCurveKey& Key : TemperatureSamplingCurve.Keys)
 		{
 			Key.Time /= TotalProbability;
 			Key.ArriveTangent *= TotalProbability;
@@ -179,9 +179,11 @@ void UStarSettings::UpdateNiagaraParameters()
 
 	NIAGARA_UPDATE_HACK_BEGIN(NiagaraParameters->Collection, UpdatedParameters)
 	const bool bOverride = false;
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("LuminositySamplingCurve"), LogLuminositySamplingCurve, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("StarCountSamplingCurve"), LogStarCountSamplingCurve, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+		UpdatedParameters, TEXT("LuminositySamplingCurve"), LogLuminositySamplingCurve, bOverride);
 	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("AverageLuminosity"), AverageLuminosity, bOverride);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+		UpdatedParameters, TEXT("TemperatureSamplingCurve"), TemperatureSamplingCurve, bOverride);
 	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
 }
 
@@ -200,8 +202,11 @@ void UGalaxyShapeSettings::UpdateNiagaraParameters()
 	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("WindingFrequency"), WindingFrequency, bOverride);
 	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("ThicknessCurve"), ThicknessCurve->FloatCurve, bOverride);
 
-	FRichCurve RadialSamplingCurve;
-	UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(RadialDensityCurve->FloatCurve, RadialSamplingCurve);
+	FRichCurve RadialDensityNormalizedCurve, RadialSamplingCurve;
+	UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(
+		RadialDensityCurve->FloatCurve, RadialDensityNormalizedCurve, RadialSamplingCurve);
+	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+		UpdatedParameters, TEXT("RadialDensityCurve"), RadialDensityNormalizedCurve, bOverride);
 	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("RadialSamplingCurve"), RadialSamplingCurve, bOverride);
 	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
 }
