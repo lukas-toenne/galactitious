@@ -22,25 +22,20 @@
  * SOFTWARE.
  */
 
-#pragma once
+#include "Engine.h"
+#include "EngineUtils.h"
 
-#include "CoreMinimal.h"
+#include "Tests/AutomationCommon.h"
 
-#include "VDBTree.h"
+#if WITH_DEV_AUTOMATION_TESTS
 
-template <typename _TreeType>
-class TVDBGrid
+BEGIN_DEFINE_SPEC(FVDBGridSpec, "VDB.Grid", EAutomationTestFlags::ProductFilter | EAutomationTestFlags::ApplicationContextMask)
+int TestValue = 2;
+END_DEFINE_SPEC(FVDBGridSpec)
+
+void FVDBGridSpec::Define()
 {
-public:
-	using TreeType = _TreeType;
+	Describe("Dummy Test", [this] { It("should return true when successful", [this]() { TestEqual("Execute", TestValue, 3); }); });
+}
 
-	const FTransform& GetTransform() const;
-	void SetTransform(const FTransform& NewTransform);
-
-private:
-	FTransform Transform;
-
-	TSharedPtr<TreeType> Tree;
-};
-
-#include "VDBGrid.inl"
+#endif // WITH_DEV_AUTOMATION_TESTS

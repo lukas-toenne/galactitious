@@ -22,14 +22,22 @@
  * SOFTWARE.
  */
 
-#include "VDBGrid.h"
+#pragma once
 
-const FTransform& TVDBGrid::GetTransform() const
-{
-	return Transform;
-}
+#include "CoreMinimal.h"
 
-void TVDBGrid::SetTransform(const FTransform& NewTransform)
+struct FVDBCoord
 {
-	Transform = NewTransform;
+	FVDBCoord() = default;
+	FVDBCoord(FVDBCoord&&) = default;
+	FVDBCoord(const FVDBCoord&) = default;
+	FVDBCoord& operator=(FVDBCoord&&) = default;
+	FVDBCoord& operator=(const FVDBCoord&) = default;
+
+	int32 x, y, z;
+};
+
+FORCEINLINE uint32 GetTypeHash(const FVDBCoord& Coord)
+{
+	return HashCombine(GetTypeHash(Coord.x), HashCombine(GetTypeHash(Coord.y), GetTypeHash(Coord.z)));
 }

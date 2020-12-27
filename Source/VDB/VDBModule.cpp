@@ -25,4 +25,4 @@
 #include "VDBModule.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_MODULE(FDefaultGameModuleImpl, VDB);
+IMPLEMENT_MODULE(FDefaultModuleImpl, VDB);

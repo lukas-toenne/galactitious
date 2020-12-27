@@ -26,10 +26,33 @@
 
 #include "CoreMinimal.h"
 
+template <typename _ChildType>
+class TVDBRootNode
+{
+public:
+	using ChildType = _ChildType;
+	using ValueType = typename ChildType::ValueType;
+
+	struct NodeStruct
+	{
+		ChildType* ChildNode;
+		ValueType Value;
+		bool bActive;
+	};
+
+private:
+	TMap<FVDBCoord, NodeStruct> Table;
+};
+
+template <typename _RootNodeType>
 class TVDBTree
 {
 public:
+	using RootNodeType = _RootNodeType;
+	using ValueType = typename RootNodeType::ValueType;
 
 private:
-
+	RootNodeType RootNode;
 };
+
+#include "VDBTree.inl"
