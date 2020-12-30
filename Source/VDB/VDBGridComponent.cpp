@@ -22,14 +22,16 @@
  * SOFTWARE.
  */
 
-template <typename TreeType>
-const FTransform& TVDBGrid::GetTransform() const
+#include "VDBGridComponent.h"
+
+const TSharedPtr<FVDBTreeBase>& UVDBGridComponent::GetTree() const
 {
-	return Transform;
+	return Tree;
 }
 
-template <typename TreeType>
-void TVDBGrid::SetTransform(const FTransform& NewTransform)
+void UVDBGridComponent::SetTree(const TSharedPtr<FVDBTreeBase>& NewTree)
 {
-	Transform = NewTransform;
+	Tree = NewTree;
+
+	OnTreeChanged.Broadcast();
 }

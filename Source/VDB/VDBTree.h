@@ -25,6 +25,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "VDBCoord.h"
 
 template <typename _ChildType>
 class TVDBRootNode
@@ -44,8 +45,12 @@ private:
 	TMap<FVDBCoord, NodeStruct> Table;
 };
 
+class FVDBTreeBase
+{
+};
+
 template <typename _RootNodeType>
-class TVDBTree
+class TVDBTree : public FVDBTreeBase
 {
 public:
 	using RootNodeType = _RootNodeType;

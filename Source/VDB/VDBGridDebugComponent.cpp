@@ -22,25 +22,4 @@
  * SOFTWARE.
  */
 
-#pragma once
-
-#include "CoreMinimal.h"
-
-#include "VDBTree.h"
-
-template <typename _TreeType>
-class TVDBGrid
-{
-public:
-	using TreeType = _TreeType;
-
-	const FTransform& GetTransform() const;
-	void SetTransform(const FTransform& NewTransform);
-
-private:
-	FTransform Transform;
-
-	TSharedPtr<TreeType> Tree;
-};
-
-#include "VDBGrid.inl"
+#include "VDBGridDebugComponent.h"

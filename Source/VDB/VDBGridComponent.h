@@ -22,4 +22,29 @@
  * SOFTWARE.
  */
 
-#include "VDBGridVLog.h"
+#pragma once
+
+#include "CoreMinimal.h"
+#include "VDBTree.h"
+
+#include "Components/SceneComponent.h"
+
+#include "VDBGridComponent.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FVDBTreeChangedDelegate);
+
+UCLASS(BlueprintType)
+class VDB_API UVDBGridComponent : public USceneComponent
+{
+	GENERATED_BODY()
+
+public:
+	const TSharedPtr<FVDBTreeBase>& GetTree() const;
+	void SetTree(const TSharedPtr<FVDBTreeBase>& NewTree);
+
+	UPROPERTY(BlueprintAssignable)
+	FVDBTreeChangedDelegate OnTreeChanged;
+
+private:
+	TSharedPtr<FVDBTreeBase> Tree;
+};
