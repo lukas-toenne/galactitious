@@ -2,12 +2,12 @@
 
 #include "GravitySimulationActor.h"
 
-#include "VDB/VDBGridComponent.h"
+//#include "VDB/VDBGridComponent.h"
 
 AGravitySimulationActor::AGravitySimulationActor()
 {
-	FMMGrid = CreateDefaultSubobject<UVDBGridComponent>(TEXT("FMMGrid"), true);
-	SetRootComponent(FMMGrid);
+	//FMMGrid = CreateDefaultSubobject<UVDBGridComponent>(TEXT("FMMGrid"), true);
+	//SetRootComponent(FMMGrid);
 }
 
 void AGravitySimulationActor::BeginPlay()

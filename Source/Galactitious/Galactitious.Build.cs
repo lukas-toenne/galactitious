@@ -7,8 +7,11 @@ public class Galactitious : ModuleRules
 	public Galactitious(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
-	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara", "VDB" });
+
+		// For boost:: and TBB:: code
+		bUseRTTI = true;
+
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara", "OpenVDB", "UEOpenExr"});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 

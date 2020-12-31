@@ -5,9 +5,13 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 
+THIRD_PARTY_INCLUDES_START
+#include <openvdb/openvdb.h>
+THIRD_PARTY_INCLUDES_END
+
 #include "GravitySimulationActor.generated.h"
 
-class UVDBGridComponent;
+//class UVDBGridComponent;
 
 UCLASS(BlueprintType)
 class GALACTITIOUS_API AGravitySimulationActor : public AActor
@@ -20,6 +24,6 @@ public:
 	virtual void BeginPlay() override;
 
 private:
-	UPROPERTY(Transient)
-	UVDBGridComponent* FMMGrid;
+	//UPROPERTY(Transient)
+	//UVDBGridComponent* FMMGrid;
 };
