@@ -63,14 +63,14 @@ void UTextureBakerFunctionLibrary::BakeTextureInternal(
 	FAssetRegistryModule::AssetCreated(Texture);
 }
 
-UTexture2D* UTextureBakerFunctionLibrary::CreateTransientTextureInternal(int32 Width, int32 Height, EPixelFormat PixelFormat)
+UTexture2D* UTextureBakerFunctionLibrary::CreateTransientTexture(int32 Width, int32 Height, EPixelFormat PixelFormat)
 {
 	check(Width >= 1 && Height >= 1);
 	return UTexture2D::CreateTransient(Width, Height, PixelFormat);
 }
 
 #if WITH_EDITOR
-UTexture2D* UTextureBakerFunctionLibrary::CreateTextureAssetInternal(
+UTexture2D* UTextureBakerFunctionLibrary::CreateTextureAsset(
 	const FString& TexturePath, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat)
 {
 	const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(SourceFormat);

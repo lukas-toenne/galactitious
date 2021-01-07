@@ -25,12 +25,12 @@ class GALACTITIOUS_API UTextureBakerFunctionLibrary : public UBlueprintFunctionL
 public:
 	template <typename ValueType>
 	static UTexture2D* BakeTransientTexture(
-		const FString& TexturePath, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
-		TextureMipGenSettings MipGenSettings, TFunctionRef<ValueType(float X, float Y)> ValueFn)
+		int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings,
+		TFunctionRef<ValueType(float X, float Y)> ValueFn)
 	{
 		const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(SourceFormat);
 		check(sizeof(ValueType) == BytesPerPixel);
-		if (UTexture2D* Texture = CreateTransientTextureInternal(Width, Height, PixelFormat))
+		if (UTexture2D* Texture = CreateTransientTexture(Width, Height, PixelFormat))
 		{
 			BakeTextureInternal(
 				Texture, Width, Height, PixelFormat, SourceFormat, MipGenSettings,
@@ -51,7 +51,7 @@ public:
 	{
 		const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(SourceFormat);
 		check(sizeof(ValueType) == BytesPerPixel);
-		if (UTexture2D* Texture = CreateTextureAssetInternal(TexturePath, Width, Height, PixelFormat, SourceFormat))
+		if (UTexture2D* Texture = CreateTextureAsset(TexturePath, Width, Height, PixelFormat, SourceFormat))
 		{
 			BakeTextureInternal(
 				Texture, Width, Height, PixelFormat, SourceFormat, MipGenSettings,
@@ -68,15 +68,15 @@ public:
 	TFunction<float(float X, float Y)> FloatCurveEvalFunction(const struct FInterpCurveFloat& Curve);
 	TFunction<FLinearColor(float X, float Y)> LinearColorCurveEvalFunction(const struct FInterpCurveLinearColor& Curve);
 
+	static UTexture2D* CreateTransientTexture(int32 Width, int32 Height, EPixelFormat PixelFormat);
+
+#if WITH_EDITOR
+	static UTexture2D* CreateTextureAsset(
+		const FString& TexturePath, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat);
+#endif
+
 private:
 	static void BakeTextureInternal(
 		UTexture2D* Texture, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat,
 		TextureMipGenSettings MipGenSettings, TFunctionRef<void(float X, float Y, uint8* OutData)> ValueFn);
-
-	static UTexture2D* CreateTransientTextureInternal(int32 Width, int32 Height, EPixelFormat PixelFormat);
-
-#if WITH_EDITOR
-	static UTexture2D* CreateTextureAssetInternal(
-		const FString& TexturePath, int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat);
-#endif
 };

@@ -2,11 +2,40 @@
 
 #include "GravitySimulationActor.h"
 
+#include "TextureBakerFunctionLibrary.h"
+
+#include "Components/StaticMeshComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "UObject/ConstructorHelpers.h"
+
 THIRD_PARTY_INCLUDES_START
+#include <openvdb/tools/Interpolation.h>
 #include <openvdb/tools/LevelSetSphere.h>
 THIRD_PARTY_INCLUDES_END
 
-const FMassMoments FMassMoments::ZeroMoments = FMassMoments(0.0f);
+//const FMassMoments FMassMoments::ZeroMoments = FMassMoments(0.0f);
+
+struct OpenVDBConvert
+{
+	static inline FVector Vector(const openvdb::Vec3f& v) { return FVector(v.x(), v.y(), v.z()); }
+	static inline openvdb::Vec3f Vector(const FVector& v) { return openvdb::Vec3f(v.X, v.Y, v.Z); }
+
+	static inline FQuat Quat(const openvdb::QuatR& q) { return FQuat(q.x(), q.y(), q.z(), q.w()); }
+	static inline openvdb::QuatR Quat(const FQuat& q) { return openvdb::QuatR(q.X, q.Y, q.Z, q.W); }
+
+	static inline FMatrix Matrix4(const openvdb::math::Mat4f& m)
+	{
+		FMatrix R;
+		memcpy(R.M, m.asPointer(), sizeof(float) * 16);
+		return R;
+	}
+	static inline openvdb::math::Mat4f Matrix4(const FMatrix& m)
+	{
+		openvdb::math::Mat4f R;
+		memcpy(R.asPointer(), m.M, sizeof(float) * 16);
+		return R;
+	}
+};
 
 AGravitySimulationActor::AGravitySimulationActor()
 {

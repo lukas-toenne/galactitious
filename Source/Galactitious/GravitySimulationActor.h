@@ -12,6 +12,7 @@ THIRD_PARTY_INCLUDES_END
 
 #include "GravitySimulationActor.generated.h"
 
+#if 0
 struct FMassMoments
 {
 	FMassMoments() {}
@@ -108,19 +109,22 @@ struct FMassMoments
 protected:
 	float Mass;
 };
+#endif
 
 UCLASS(BlueprintType)
 class GALACTITIOUS_API AGravitySimulationActor : public AActor
 {
 	GENERATED_BODY()
 
+public:
 	using TreeType = openvdb::tree::Tree4<float, 5, 4, 3>::Type;
 	using GridType = openvdb::Grid<TreeType>;
 
-public:
 	AGravitySimulationActor();
 
 	virtual void BeginPlay() override;
+
+	GridType::Ptr GetGrid() const { return Grid; }
 
 private:
 	GridType::Ptr Grid;
