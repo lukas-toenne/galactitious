@@ -51,7 +51,7 @@ void UGravityDebugSliceComponent::TickComponent(float DeltaTime, enum ELevelTick
 	{
 		SetComponentTickEnabled(false);
 	}
-	else if (FPlatformAtomics::AtomicRead(&PendingTextureData->bFinished) == 1)
+	else if (PendingTextureData->bCompleted)
 	{
 		SliceTexture->Source.Init(
 			PendingTextureData->Width, PendingTextureData->Height, /*NumSlices=*/1, /*NumMips=*/1, PendingTextureData->SourceFormat,
@@ -67,13 +67,8 @@ void UGravityDebugSliceComponent::TickComponent(float DeltaTime, enum ELevelTick
 namespace
 {
 	template <class SamplerType>
-	bool BakeSliceTextureData(
-		const UGravityDebugSliceComponent::TextureDataPtr& TextureDataPtr,
-		const UGravityDebugSliceComponent::TextureDataPtrPtr& CurrentTextureData,
-		const FTransform& MeshToWorld, SamplerType Sampler)
+	void BakeSliceTextureData(UGravityDebugSliceComponent::FTextureData* TextureData, const FTransform& MeshToWorld, SamplerType Sampler)
 	{
-		UGravityDebugSliceComponent::FTextureData* TextureData = TextureDataPtr.Get();
-
 		const int32 BytesPerPixel = FTextureSource::GetBytesPerPixel(TextureData->SourceFormat);
 		check(BytesPerPixel == sizeof(FColor));
 
@@ -89,9 +84,9 @@ namespace
 			float X = 0.0f;
 			for (int32 i = 0; i < Width; i++)
 			{
-				if (!CurrentTextureData.HasSameObject(&TextureDataPtr))
+				if (TextureData->bStopRequested)
 				{
-					return false;
+					return;
 				}
 
 				FVector LocalPosition = FVector(X, Y, 0.5f);
@@ -105,7 +100,7 @@ namespace
 			Y += dY;
 		}
 
-		return true;
+		TextureData->bCompleted = true;
 	}
 } // namespace
 
@@ -147,6 +142,11 @@ void UGravityDebugSliceComponent::UpdateSliceTexture(GridType::Ptr Grid)
 	const FBox MeshBounds = Bounds.GetBox();
 	const FTransform MeshToWorld = FTransform(FQuat::Identity, MeshBounds.Min, MeshBounds.Max - MeshBounds.Min) * GetComponentTransform();
 
+	if (FTextureData* CurrentTextureData = PendingTextureData.Get())
+	{
+		CurrentTextureData->bStopRequested = true;
+	}
+
 	PendingTextureData = MakeShared<FTextureData, ESPMode::ThreadSafe>();
 	PendingTextureData->Width = SliceTexture->GetSizeX();
 	PendingTextureData->Height = SliceTexture->GetSizeY();
@@ -154,21 +154,16 @@ void UGravityDebugSliceComponent::UpdateSliceTexture(GridType::Ptr Grid)
 	SetComponentTickEnabled(true);
 
 	TextureDataPtr TextureData = PendingTextureData;
-	TextureDataPtrPtr CurrentTextureData = MakeShared<TextureDataPtr, ESPMode::ThreadSafe>(PendingTextureData);
-	Async(EAsyncExecution::ThreadPool, [MeshToWorld, Grid, TextureData, CurrentTextureData]() {
+	Async(EAsyncExecution::ThreadPool, [MeshToWorld, Grid, TextureData]() {
 		UE_LOG(LogGravityDebugSlice, Display, TEXT("TASK: Texture data user count = %d"), TextureData.GetSharedReferenceCount());
-		if (BakeSliceTexture(TextureData, CurrentTextureData, MeshToWorld, Grid))
-		{
-			FPlatformAtomics::AtomicStore(&TextureData->bFinished, 1);
-		}
+		BakeSliceTexture(TextureData.Get(), MeshToWorld, Grid);
 		UE_LOG(LogGravityDebugSlice, Display, TEXT("TASK DONE! Texture data size = %d"), TextureData->Bytes.Num());
 	});
 }
 
-bool UGravityDebugSliceComponent::BakeSliceTexture(
-	const TextureDataPtr& TextureData, const TextureDataPtrPtr& CurrentTextureData, const FTransform& MeshToWorld, const GridType::Ptr& Grid)
+void UGravityDebugSliceComponent::BakeSliceTexture(FTextureData* TextureData, const FTransform& MeshToWorld, const GridType::Ptr& Grid)
 {
-	if (!CurrentTextureData.HasSameObject(&TextureData))
+	if (TextureData->bStopRequested)
 	{
 		return;
 	}
@@ -178,7 +173,7 @@ bool UGravityDebugSliceComponent::BakeSliceTexture(
 
 	TextureData->Bytes.AddUninitialized(TextureData->Width * TextureData->Height * BytesPerPixel);
 
-	return BakeSliceTextureData(TextureData.Get(), CurrentTextureData, MeshToWorld, SamplerType(*Grid));
+	BakeSliceTextureData(TextureData, MeshToWorld, SamplerType(*Grid));
 }
 
 void UGravityDebugSliceComponent::OnTransformUpdated(

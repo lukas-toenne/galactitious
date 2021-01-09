@@ -27,11 +27,11 @@ public:
 		int32 Height = 0;
 		ETextureSourceFormat SourceFormat = TSF_Invalid;
 		TArray<uint8> Bytes;
-		volatile int32 bFinished = 0;
+		TAtomic<bool> bCompleted = false;
+		TAtomic<bool> bStopRequested = false;
 	};
 
 	using TextureDataPtr = TSharedPtr<FTextureData, ESPMode::ThreadSafe>;
-	using TextureDataPtrPtr = TWeakPtr<TextureDataPtr, ESPMode::ThreadSafe>;
 
 	UGravityDebugSliceComponent(const FObjectInitializer& ObjectInitializer);
 
@@ -44,9 +44,7 @@ protected:
 		int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings);
 	void UpdateSliceTexture(GridType::Ptr Grid);
 
-	static bool BakeSliceTexture(
-		const TextureDataPtr& TextureData, const TextureDataPtrPtr& CurrentTextureData, const FTransform& MeshToWorld,
-		const typename GridType::Ptr& Grid);
+	static void BakeSliceTexture(FTextureData* TextureData, const FTransform& MeshToWorld, const typename GridType::Ptr& Grid);
 
 	void OnTransformUpdated(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
