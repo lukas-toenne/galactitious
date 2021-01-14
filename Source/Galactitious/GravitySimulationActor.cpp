@@ -23,8 +23,6 @@ THIRD_PARTY_INCLUDES_START
 #pragma warning(pop)
 THIRD_PARTY_INCLUDES_END
 
-//const FMassMoments FMassMoments::ZeroMoments = FMassMoments(0.0f);
-
 struct OpenVDBConvert
 {
 	static inline FVector Vector(const openvdb::Vec3f& v) { return FVector(v.x(), v.y(), v.z()); }
@@ -66,4 +64,9 @@ void AGravitySimulationActor::BeginPlay()
 	Grid->insertMeta("radius", openvdb::FloatMetadata(50.0));
 	// Name the grid "LevelSetSphere".
 	Grid->setName("LevelSetSphere");
+}
+
+void AGravitySimulationActor::DistributePoints(TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const
+{
+
 }
