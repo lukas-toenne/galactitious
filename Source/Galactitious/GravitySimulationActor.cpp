@@ -9,8 +9,18 @@
 #include "UObject/ConstructorHelpers.h"
 
 THIRD_PARTY_INCLUDES_START
+#pragma warning(push)
+#pragma warning(disable : 4146)
+#pragma push_macro("TEXT")
+#undef TEXT
+#pragma push_macro("check")
+#undef check
 #include <openvdb/tools/Interpolation.h>
+#include <openvdb/points/PointConversion.h>
 #include <openvdb/tools/LevelSetSphere.h>
+#pragma pop_macro("check")
+#pragma pop_macro("TEXT")
+#pragma warning(pop)
 THIRD_PARTY_INCLUDES_END
 
 //const FMassMoments FMassMoments::ZeroMoments = FMassMoments(0.0f);
