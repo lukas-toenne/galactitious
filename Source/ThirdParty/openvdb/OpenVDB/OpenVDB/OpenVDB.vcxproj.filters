@@ -1,0 +1,462 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="io">
+      <UniqueIdentifier>{16de0b9e-1765-4c65-8864-70b516c04221}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{8bcf74c2-afc4-4378-bb58-4c32f2ba54d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="points">
+      <UniqueIdentifier>{6a4a5d53-6484-4434-8a99-f39dfba55446}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tools">
+      <UniqueIdentifier>{ee9570c6-5612-4565-9a09-2c3268df0e14}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tree">
+      <UniqueIdentifier>{e9a5cd54-679c-40c3-bdae-badfcbd5bb6a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="util">
+      <UniqueIdentifier>{51410371-bb4d-4ef0-87a3-c8ce7a8c1209}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\io\Archive.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\Compression.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\DelayedLoadMetadata.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\File.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\GridDescriptor.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\Queue.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\Stream.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\io\TempFile.cc">
+      <Filter>io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\math\Maps.cc">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\math\Proximity.cc">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\math\QuantizedUnitVec.cc">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\math\Transform.cc">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\util\Formats.cc">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\util\Util.cc">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\AttributeArray.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\AttributeArrayString.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\AttributeGroup.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\AttributeSet.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\points.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\points\StreamCompression.cc">
+      <Filter>points</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Grid.cc" />
+    <ClCompile Include="..\..\Metadata.cc" />
+    <ClCompile Include="..\..\MetaMap.cc" />
+    <ClCompile Include="..\..\openvdb.cc" />
+    <ClCompile Include="..\..\Platform.cc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\io\Archive.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\Compression.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\DelayedLoadMetadata.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\File.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\GridDescriptor.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\io.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\Queue.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\Stream.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\io\TempFile.h">
+      <Filter>io</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\BBox.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\ConjGradient.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Coord.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\DDA.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\FiniteDifference.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\LegacyFrustum.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Maps.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Mat.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Mat3.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Mat4.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Math.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Operators.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Proximity.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\QuantizedUnitVec.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Quat.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Ray.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Stats.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Stencils.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Transform.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Tuple.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Vec2.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Vec3.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\math\Vec4.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\CpuTimer.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\Formats.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\logging.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\MapsUtil.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\Name.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\NodeMasks.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\NullInterrupter.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\PagedArray.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\util\Util.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\InternalNode.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\Iterator.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\LeafBuffer.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\LeafManager.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\LeafNode.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\LeafNodeBool.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\LeafNodeMask.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\NodeManager.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\NodeUnion.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\RootNode.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\Tree.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\TreeIterator.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tree\ValueAccessor.h">
+      <Filter>tree</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\ChangeBackground.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Clip.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Composite.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Dense.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\DenseSparseTools.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Diagnostics.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\FastSweeping.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Filter.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\FindActiveValues.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\GridOperators.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\GridTransformer.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Interpolation.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetAdvect.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetFilter.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetFracture.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetMeasure.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetMorph.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetPlatonic.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetRebuild.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetSphere.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetTracker.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\LevelSetUtil.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Mask.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Merge.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\MeshToVolume.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Morphology.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\MultiResGrid.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\ParticleAtlas.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\ParticlesToLevelSet.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PointAdvect.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PointIndexGrid.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PointPartitioner.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PointScatter.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PointsToMask.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PoissonSolver.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\PotentialFlow.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Prune.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\RayIntersector.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\RayTracer.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\SignedFloodFill.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\Statistics.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\TopologyToLevelSet.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\ValueTransformer.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\VectorTransformer.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\VelocityFields.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\VolumeAdvect.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\VolumeToMesh.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\tools\VolumeToSpheres.h">
+      <Filter>tools</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\AttributeArray.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\AttributeArrayString.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\AttributeGroup.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\AttributeSet.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\IndexFilter.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\IndexIterator.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointAdvect.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointAttribute.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointConversion.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointCount.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointDataGrid.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointDelete.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointGroup.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointMask.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointMove.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointSample.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\PointScatter.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\points\StreamCompression.h">
+      <Filter>points</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Exceptions.h" />
+    <ClInclude Include="..\..\Grid.h" />
+    <ClInclude Include="..\..\Metadata.h" />
+    <ClInclude Include="..\..\MetaMap.h" />
+    <ClInclude Include="..\..\openvdb.h" />
+    <ClInclude Include="..\..\Platform.h" />
+    <ClInclude Include="..\..\PlatformConfig.h" />
+    <ClInclude Include="..\..\TypeList.h" />
+    <ClInclude Include="..\..\Types.h" />
+    <ClInclude Include="..\..\version.h" />
+  </ItemGroup>
+</Project>

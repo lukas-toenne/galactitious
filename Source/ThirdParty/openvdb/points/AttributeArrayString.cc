@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 /// @file points/AttributeArrayString.cc
 
@@ -35,7 +8,9 @@
 #include <openvdb/Metadata.h>
 #include <openvdb/MetaMap.h>
 
-#include <sstream>
+#include <tbb/parallel_sort.h>
+
+#include <string>
 
 namespace openvdb {
 OPENVDB_USE_VERSION_NAMESPACE
@@ -45,33 +20,9 @@ namespace points {
 
 namespace {
 
-    bool isStringMeta(const Name& key, const Metadata::Ptr& meta)
+    Name getStringKey(const Index index)
     {
-        // ensure the metadata is StringMetadata
-        if (meta->typeName() != "string")           return false;
-        // string attribute metadata must have a key that starts "string:"
-        if (key.compare(0, 7, "string:") != 0)      return false;
-
-        return true;
-    }
-
-    Name getStringKey(const StringIndexType index)
-    {
-        std::stringstream ss;
-        ss << "string:" << (index - 1);
-        return ss.str();
-    }
-
-    StringIndexType getStringIndex(const Name& key)
-    {
-        Name indexStr = key.substr(7, key.size() - 7);
-
-        // extract the index as an unsigned integer
-        std::istringstream indexSS(indexStr);
-        Index index;
-        indexSS >> index;
-
-        return (index + 1);
+        return "string:" + std::to_string(index - 1);
     }
 
 } // namespace
@@ -80,67 +31,198 @@ namespace {
 ////////////////////////////////////////
 
 
+// StringMetaCache implementation
+
+
+StringMetaCache::StringMetaCache(const MetaMap& metadata)
+{
+    this->reset(metadata);
+}
+
+
+void StringMetaCache::insert(const Name& key, Index index)
+{
+    mCache[key] = index;
+}
+
+
+void StringMetaCache::reset(const MetaMap& metadata)
+{
+    mCache.clear();
+
+    // populate the cache
+
+    for (auto it = metadata.beginMeta(), itEnd = metadata.endMeta(); it != itEnd; ++it) {
+        const Name& key = it->first;
+        const Metadata::Ptr& meta = it->second;
+
+        // attempt to cast metadata to StringMetadata
+        const StringMetadata* stringMeta = dynamic_cast<StringMetadata*>(meta.get());
+        if (!stringMeta)                            continue;
+
+        // string attribute metadata must have a key that starts "string:"
+        if (key.compare(0, 7, "string:") != 0)      continue;
+
+        // remove "string:" and cast to Index
+        Index index = 1 + static_cast<Index>(
+            std::stoul(key.substr(7, key.size() - 7)));
+
+        // add to the cache
+        this->insert(stringMeta->value(), index);
+    }
+}
+
+
+////////////////////////////////////////
+
 // StringMetaInserter implementation
 
 
 StringMetaInserter::StringMetaInserter(MetaMap& metadata)
     : mMetadata(metadata)
+    , mIdBlocks()
+    , mCache()
 {
     // populate the cache
     resetCache();
 }
 
 
-void StringMetaInserter::insert(const Name& name)
+bool StringMetaInserter::hasKey(const Name& key) const
 {
-    // name already exists, so do nothing
+    return mCache.map().find(key) != mCache.map().end();
+}
 
-    if (std::binary_search(mValues.begin(), mValues.end(), name))  return;
 
-    // find first unused index in the cache
+bool StringMetaInserter::hasIndex(Index index) const
+{
+    return bool(mMetadata[getStringKey(index)]);
+}
 
-    Index index = 1;
-    for (const Index& idx : mIndices) {
-        if (idx != index)   break;
-        ++index;
+
+Index StringMetaInserter::insert(const Name& name, Index hint)
+{
+    using IterT = IndexPairArray::iterator;
+
+    // if name already exists, return the index
+
+    const auto& cacheMap = mCache.map();
+    auto it = cacheMap.find(name);
+    if (it != cacheMap.end()) {
+        return it->second;
     }
 
-    // now insert into metadata
+    Index index = 1;
+
+    Name hintKey;
+    bool canUseHint = false;
+
+    // hint must be non-zero to have been requested
+
+    if (hint > Index(0)) {
+        hintKey = getStringKey(hint);
+        // check if hint is already in use
+        if (!bool(mMetadata[hintKey])) {
+            canUseHint = true;
+            index = hint;
+        }
+    }
+
+    // look through the id blocks for hint or index
+
+    IterT iter = mIdBlocks.begin();
+    for (; iter != mIdBlocks.end(); ++iter) {
+        const Index start = iter->first;
+        const Index end = start + iter->second;
+
+        if (index < start || index >= end) break;
+        if (!canUseHint)    index = end;
+    }
+
+    // index now holds the next valid index. if it's 1 (the beginning
+    // iterator) no initial block exists - add it
+
+    IterT prevIter;
+    if (iter == mIdBlocks.begin()) {
+        prevIter = mIdBlocks.emplace(iter, 1, 1);
+        iter = std::next(prevIter);
+    }
+    else {
+        // accumulate the id block size where the next index is going
+        prevIter = std::prev(iter);
+        prevIter->second++;
+    }
+
+    // see if this block and the next block can be compacted
+
+    if (iter != mIdBlocks.end() &&
+        prevIter->second + 1 == iter->first) {
+        prevIter->second += iter->second;
+        mIdBlocks.erase(iter);
+    }
+
+    // insert into metadata
 
     const Name key = getStringKey(index);
     mMetadata.insertMeta(key, StringMetadata(name));
 
-    // finally update the caches (insertion sort)
+    // update the cache
 
-    mIndices.insert(std::upper_bound(mIndices.begin(), mIndices.end(), index), index);
-    mValues.insert(std::upper_bound(mValues.begin(), mValues.end(), name), name);
+    mCache.insert(name, index);
+
+    return index;
 }
 
 
 void StringMetaInserter::resetCache()
 {
-    mIndices.clear();
-    mValues.clear();
+    mCache.reset(mMetadata);
+    mIdBlocks.clear();
 
-    for (auto it = mMetadata.beginMeta(), itEnd = mMetadata.endMeta(); it != itEnd; ++it) {
-        const Name& key = it->first;
-        const Metadata::Ptr meta = it->second;
+    std::vector<Index> stringIndices;
+    stringIndices.reserve(mCache.size());
 
-        // ensure the metadata is StringMetadata and key starts "string:"
-        if (!isStringMeta(key, meta))   continue;
+    if (mCache.empty()) return;
 
-        // extract index and add to cache
-        Index index = getStringIndex(key);
-        mIndices.push_back(index);
+    const auto& cacheMap = mCache.map();
 
-        // extract value from metadata and add to cache
-        StringMetadata* stringMeta = static_cast<StringMetadata*>(meta.get());
-        assert(stringMeta);
-        mValues.push_back(stringMeta->value());
+    for (auto it = cacheMap.cbegin(); it != cacheMap.cend(); ++it) {
+        const Index index = it->second;
+
+        stringIndices.emplace_back(index);
     }
 
-    std::sort(mIndices.begin(), mIndices.end());
-    std::sort(mValues.begin(), mValues.end());
+    tbb::parallel_sort(stringIndices.begin(), stringIndices.end());
+
+    // bucket string indices
+
+    Index key = stringIndices.front();
+    Index size = 0;
+
+    // For each id, see if it's adjacent id is sequentially increasing and continue to
+    // track how many are until we find a value that isn't. Store the start and length
+    // of each of these blocks. For example, the following container could be created
+    // consisting of 3 elements:
+    //   key  ->  size
+    //   -------------
+    //   7    ->  1000  (values 7->1007)
+    //   1020 ->  5     (values 1020->1025)
+    //   2013 ->  30    (values 2013->2043)
+    // Note that the end value is exclusive (values 1007, 1025 and 2043 do not exist
+    // given the above example)
+
+    for (const Index id : stringIndices) {
+        if (key + size != id) {
+            assert(size > 0);
+            mIdBlocks.emplace_back(key, size);
+            size = 0;
+            key = id;
+        }
+        ++size;
+    }
+
+    // add the last block
+    mIdBlocks.emplace_back(key, size);
 }
 
 
@@ -178,7 +260,7 @@ Name StringAttributeHandle::get(Index n, Index m) const
 
 void StringAttributeHandle::get(Name& name, Index n, Index m) const
 {
-    StringIndexType index = mHandle.get(n, m);
+    Index index = mHandle.get(n, m);
 
     // index zero is reserved for an empty string
 
@@ -198,6 +280,11 @@ void StringAttributeHandle::get(Name& name, Index n, Index m) const
     }
 
     name = meta->value();
+}
+
+const AttributeArray& StringAttributeHandle::array() const
+{
+    return mHandle.array();
 }
 
 
@@ -272,37 +359,34 @@ void StringAttributeWriteHandle::set(Index n, Index m, const Name& name)
 
 void StringAttributeWriteHandle::resetCache()
 {
-    mCache.clear();
-
-    // re-populate the cache
-
-    for (auto it = mMetadata.beginMeta(), itEnd = mMetadata.endMeta(); it != itEnd; ++it) {
-        const Name& key = it->first;
-        const Metadata::Ptr meta = it->second;
-
-        // ensure the metadata is StringMetadata and key starts "string:"
-        if (!isStringMeta(key, meta))   continue;
-
-        const auto* stringMeta = static_cast<StringMetadata*>(meta.get());
-        assert(stringMeta);
-
-        // remove "string:"
-        Index index = getStringIndex(key);
-
-        // add to the cache
-        mCache[stringMeta->value()] = index;
-    }
+    mCache.reset(mMetadata);
 }
 
 
-Index StringAttributeWriteHandle::getIndex(const Name& name)
+AttributeArray& StringAttributeWriteHandle::array()
+{
+    return mWriteHandle.array();
+}
+
+
+bool StringAttributeWriteHandle::contains(const Name& name) const
+{
+    // empty strings always have an index at index zero
+    if (name.empty())   return true;
+    const auto& cacheMap = mCache.map();
+    return cacheMap.find(name) != cacheMap.end();
+}
+
+
+Index StringAttributeWriteHandle::getIndex(const Name& name) const
 {
     // zero used for an empty string
     if (name.empty())   return Index(0);
 
-    auto it = mCache.find(name);
+    const auto& cacheMap = mCache.map();
+    auto it = cacheMap.find(name);
 
-    if (it == mCache.end()) {
+    if (it == cacheMap.end()) {
         OPENVDB_THROW(LookupError, "String does not exist in Metadata, insert it and reset the cache - \"" << name << "\".");
     }
 
@@ -316,7 +400,3 @@ Index StringAttributeWriteHandle::getIndex(const Name& name)
 } // namespace points
 } // namespace OPENVDB_VERSION_NAME
 } // namespace openvdb
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

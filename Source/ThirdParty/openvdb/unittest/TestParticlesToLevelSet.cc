@@ -1,50 +1,24 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include <vector>
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/openvdb.h>
 #include <openvdb/Exceptions.h>
 #include <openvdb/Types.h>
 #include <openvdb/tree/LeafNode.h>
+#include <openvdb/tools/LevelSetUtil.h> // for sdfInteriorMask()
 #include <openvdb/tools/ParticlesToLevelSet.h>
 
 #define ASSERT_DOUBLES_EXACTLY_EQUAL(expected, actual) \
-    CPPUNIT_ASSERT_DOUBLES_EQUAL((expected), (actual), /*tolerance=*/0.0);
+    EXPECT_NEAR((expected), (actual), /*tolerance=*/0.0);
 
 
-class TestParticlesToLevelSet: public CppUnit::TestFixture
+class TestParticlesToLevelSet: public ::testing::Test
 {
 public:
-    virtual void setUp() {openvdb::initialize();}
-    virtual void tearDown() {openvdb::uninitialize();}
+    void SetUp() override {openvdb::initialize();}
+    void TearDown() override {openvdb::uninitialize();}
 
     void writeGrid(openvdb::GridBase::Ptr grid, std::string fileName) const
     {
@@ -56,24 +30,8 @@ public:
         file.write(grids);
         file.close();
     }
-
-    CPPUNIT_TEST_SUITE(TestParticlesToLevelSet);
-    CPPUNIT_TEST(testMyParticleList);
-    CPPUNIT_TEST(testRasterizeSpheres);
-    CPPUNIT_TEST(testRasterizeSpheresAndId);
-    CPPUNIT_TEST(testRasterizeTrails);
-    CPPUNIT_TEST(testRasterizeTrailsAndId);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testMyParticleList();
-    void testRasterizeSpheres();
-    void testRasterizeSpheresAndId();
-    void testRasterizeTrails();
-    void testRasterizeTrailsAndId();
 };
 
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestParticlesToLevelSet);
 
 class MyParticleList
 {
@@ -152,13 +110,49 @@ public:
 };
 
 
-void
-TestParticlesToLevelSet::testMyParticleList()
+TEST_F(TestParticlesToLevelSet, testBlindData)
+{
+    using BlindTypeIF = openvdb::tools::p2ls_internal::BlindData<openvdb::Index, float>;
+
+    BlindTypeIF value(openvdb::Index(8), 5.2f);
+    EXPECT_EQ(openvdb::Index(8), value.visible());
+    ASSERT_DOUBLES_EXACTLY_EQUAL(5.2f, value.blind());
+
+    BlindTypeIF value2(openvdb::Index(13), 1.6f);
+
+    { // test equality
+        // only visible portion needs to be equal
+        BlindTypeIF blind(openvdb::Index(13), 6.7f);
+        EXPECT_TRUE(value2 == blind);
+    }
+
+    { // test addition of two blind types
+        BlindTypeIF blind = value + value2;
+        EXPECT_EQ(openvdb::Index(8+13), blind.visible());
+        EXPECT_EQ(0.0f, blind.blind()); // blind values are both dropped
+    }
+
+    { // test addition of blind type with visible type
+        BlindTypeIF blind = value + 3;
+        EXPECT_EQ(openvdb::Index(8+3), blind.visible());
+        EXPECT_EQ(5.2f, blind.blind());
+    }
+
+    { // test addition of blind type with type that requires casting
+        // note that this will generate conversion warnings if not handled properly
+        BlindTypeIF blind = value + 3.7;
+        EXPECT_EQ(openvdb::Index(8+3), blind.visible());
+        EXPECT_EQ(5.2f, blind.blind());
+    }
+}
+
+
+TEST_F(TestParticlesToLevelSet, testMyParticleList)
 {
     MyParticleList pa;
-    CPPUNIT_ASSERT_EQUAL(0, int(pa.size()));
+    EXPECT_EQ(0, int(pa.size()));
     pa.add(openvdb::Vec3R(10,10,10), 2, openvdb::Vec3R(1,0,0));
-    CPPUNIT_ASSERT_EQUAL(1, int(pa.size()));
+    EXPECT_EQ(1, int(pa.size()));
     ASSERT_DOUBLES_EXACTLY_EQUAL(10, pa.pos(0)[0]);
     ASSERT_DOUBLES_EXACTLY_EQUAL(10, pa.pos(0)[1]);
     ASSERT_DOUBLES_EXACTLY_EQUAL(10, pa.pos(0)[2]);
@@ -167,7 +161,7 @@ TestParticlesToLevelSet::testMyParticleList()
     ASSERT_DOUBLES_EXACTLY_EQUAL(0 , pa.vel(0)[2]);
     ASSERT_DOUBLES_EXACTLY_EQUAL(2 , pa.radius(0));
     pa.add(openvdb::Vec3R(20,20,20), 3);
-    CPPUNIT_ASSERT_EQUAL(2, int(pa.size()));
+    EXPECT_EQ(2, int(pa.size()));
     ASSERT_DOUBLES_EXACTLY_EQUAL(20, pa.pos(1)[0]);
     ASSERT_DOUBLES_EXACTLY_EQUAL(20, pa.pos(1)[1]);
     ASSERT_DOUBLES_EXACTLY_EQUAL(20, pa.pos(1)[2]);
@@ -188,8 +182,7 @@ TestParticlesToLevelSet::testMyParticleList()
 }
 
 
-void
-TestParticlesToLevelSet::testRasterizeSpheres()
+TEST_F(TestParticlesToLevelSet, testRasterizeSpheres)
 {
     MyParticleList pa;
     pa.add(openvdb::Vec3R(10,10,10), 2);
@@ -206,7 +199,7 @@ TestParticlesToLevelSet::testRasterizeSpheres()
     pa.add(openvdb::Vec3R(35.0,31,31), 5);
     pa.add(openvdb::Vec3R(35.5,31,31), 5);
     pa.add(openvdb::Vec3R(36.0,31,31), 5);
-    CPPUNIT_ASSERT_EQUAL(13, int(pa.size()));
+    EXPECT_EQ(13, int(pa.size()));
 
     const float voxelSize = 1.0f, halfWidth = 2.0f;
     openvdb::FloatGrid::Ptr ls = openvdb::createLevelSet<openvdb::FloatGrid>(voxelSize, halfWidth);
@@ -258,14 +251,14 @@ TestParticlesToLevelSet::testRasterizeSpheres()
                     }
                     const float val = ls->tree().getValue(ijk);
                     if (dist >= outside) {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(outside, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOff(ijk));
+                        EXPECT_NEAR(outside, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOff(ijk));
                     } else if( dist <= inside ) {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(inside, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOff(ijk));
+                        EXPECT_NEAR(inside, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOff(ijk));
                     } else {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(  dist, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOn(ijk));
+                        EXPECT_NEAR(  dist, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOn(ijk));
                         ++count;
                     }
                 }
@@ -274,13 +267,12 @@ TestParticlesToLevelSet::testRasterizeSpheres()
         //std::cerr << "\nExpected active voxel count = " << count
         //    << ", actual active voxle count = "
         //    << ls->activeVoxelCount() << std::endl;
-        CPPUNIT_ASSERT_EQUAL(count, ls->activeVoxelCount());
+        EXPECT_EQ(count, ls->activeVoxelCount());
     }
 }
 
 
-void
-TestParticlesToLevelSet::testRasterizeSpheresAndId()
+TEST_F(TestParticlesToLevelSet, testRasterizeSpheresAndId)
 {
     MyParticleList pa(0.5f);
     pa.add(openvdb::Vec3R(10,10,10), 4);
@@ -297,7 +289,7 @@ TestParticlesToLevelSet::testRasterizeSpheresAndId()
     pa.add(openvdb::Vec3R(35.0,31,31),10);
     pa.add(openvdb::Vec3R(35.5,31,31),10);
     pa.add(openvdb::Vec3R(36.0,31,31),10);
-    CPPUNIT_ASSERT_EQUAL(13, int(pa.size()));
+    EXPECT_EQ(13, int(pa.size()));
 
     typedef openvdb::tools::ParticlesToLevelSet<openvdb::FloatGrid, openvdb::Index32> RasterT;
     const float voxelSize = 1.0f, halfWidth = 2.0f;
@@ -314,8 +306,8 @@ TestParticlesToLevelSet::testRasterizeSpheresAndId()
         minVal = openvdb::math::Min(minVal, int(*i));
         maxVal = openvdb::math::Max(maxVal, int(*i));
     }
-    CPPUNIT_ASSERT_EQUAL(0 , minVal);
-    CPPUNIT_ASSERT_EQUAL(12, maxVal);
+    EXPECT_EQ(0 , minVal);
+    EXPECT_EQ(12, maxVal);
 
     //grid.tree().print(std::cout,4);
     //id->print(std::cout,4);
@@ -366,20 +358,20 @@ TestParticlesToLevelSet::testRasterizeSpheresAndId()
                     const float val = ls->tree().getValue(ijk);
                     openvdb::Index32 m = id->tree().getValue(ijk);
                     if (dist >= outside) {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(outside, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOff(ijk));
-                        //CPPUNIT_ASSERT_EQUAL(openvdb::util::INVALID_IDX, m);
-                        CPPUNIT_ASSERT(id->tree().isValueOff(ijk));
+                        EXPECT_NEAR(outside, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOff(ijk));
+                        //EXPECT_EQ(openvdb::util::INVALID_IDX, m);
+                        EXPECT_TRUE(id->tree().isValueOff(ijk));
                     } else if( dist <= inside ) {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(inside, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOff(ijk));
-                        //CPPUNIT_ASSERT_EQUAL(openvdb::util::INVALID_IDX, m);
-                        CPPUNIT_ASSERT(id->tree().isValueOff(ijk));
+                        EXPECT_NEAR(inside, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOff(ijk));
+                        //EXPECT_EQ(openvdb::util::INVALID_IDX, m);
+                        EXPECT_TRUE(id->tree().isValueOff(ijk));
                     } else {
-                        CPPUNIT_ASSERT_DOUBLES_EQUAL(  dist, val, 0.0001);
-                        CPPUNIT_ASSERT(ls->tree().isValueOn(ijk));
-                        CPPUNIT_ASSERT_EQUAL(k, m);
-                        CPPUNIT_ASSERT(id->tree().isValueOn(ijk));
+                        EXPECT_NEAR(  dist, val, 0.0001);
+                        EXPECT_TRUE(ls->tree().isValueOn(ijk));
+                        EXPECT_EQ(k, m);
+                        EXPECT_TRUE(id->tree().isValueOn(ijk));
                         ++count;
                     }
                 }
@@ -388,15 +380,14 @@ TestParticlesToLevelSet::testRasterizeSpheresAndId()
         //std::cerr << "\nExpected active voxel count = " << count
         //    << ", actual active voxle count = "
         //    << ls->activeVoxelCount() << std::endl;
-        CPPUNIT_ASSERT_EQUAL(count, ls->activeVoxelCount());
+        EXPECT_EQ(count, ls->activeVoxelCount());
     }
 }
 
 
 /// This is not really a conventional unit-test since the result of
 /// the tests are written to a file and need to be visually verified!
-void
-TestParticlesToLevelSet::testRasterizeTrails()
+TEST_F(TestParticlesToLevelSet, testRasterizeTrails)
 {
     const float voxelSize = 1.0f, halfWidth = 2.0f;
     openvdb::FloatGrid::Ptr ls = openvdb::createLevelSet<openvdb::FloatGrid>(voxelSize, halfWidth);
@@ -418,8 +409,7 @@ TestParticlesToLevelSet::testRasterizeTrails()
 }
 
 
-void
-TestParticlesToLevelSet::testRasterizeTrailsAndId()
+TEST_F(TestParticlesToLevelSet, testRasterizeTrailsAndId)
 {
     MyParticleList pa(1,5);
 
@@ -436,22 +426,128 @@ TestParticlesToLevelSet::testRasterizeTrailsAndId()
     raster.rasterizeTrails(pa, 0.75);//scale offset between two instances
     raster.finalize();
     const RasterT::AttGridType::Ptr id = raster.attributeGrid();
-    CPPUNIT_ASSERT(!ls->empty());
-    CPPUNIT_ASSERT(!id->empty());
-    CPPUNIT_ASSERT_EQUAL(ls->activeVoxelCount(),id->activeVoxelCount());
+    EXPECT_TRUE(!ls->empty());
+    EXPECT_TRUE(!id->empty());
+    EXPECT_EQ(ls->activeVoxelCount(),id->activeVoxelCount());
 
     int min = std::numeric_limits<int>::max(), max = -min;
     for (RasterT::AttGridType::ValueOnCIter i=id->cbeginValueOn(); i; ++i) {
         min = openvdb::math::Min(min, int(*i));
         max = openvdb::math::Max(max, int(*i));
     }
-    CPPUNIT_ASSERT_EQUAL(1, min);//first particle is ignored because of its small rdadius!
-    CPPUNIT_ASSERT_EQUAL(3, max);
+    EXPECT_EQ(1, min);//first particle is ignored because of its small rdadius!
+    EXPECT_EQ(3, max);
 
     //ls->tree().print(std::cout, 4);
     //this->writeGrid(ls, "testRasterizeTrails");
 }
 
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
+
+TEST_F(TestParticlesToLevelSet, testMaskOutput)
+{
+    using namespace openvdb;
+
+    using SdfGridType = FloatGrid;
+    using MaskGridType = MaskGrid;
+
+    MyParticleList pa;
+    const Vec3R vel(10, 5, 1);
+    pa.add(Vec3R(84.7252, 85.7946, 84.4266), 11.8569, vel);
+    pa.add(Vec3R(47.9977, 81.2169, 47.7665), 5.45313, vel);
+    pa.add(Vec3R(87.0087, 14.0351, 95.7155), 7.36483, vel);
+    pa.add(Vec3R(75.8616, 53.7373, 58.202),  14.4127, vel);
+    pa.add(Vec3R(14.9675, 32.4141, 13.5218), 4.33101, vel);
+    pa.add(Vec3R(96.9809, 9.92804, 90.2349), 12.2613, vel);
+    pa.add(Vec3R(63.4274, 3.84254, 32.5047), 12.1566, vel);
+    pa.add(Vec3R(62.351,  47.4698, 41.4369), 11.637,  vel);
+    pa.add(Vec3R(62.2846, 1.35716, 66.2527), 18.9914, vel);
+    pa.add(Vec3R(44.1711, 1.99877, 45.1159), 1.11429, vel);
+
+    {
+        // Test variable-radius particles.
+
+        // Rasterize into an SDF.
+        auto sdf = createLevelSet<SdfGridType>();
+        tools::particlesToSdf(pa, *sdf);
+
+        // Rasterize into a boolean mask.
+        auto mask = MaskGridType::create();
+        tools::particlesToMask(pa, *mask);
+
+        // Verify that the rasterized mask matches the interior of the SDF.
+        mask->tree().voxelizeActiveTiles();
+        auto interior = tools::sdfInteriorMask(*sdf);
+        EXPECT_TRUE(interior);
+        interior->tree().voxelizeActiveTiles();
+        EXPECT_EQ(interior->activeVoxelCount(), mask->activeVoxelCount());
+        interior->topologyDifference(*mask);
+        EXPECT_EQ(0, int(interior->activeVoxelCount()));
+    }
+    {
+        // Test fixed-radius particles.
+
+        auto sdf = createLevelSet<SdfGridType>();
+        tools::particlesToSdf(pa, *sdf, /*radius=*/10.0);
+
+        auto mask = MaskGridType::create();
+        tools::particlesToMask(pa, *mask, /*radius=*/10.0);
+
+        mask->tree().voxelizeActiveTiles();
+        auto interior = tools::sdfInteriorMask(*sdf);
+        EXPECT_TRUE(interior);
+        interior->tree().voxelizeActiveTiles();
+        EXPECT_EQ(interior->activeVoxelCount(), mask->activeVoxelCount());
+        interior->topologyDifference(*mask);
+        EXPECT_EQ(0, int(interior->activeVoxelCount()));
+    }
+    {
+        // Test particle trails.
+
+        auto sdf = createLevelSet<SdfGridType>();
+        tools::particleTrailsToSdf(pa, *sdf);
+
+        auto mask = MaskGridType::create();
+        tools::particleTrailsToMask(pa, *mask);
+
+        mask->tree().voxelizeActiveTiles();
+        auto interior = tools::sdfInteriorMask(*sdf);
+        EXPECT_TRUE(interior);
+        interior->tree().voxelizeActiveTiles();
+        EXPECT_EQ(interior->activeVoxelCount(), mask->activeVoxelCount());
+        interior->topologyDifference(*mask);
+        EXPECT_EQ(0, int(interior->activeVoxelCount()));
+    }
+    {
+        // Test attribute transfer.
+
+        auto sdf = createLevelSet<SdfGridType>();
+        tools::ParticlesToLevelSet<SdfGridType, Index32> p2sdf(*sdf);
+        p2sdf.rasterizeSpheres(pa);
+        p2sdf.finalize(/*prune=*/true);
+        const auto sdfAttr = p2sdf.attributeGrid();
+        EXPECT_TRUE(sdfAttr);
+
+        auto mask = MaskGridType::create();
+        tools::ParticlesToLevelSet<MaskGridType, Index32> p2mask(*mask);
+        p2mask.rasterizeSpheres(pa);
+        p2mask.finalize(/*prune=*/true);
+        const auto maskAttr = p2mask.attributeGrid();
+        EXPECT_TRUE(maskAttr);
+
+        mask->tree().voxelizeActiveTiles();
+        auto interior = tools::sdfInteriorMask(*sdf);
+        EXPECT_TRUE(interior);
+        interior->tree().voxelizeActiveTiles();
+        EXPECT_EQ(interior->activeVoxelCount(), mask->activeVoxelCount());
+        interior->topologyDifference(*mask);
+        EXPECT_EQ(0, int(interior->activeVoxelCount()));
+
+        // Verify that the mask- and SDF-generated attribute grids match.
+        auto sdfAcc = sdfAttr->getConstAccessor();
+        auto maskAcc = maskAttr->getConstAccessor();
+        for (auto it = interior->cbeginValueOn(); it; ++it) {
+            const auto& c = it.getCoord();
+            EXPECT_EQ(sdfAcc.getValue(c), maskAcc.getValue(c));
+        }
+    }
+}

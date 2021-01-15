@@ -1,41 +1,17 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include "Archive.h"
 
 #include "GridDescriptor.h"
+#include "DelayedLoadMetadata.h"
 #include "io.h"
 
 #include <openvdb/Exceptions.h>
 #include <openvdb/Metadata.h>
+#include <openvdb/tree/LeafManager.h>
 #include <openvdb/util/logging.h>
+#include <openvdb/openvdb.h>
 
 // Boost.Interprocess uses a header-only portion of Boost.DateTime
 #ifdef __clang__
@@ -48,14 +24,10 @@
 #endif
 #include <boost/interprocess/file_mapping.hpp>
 #include <boost/interprocess/mapped_region.hpp>
-#ifndef EPIC_IN_MEMORY_ONLY
 #include <boost/iostreams/device/array.hpp>
 #include <boost/iostreams/stream.hpp>
-#include <boost/system/error_code.hpp>
-#endif
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <boost/version.hpp> // for BOOST_VERSION
 
 #include <tbb/atomic.h>
 
@@ -75,13 +47,13 @@ namespace boost { namespace interprocess { namespace detail {} namespace ipcdeta
 #include <cerrno> // for errno
 #include <cstdlib> // for getenv()
 #include <cstring> // for std::memcpy()
+#include <ctime> // for std::time()
 #include <iostream>
 #include <map>
+#include <random>
+#include <set>
 #include <sstream>
-
-#ifndef DWA_BOOST_VERSION
-#define DWA_BOOST_VERSION (10 * BOOST_VERSION)
-#endif
+#include <system_error> // for std::error_code()
 
 
 namespace openvdb {
@@ -92,7 +64,11 @@ namespace io {
 #ifdef OPENVDB_USE_BLOSC
 const uint32_t Archive::DEFAULT_COMPRESSION_FLAGS = (COMPRESS_BLOSC | COMPRESS_ACTIVE_MASK);
 #else
+#ifdef OPENVDB_USE_ZLIB
 const uint32_t Archive::DEFAULT_COMPRESSION_FLAGS = (COMPRESS_ZIP | COMPRESS_ACTIVE_MASK);
+#else
+const uint32_t Archive::DEFAULT_COMPRESSION_FLAGS = (COMPRESS_ACTIVE_MASK);
+#endif
 #endif
 
 
@@ -106,6 +82,11 @@ struct StreamState
     StreamState();
     ~StreamState();
 
+    // Important:  The size and order of these member variables must *only* change when
+    //             OpenVDB ABI changes to avoid potential segfaults when performing I/O
+    //             across two different versions of the library. Adding new member
+    //             variables to the end of the struct is allowed provided that they
+    //             are only accessed from within an appropriate ABI guard.
     int magicNumber;
     int fileVersion;
     int libraryMajorVersion;
@@ -204,6 +185,12 @@ StreamState::~StreamState()
 
 struct StreamMetadata::Impl
 {
+    // Important:  The size and order of these member variables must *only* change when
+    //             OpenVDB ABI changes to avoid potential segfaults when performing I/O
+    //             across two different versions of the library. Adding new member
+    //             variables to the end of the struct is allowed provided that they
+    //             are only accessed from within an appropriate ABI guard.
+
     uint32_t mFileVersion = OPENVDB_FILE_VERSION;
     VersionId mLibraryVersion = { OPENVDB_LIBRARY_MAJOR_VERSION, OPENVDB_LIBRARY_MINOR_VERSION };
     uint32_t mCompression = COMPRESS_NONE;
@@ -216,6 +203,9 @@ struct StreamMetadata::Impl
     uint32_t mPass = 0;
     MetaMap mGridMetadata;
     AuxDataMap mAuxData;
+    bool mDelayedLoadMeta = DelayedLoadMetadata::isRegisteredType();
+    uint64_t mLeaf = 0;
+    uint32_t mTest = 0; // for testing only
 }; // struct StreamMetadata
 
 
@@ -275,10 +265,13 @@ const void*     StreamMetadata::backgroundPtr() const   { return mImpl->mBackgro
 bool            StreamMetadata::halfFloat() const       { return mImpl->mHalfFloat; }
 bool            StreamMetadata::writeGridStats() const  { return mImpl->mWriteGridStats; }
 bool            StreamMetadata::seekable() const        { return mImpl->mSeekable; }
+bool            StreamMetadata::delayedLoadMeta() const { return mImpl->mDelayedLoadMeta; }
 bool            StreamMetadata::countingPasses() const  { return mImpl->mCountingPasses; }
 uint32_t        StreamMetadata::pass() const            { return mImpl->mPass; }
+uint64_t        StreamMetadata::leaf() const            { return mImpl->mLeaf; }
 MetaMap&        StreamMetadata::gridMetadata()          { return mImpl->mGridMetadata; }
 const MetaMap&  StreamMetadata::gridMetadata() const    { return mImpl->mGridMetadata; }
+uint32_t        StreamMetadata::__test() const          { return mImpl->mTest; }
 
 StreamMetadata::AuxDataMap& StreamMetadata::auxData() { return mImpl->mAuxData; }
 const StreamMetadata::AuxDataMap& StreamMetadata::auxData() const { return mImpl->mAuxData; }
@@ -293,6 +286,8 @@ void StreamMetadata::setWriteGridStats(bool b)          { mImpl->mWriteGridStats
 void StreamMetadata::setSeekable(bool b)                { mImpl->mSeekable = b; }
 void StreamMetadata::setCountingPasses(bool b)          { mImpl->mCountingPasses = b; }
 void StreamMetadata::setPass(uint32_t i)                { mImpl->mPass = i; }
+void StreamMetadata::setLeaf(uint64_t i)                { mImpl->mLeaf = i; }
+void StreamMetadata::__setTest(uint32_t t)              { mImpl->mTest = t; }
 
 std::string
 StreamMetadata::str() const
@@ -305,6 +300,7 @@ StreamMetadata::str() const
     ostr << "compression: " << compressionToString(compression()) << "\n";
     ostr << "half_float: " << halfFloat() << "\n";
     ostr << "seekable: " << seekable() << "\n";
+    ostr << "delayed_load_meta: " << delayedLoadMeta() << "\n";
     ostr << "pass: " << pass() << "\n";
     ostr << "counting_passes: " << countingPasses() << "\n";
     ostr << "write_grid_stats_metadata: " << writeGridStats() << "\n";
@@ -335,6 +331,73 @@ writeAsType(std::ostream& os, const boost::any& val)
         return true;
     }
     return false;
+}
+
+struct PopulateDelayedLoadMetadataOp
+{
+    DelayedLoadMetadata& metadata;
+    uint32_t compression;
+
+    PopulateDelayedLoadMetadataOp(DelayedLoadMetadata& _metadata, uint32_t _compression)
+        : metadata(_metadata)
+        , compression(_compression) { }
+
+    template<typename GridT>
+    void operator()(const GridT& grid) const
+    {
+        using TreeT = typename GridT::TreeType;
+        using ValueT = typename TreeT::ValueType;
+        using LeafT = typename TreeT::LeafNodeType;
+        using MaskT = typename LeafT::NodeMaskType;
+
+        const TreeT& tree = grid.constTree();
+        const Index32 leafCount = tree.leafCount();
+
+        // early exit if not leaf nodes
+        if (leafCount == Index32(0))    return;
+
+        metadata.resizeMask(leafCount);
+
+        if (compression & (COMPRESS_BLOSC | COMPRESS_ZIP)) {
+            metadata.resizeCompressedSize(leafCount);
+        }
+
+        const auto background = tree.background();
+        const bool saveFloatAsHalf = grid.saveFloatAsHalf();
+
+        tree::LeafManager<const TreeT> leafManager(tree);
+
+        leafManager.foreach(
+            [&](const LeafT& leaf, size_t idx) {
+                // set mask value
+                MaskCompress<ValueT, MaskT> maskCompressData(
+                    leaf.valueMask(), /*childMask=*/MaskT(), leaf.buffer().data(), background);
+                metadata.setMask(idx, maskCompressData.metadata);
+
+                if (compression & (COMPRESS_BLOSC | COMPRESS_ZIP)) {
+                    // set compressed size value
+                    size_t sizeBytes(8);
+                    size_t compressedSize = io::writeCompressedValuesSize(
+                        leaf.buffer().data(), LeafT::SIZE,
+                        leaf.valueMask(), maskCompressData.metadata, saveFloatAsHalf, compression);
+                    metadata.setCompressedSize(idx, compressedSize+sizeBytes);
+                }
+            }
+        );
+    }
+};
+
+bool populateDelayedLoadMetadata(DelayedLoadMetadata& metadata,
+    const GridBase& gridBase, uint32_t compression)
+{
+    PopulateDelayedLoadMetadataOp op(metadata, compression);
+
+    using AllowedTypes = TypeList<
+        Int32Grid, Int64Grid,
+        FloatGrid, DoubleGrid,
+        Vec3IGrid, Vec3SGrid, Vec3DGrid>;
+
+    return gridBase.apply<AllowedTypes>(op);
 }
 
 } // unnamed namespace
@@ -478,7 +541,7 @@ MappedFile::filename() const
     return result;
 }
 
-#ifndef EPIC_IN_MEMORY_ONLY
+
 SharedPtr<std::streambuf>
 MappedFile::createBuffer() const
 {
@@ -496,7 +559,7 @@ MappedFile::createBuffer() const
         new boost::iostreams::stream_buffer<boost::iostreams::array_source>{
             static_cast<const char*>(mImpl->mRegion.get_address()), mImpl->mRegion.get_size()}};
 }
-#endif
+
 
 void
 MappedFile::setNotifier(const Notifier& notifier)
@@ -518,15 +581,7 @@ MappedFile::clearNotifier()
 std::string
 getErrorString(int errorNum)
 {
-#ifndef EPIC_IN_MEMORY_ONLY
-#if DWA_BOOST_VERSION >= 1044000
-    return boost::system::error_code(errorNum, boost::system::generic_category()).message();
-#else
-    return boost::system::error_code(errorNum, boost::system::get_generic_category()).message();
-#endif
-#else
-	return std::string("Filemapping error - Epic in memory VDB should never reach here");
-#endif
+    return std::error_code(errorNum, std::generic_category()).message();
 }
 
 
@@ -570,11 +625,7 @@ Archive::copy() const
 std::string
 Archive::getUniqueTag() const
 {
-    /// @todo Once versions of Boost < 1.44.0 are no longer in use,
-    /// this can be replaced with "return boost::uuids::to_string(mUuid);".
-    std::ostringstream ostr;
-    ostr << mUuid;
-    return ostr.str();
+    return boost::uuids::to_string(mUuid);
 }
 
 
@@ -710,6 +761,18 @@ bool
 Archive::hasBloscCompression()
 {
 #ifdef OPENVDB_USE_BLOSC
+    return true;
+#else
+    return false;
+#endif
+}
+
+
+//static
+bool
+Archive::hasZLibCompression()
+{
+#ifdef OPENVDB_USE_ZLIB
     return true;
 #else
     return false;
@@ -955,9 +1018,6 @@ Archive::readHeader(std::istream& is)
 void
 Archive::writeHeader(std::ostream& os, bool seekable) const
 {
-    using boost::uint32_t;
-    using boost::int64_t;
-
     // 1) Write the magic number for VDB.
     int64_t magic = OPENVDB_MAGIC;
     os.write(reinterpret_cast<char*>(&magic), sizeof(int64_t));
@@ -980,9 +1040,9 @@ Archive::writeHeader(std::ostream& os, bool seekable) const
     //    (Omitted as of version 222)
 
     // 6) Generate a new random 16-byte (128-bit) uuid and write it to the stream.
-    boost::mt19937 ran;
-    ran.seed(static_cast<boost::mt19937::result_type>(time(nullptr)));
-    boost::uuids::basic_random_generator<boost::mt19937> gen(&ran);
+    std::mt19937 ran;
+    ran.seed(std::mt19937::result_type(std::random_device()() + std::time(nullptr)));
+    boost::uuids::basic_random_generator<std::mt19937> gen(&ran);
     mUuid = gen(); // mUuid is mutable
     os << mUuid;
 }
@@ -1038,11 +1098,7 @@ Archive::connectInstance(const GridDescriptor& gd, const NamedGridMap& grids) co
 bool
 Archive::isDelayedLoadingEnabled()
 {
-#ifdef OPENVDB_2_ABI_COMPATIBLE
-    return false;
-#else
     return (nullptr == std::getenv("OPENVDB_DISABLE_DELAYED_LOAD"));
-#endif
 }
 
 
@@ -1056,14 +1112,12 @@ doReadGrid(GridBase::Ptr grid, const GridDescriptor& gd, std::istream& is, const
 {
     struct Local {
         static void readBuffers(GridBase& g, std::istream& istrm, NoBBox) { g.readBuffers(istrm); }
-#ifndef OPENVDB_2_ABI_COMPATIBLE
         static void readBuffers(GridBase& g, std::istream& istrm, const CoordBBox& indexBBox) {
             g.readBuffers(istrm, indexBBox);
         }
         static void readBuffers(GridBase& g, std::istream& istrm, const BBoxd& worldBBox) {
             g.readBuffers(istrm, g.constTransform().worldToIndexNodeCentered(worldBBox));
         }
-#endif
     };
 
     // Restore the file-level stream metadata on exit.
@@ -1098,9 +1152,34 @@ doReadGrid(GridBase::Ptr grid, const GridDescriptor& gd, std::istream& is, const
     //grid->insertMeta(GridBase::META_FILE_COMPRESSION,
     //    StringMetadata(compressionToString(c)));
 
+    const VersionId version = getLibraryVersion(is);
+    if (version.first < 6 || (version.first == 6 && version.second <= 1)) {
+        // If delay load metadata exists, but the file format version does not support
+        // delay load metadata, this likely means the original grid was read and then
+        // written using a prior version of OpenVDB and ABI>=5 where unknown metadata
+        // can be blindly copied. This means that it is possible for the metadata to
+        // no longer be in sync with the grid, so we remove it to ensure correctness.
+
+        if ((*grid)[GridBase::META_FILE_DELAYED_LOAD]) {
+            grid->removeMeta(GridBase::META_FILE_DELAYED_LOAD);
+        }
+    }
+
     streamMetadata->gridMetadata() = static_cast<MetaMap&>(*grid);
     const GridClass gridClass = grid->getGridClass();
     io::setGridClass(is, gridClass);
+
+    // reset leaf value to zero
+    streamMetadata->setLeaf(0);
+
+    // drop DelayedLoadMetadata from the grid as it is only useful for IO
+    // a stream metadata non-zero value disables this behaviour for testing
+
+    if (streamMetadata->__test() == uint32_t(0)) {
+        if ((*grid)[GridBase::META_FILE_DELAYED_LOAD]) {
+            grid->removeMeta(GridBase::META_FILE_DELAYED_LOAD);
+        }
+    }
 
     if (getFormatVersion(is) >= OPENVDB_FILE_VERSION_GRID_INSTANCING) {
         grid->readTransform(is);
@@ -1137,7 +1216,6 @@ Archive::readGrid(GridBase::Ptr grid, const GridDescriptor& gd, std::istream& is
     doReadGrid(grid, gd, is, NoBBox());
 }
 
-#ifndef OPENVDB_2_ABI_COMPATIBLE
 void
 Archive::readGrid(GridBase::Ptr grid, const GridDescriptor& gd,
     std::istream& is, const BBoxd& worldBBox)
@@ -1153,7 +1231,6 @@ Archive::readGrid(GridBase::Ptr grid, const GridDescriptor& gd,
     readGridCompression(is);
     doReadGrid(grid, gd, is, indexBBox);
 }
-#endif
 
 
 ////////////////////////////////////////
@@ -1191,12 +1268,12 @@ Archive::write(std::ostream& os, const GridCPtrVec& grids, bool seekable,
     }
     os.write(reinterpret_cast<char*>(&gridCount), sizeof(int32_t));
 
-    typedef std::map<const TreeBase*, GridDescriptor> TreeMap;
-    typedef TreeMap::iterator TreeMapIter;
+    using TreeMap = std::map<const TreeBase*, GridDescriptor>;
+    using TreeMapIter = TreeMap::iterator;
     TreeMap treeMap;
 
     // Determine which grid names are unique and which are not.
-    typedef std::map<std::string, int /*count*/> NameHistogram;
+    using NameHistogram = std::map<std::string, int /*count*/>;
     NameHistogram nameCount;
     for (GridCPtrVecCIter i = grids.begin(), e = grids.end(); i != e; ++i) {
         if (const GridBase::ConstPtr& grid = *i) {
@@ -1305,17 +1382,25 @@ Archive::writeGrid(GridDescriptor& gd, GridBase::ConstPtr grid,
     // Save the compression settings for this grid.
     setGridCompression(os, *grid);
 
-    // Save the grid's metadata and transform.
-    if (!getWriteGridStatsMetadata(os)) {
-        grid->writeMeta(os);
-    } else {
-        // Compute and add grid statistics metadata.
-        const auto copyOfGrid = grid->copyGrid(); // shallow copy
-        ConstPtrCast<GridBase>(copyOfGrid)->addStatsMetadata();
-        ConstPtrCast<GridBase>(copyOfGrid)->insertMeta(GridBase::META_FILE_COMPRESSION,
-            StringMetadata(compressionToString(getDataCompression(os))));
-        copyOfGrid->writeMeta(os);
+    // copy grid and add delay load metadata
+    const auto copyOfGrid = grid->copyGrid(); // shallow copy
+    const auto nonConstCopyOfGrid = ConstPtrCast<GridBase>(copyOfGrid);
+    nonConstCopyOfGrid->insertMeta(GridBase::META_FILE_DELAYED_LOAD,
+        DelayedLoadMetadata());
+    DelayedLoadMetadata::Ptr delayLoadMeta =
+        nonConstCopyOfGrid->getMetadata<DelayedLoadMetadata>(GridBase::META_FILE_DELAYED_LOAD);
+    if (!populateDelayedLoadMetadata(*delayLoadMeta, *grid, compression())) {
+        nonConstCopyOfGrid->removeMeta(GridBase::META_FILE_DELAYED_LOAD);
     }
+
+    // Save the grid's metadata and transform.
+    if (getWriteGridStatsMetadata(os)) {
+        // Compute and add grid statistics metadata.
+        nonConstCopyOfGrid->addStatsMetadata();
+        nonConstCopyOfGrid->insertMeta(GridBase::META_FILE_COMPRESSION,
+            StringMetadata(compressionToString(getDataCompression(os))));
+    }
+    copyOfGrid->writeMeta(os);
     grid->writeTransform(os);
 
     // Save the grid's structure.
@@ -1385,7 +1470,3 @@ Archive::writeGridInstance(GridDescriptor& gd, GridBase::ConstPtr grid,
 } // namespace io
 } // namespace OPENVDB_VERSION_NAME
 } // namespace openvdb
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

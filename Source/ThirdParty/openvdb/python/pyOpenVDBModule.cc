@@ -1,45 +1,14 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
+#include <iostream> // must be included before python on macos
 #include <cstring> // for strncmp(), strrchr(), etc.
 #include <limits>
+#include <string>
+#include <utility> // for std::make_pair()
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
 #include <boost/python/exception_translator.hpp>
-#ifdef PY_OPENVDB_USE_NUMPY
-#define PY_ARRAY_UNIQUE_SYMBOL PY_OPENVDB_ARRAY_API
-#ifdef NPY_1_7_API_VERSION
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#endif
-#include <arrayobject.h> // for import_array()
-#endif
 #include "openvdb/openvdb.h"
 #include "pyopenvdb.h"
 #include "pyGrid.h"
@@ -54,6 +23,7 @@ void exportMetadata();
 void exportFloatGrid();
 void exportIntGrid();
 void exportVec3Grid();
+void exportPointGrid();
 
 
 namespace _openvdbmodule {
@@ -75,13 +45,13 @@ struct CoordConverter
         return obj.ptr();
     }
 
-    /// @return NULL if the given Python object is not convertible to a Coord.
+    /// @return nullptr if the given Python object is not convertible to a Coord.
     static void* convertible(PyObject* obj)
     {
-        if (!PySequence_Check(obj)) return NULL; // not a Python sequence
+        if (!PySequence_Check(obj)) return nullptr; // not a Python sequence
 
         Py_ssize_t len = PySequence_Length(obj);
-        if (len != 3 && len != 1) return NULL; // not the right length
+        if (len != 3 && len != 1) return nullptr; // not the right length
 
         return obj;
     }
@@ -91,8 +61,7 @@ struct CoordConverter
         py::converter::rvalue_from_python_stage1_data* data)
     {
         // Construct a Coord in the provided memory location.
-        typedef py::converter::rvalue_from_python_storage<openvdb::Coord>
-            StorageT;
+        using StorageT = py::converter::rvalue_from_python_storage<openvdb::Coord>;
         void* storage = reinterpret_cast<StorageT*>(data)->storage.bytes;
         new (storage) openvdb::Coord; // placement new
         data->convertible = storage;
@@ -162,17 +131,17 @@ struct VecConverter
 
     static void* convertible(PyObject* obj)
     {
-        if (!PySequence_Check(obj)) return NULL; // not a Python sequence
+        if (!PySequence_Check(obj)) return nullptr; // not a Python sequence
 
         Py_ssize_t len = PySequence_Length(obj);
-        if (len != VecT::size) return NULL;
+        if (len != VecT::size) return nullptr;
 
         // Check that all elements of the Python sequence are convertible
         // to the Vec's value type.
         py::object seq = pyutil::pyBorrow(obj);
         for (int i = 0; i < VecT::size; ++i) {
             if (!py::extract<typename VecT::value_type>(seq[i]).check()) {
-                return NULL;
+                return nullptr;
             }
         }
         return obj;
@@ -182,7 +151,7 @@ struct VecConverter
         py::converter::rvalue_from_python_stage1_data* data)
     {
         // Construct a Vec in the provided memory location.
-        typedef py::converter::rvalue_from_python_storage<VecT> StorageT;
+        using StorageT = py::converter::rvalue_from_python_storage<VecT>;
         void* storage = reinterpret_cast<StorageT*>(data)->storage.bytes;
         new (storage) VecT; // placement new
         data->convertible = storage;
@@ -203,6 +172,152 @@ struct VecConverter
             py::type_id<VecT>());
     }
 }; // struct VecConverter
+
+
+////////////////////////////////////////
+
+
+/// Helper class to convert between a 2D Python numeric sequence
+/// (tuple, list, etc.) and an openvdb::Mat
+template<typename MatT>
+struct MatConverter
+{
+    /// Return the given matrix as a Python list of lists.
+    static py::object toList(const MatT& m)
+    {
+        py::list obj;
+        for (int i = 0; i < MatT::size; ++i) {
+            py::list rowObj;
+            for (int j = 0; j < MatT::size; ++j) { rowObj.append(m(i, j)); }
+            obj.append(rowObj);
+        }
+        return std::move(obj);
+    }
+
+    /// Extract a matrix from a Python sequence of numeric sequences.
+    static MatT fromSeq(py::object obj)
+    {
+        MatT m = MatT::zero();
+        if (py::len(obj) == MatT::size) {
+            for (int i = 0; i < MatT::size; ++i) {
+                py::object rowObj = obj[i];
+                if (py::len(rowObj) != MatT::size) return MatT::zero();
+                for (int j = 0; j < MatT::size; ++j) {
+                    m(i, j) = py::extract<typename MatT::value_type>(rowObj[j]);
+                }
+            }
+        }
+        return m;
+    }
+
+    static PyObject* convert(const MatT& m)
+    {
+        py::object obj = toList(m);
+        Py_INCREF(obj.ptr());
+        return obj.ptr();
+    }
+
+    static void* convertible(PyObject* obj)
+    {
+        if (!PySequence_Check(obj)) return nullptr; // not a Python sequence
+
+        Py_ssize_t len = PySequence_Length(obj);
+        if (len != MatT::size) return nullptr;
+
+        py::object seq = pyutil::pyBorrow(obj);
+        for (int i = 0; i < MatT::size; ++i) {
+            py::object rowObj = seq[i];
+            if (py::len(rowObj) != MatT::size) return nullptr;
+            // Check that all elements of the Python sequence are convertible
+            // to the Mat's value type.
+            for (int j = 0; j < MatT::size; ++j) {
+                if (!py::extract<typename MatT::value_type>(rowObj[j]).check()) {
+                    return nullptr;
+                }
+            }
+        }
+        return obj;
+    }
+
+    static void construct(PyObject* obj,
+        py::converter::rvalue_from_python_stage1_data* data)
+    {
+        // Construct a Mat in the provided memory location.
+        using StorageT = py::converter::rvalue_from_python_storage<MatT>;
+        void* storage = reinterpret_cast<StorageT*>(data)->storage.bytes;
+        new (storage) MatT; // placement new
+        data->convertible = storage;
+        *(static_cast<MatT*>(storage)) = fromSeq(pyutil::pyBorrow(obj));
+    }
+
+    static void registerConverter()
+    {
+        py::to_python_converter<MatT, MatConverter<MatT> >();
+        py::converter::registry::push_back(
+            &MatConverter<MatT>::convertible,
+            &MatConverter<MatT>::construct,
+            py::type_id<MatT>());
+    }
+}; // struct MatConverter
+
+
+////////////////////////////////////////
+
+
+/// Helper class to convert between a Python integer and a openvdb::PointIndex
+template <typename PointIndexT>
+struct PointIndexConverter
+{
+    using IntType = typename PointIndexT::IntType;
+
+    /// @return a Python integer object equivalent to the given PointIndex.
+    static PyObject* convert(const PointIndexT& index)
+    {
+        py::object obj(static_cast<IntType>(index));
+        Py_INCREF(obj.ptr());
+        return obj.ptr();
+    }
+
+    /// @return nullptr if the given Python object is not convertible to the PointIndex.
+    static void* convertible(PyObject* obj)
+    {
+#if PY_MAJOR_VERSION >= 3
+        if (!PyLong_Check(obj)) return nullptr; // not a Python integer
+#else
+        if (!PyInt_Check(obj)) return nullptr; // not a Python integer
+#endif
+        return obj;
+    }
+
+    /// Convert from a Python object to a PointIndex.
+    static void construct(PyObject* obj,
+        py::converter::rvalue_from_python_stage1_data* data)
+    {
+        // Construct a PointIndex in the provided memory location.
+        using StorageT = py::converter::rvalue_from_python_storage<PointIndexT>;
+        void* storage = reinterpret_cast<StorageT*>(data)->storage.bytes;
+        new (storage) PointIndexT; // placement new
+        data->convertible = storage;
+
+        // Extract the PointIndex from the python integer
+        PointIndexT* index = static_cast<PointIndexT*>(storage);
+#if PY_MAJOR_VERSION >= 3
+        *index = static_cast<IntType>(PyLong_AsLong(obj));
+#else
+        *index = static_cast<IntType>(PyInt_AsLong(obj));
+#endif
+    }
+
+    /// Register both the PointIndex-to-integer and the integer-to-PointIndex converters.
+    static void registerConverter()
+    {
+        py::to_python_converter<PointIndexT, PointIndexConverter>();
+        py::converter::registry::push_back(
+            &PointIndexConverter::convertible,
+            &PointIndexConverter::construct,
+            py::type_id<PointIndexT>());
+    }
+}; // struct PointIndexConverter
 
 
 ////////////////////////////////////////
@@ -252,6 +367,21 @@ struct MetaMapConverter
                 } else if (typeName == Vec3SMetadata::staticTypeName()) {
                     const Vec3s v = static_cast<Vec3SMetadata&>(*meta).value();
                     obj = py::make_tuple(v[0], v[1], v[2]);
+                } else if (typeName == Vec4DMetadata::staticTypeName()) {
+                    const Vec4d v = static_cast<Vec4DMetadata&>(*meta).value();
+                    obj = py::make_tuple(v[0], v[1], v[2], v[3]);
+                } else if (typeName == Vec4IMetadata::staticTypeName()) {
+                    const Vec4i v = static_cast<Vec4IMetadata&>(*meta).value();
+                    obj = py::make_tuple(v[0], v[1], v[2], v[3]);
+                } else if (typeName == Vec4SMetadata::staticTypeName()) {
+                    const Vec4s v = static_cast<Vec4SMetadata&>(*meta).value();
+                    obj = py::make_tuple(v[0], v[1], v[2], v[3]);
+                } else if (typeName == Mat4SMetadata::staticTypeName()) {
+                    const Mat4s m = static_cast<Mat4SMetadata&>(*meta).value();
+                    obj = MatConverter<Mat4s>::toList(m);
+                } else if (typeName == Mat4DMetadata::staticTypeName()) {
+                    const Mat4d m = static_cast<Mat4DMetadata&>(*meta).value();
+                    obj = MatConverter<Mat4d>::toList(m);
                 }
                 ret[it->first] = obj;
             }
@@ -262,14 +392,14 @@ struct MetaMapConverter
 
     static void* convertible(PyObject* obj)
     {
-        return (PyMapping_Check(obj) ? obj : NULL);
+        return (PyMapping_Check(obj) ? obj : nullptr);
     }
 
     static void construct(PyObject* obj,
         py::converter::rvalue_from_python_stage1_data* data)
     {
         // Construct a MetaMap in the provided memory location.
-        typedef py::converter::rvalue_from_python_storage<MetaMap> StorageT;
+        using StorageT = py::converter::rvalue_from_python_storage<MetaMap>;
         void* storage = reinterpret_cast<StorageT*>(data)->storage.bytes;
         new (storage) MetaMap; // placement new
         data->convertible = storage;
@@ -298,15 +428,18 @@ struct MetaMapConverter
             py::object val = pyDict[keys[i]];
             Metadata::Ptr value;
             if (py::extract<std::string>(val).check()) {
-                value.reset(
-                    new StringMetadata(py::extract<std::string>(val)));
-            } else if (PyLong_Check(val.ptr())
-                && PyLong_AsLong(val.ptr()) <= std::numeric_limits<Int32>::max()
-                && PyLong_AsLong(val.ptr()) >= std::numeric_limits<Int32>::min())
-            {
-                value.reset(new Int32Metadata(py::extract<Int32>(val)));
-            } else if (PyLong_Check(val.ptr()) || PyLong_Check(val.ptr())) {
-                value.reset(new Int64Metadata(py::extract<Int64>(val)));
+                value.reset(new StringMetadata(py::extract<std::string>(val)));
+            } else if (bool(PyBool_Check(val.ptr()))) {
+                value.reset(new BoolMetadata(py::extract<bool>(val)));
+            } else if (py::extract<Int64>(val).check()) {
+                const Int64 n = py::extract<Int64>(val);
+                if (n <= std::numeric_limits<Int32>::max()
+                    && n >= std::numeric_limits<Int32>::min())
+                {
+                    value.reset(new Int32Metadata(static_cast<Int32>(n)));
+                } else {
+                    value.reset(new Int64Metadata(n));
+                }
             //} else if (py::extract<float>(val).check()) {
             //    value.reset(new FloatMetadata(py::extract<float>(val)));
             } else if (py::extract<double>(val).check()) {
@@ -323,6 +456,16 @@ struct MetaMapConverter
                 value.reset(new Vec3DMetadata(py::extract<Vec3d>(val)));
             } else if (py::extract<Vec3s>(val).check()) {
                 value.reset(new Vec3SMetadata(py::extract<Vec3s>(val)));
+            } else if (py::extract<Vec4i>(val).check()) {
+                value.reset(new Vec4IMetadata(py::extract<Vec4i>(val)));
+            } else if (py::extract<Vec4d>(val).check()) {
+                value.reset(new Vec4DMetadata(py::extract<Vec4d>(val)));
+            } else if (py::extract<Vec4s>(val).check()) {
+                value.reset(new Vec4SMetadata(py::extract<Vec4s>(val)));
+            } else if (py::extract<Mat4d>(val).check()) {
+                value.reset(new Mat4DMetadata(py::extract<Mat4d>(val)));
+            } else if (py::extract<Mat4s>(val).check()) {
+                value.reset(new Mat4SMetadata(py::extract<Mat4s>(val)));
             } else if (py::extract<Metadata::Ptr>(val).check()) {
                 value = py::extract<Metadata::Ptr>(val);
             } else {
@@ -376,9 +519,8 @@ template<typename T> void translateException(const T&) {}
 
 /// Define an overloaded function that translate all OpenVDB exceptions into
 /// their Python equivalents.
-/// @todo IllegalValueException and LookupError are redundant and should someday be removed.
+/// @todo LookupError is redundant and should someday be removed.
 PYOPENVDB_CATCH(openvdb::ArithmeticError,       PyExc_ArithmeticError)
-PYOPENVDB_CATCH(openvdb::IllegalValueException, PyExc_ValueError)
 PYOPENVDB_CATCH(openvdb::IndexError,            PyExc_IndexError)
 PYOPENVDB_CATCH(openvdb::IoError,               PyExc_IOError)
 PYOPENVDB_CATCH(openvdb::KeyError,              PyExc_KeyError)
@@ -514,6 +656,11 @@ writeToFile(const std::string& filename, py::object gridOrSeqObj, py::object dic
 ////////////////////////////////////////
 
 
+std::string getLoggingLevel();
+void setLoggingLevel(py::object);
+void setProgramName(py::object, bool);
+
+
 std::string
 getLoggingLevel()
 {
@@ -589,7 +736,7 @@ struct GridClassDescr
             { "STAGGERED",  strdup(GridBase::gridClassToString(GRID_STAGGERED).c_str()) }
         };
         if (i >= 0 && i < sCount) return pyutil::CStringPair(&sStrings[i][0], &sStrings[i][1]);
-        return pyutil::CStringPair(static_cast<char**>(NULL), static_cast<char**>(NULL));
+        return pyutil::CStringPair(static_cast<char**>(nullptr), static_cast<char**>(nullptr));
     }
 };
 
@@ -602,21 +749,21 @@ struct VecTypeDescr
     {
         return
             "The type of a vector determines how transforms are applied to it.\n"
-            "- INVARIANT:\n"
-            "    does not transform (e.g., tuple, uvw, color)\n"
-            "- COVARIANT:\n"
-            "    apply inverse-transpose transformation with w = 0\n"
-            "    and ignore translation (e.g., gradient/normal)\n"
-            "- COVARIANT_NORMALIZE:\n"
-            "    apply inverse-transpose transformation with w = 0\n"
-            "    and ignore translation, vectors are renormalized\n"
-            "    (e.g., unit normal)\n"
-            "- CONTRAVARIANT_RELATIVE:\n"
-            "    apply \"regular\" transformation with w = 0 and ignore\n"
-            "    translation (e.g., displacement, velocity, acceleration)\n"
-            "- CONTRAVARIANT_ABSOLUTE:\n"
-            "    apply \"regular\" transformation with w = 1 so that\n"
-            "    vector translates (e.g., position)";
+            "  - INVARIANT:\n"
+            "      does not transform (e.g., tuple, uvw, color)\n"
+            "  - COVARIANT:\n"
+            "      apply inverse-transpose transformation with w = 0\n"
+            "      and ignore translation (e.g., gradient/normal)\n"
+            "  - COVARIANT_NORMALIZE:\n"
+            "      apply inverse-transpose transformation with w = 0\n"
+            "      and ignore translation, vectors are renormalized\n"
+            "      (e.g., unit normal)\n"
+            "  - CONTRAVARIANT_RELATIVE:\n"
+            "      apply \"regular\" transformation with w = 0 and ignore\n"
+            "      translation (e.g., displacement, velocity, acceleration)\n"
+            "  - CONTRAVARIANT_ABSOLUTE:\n"
+            "      apply \"regular\" transformation with w = 1 so that\n"
+            "      vector translates (e.g., position)\n";
     }
     static pyutil::CStringPair item(int i)
     {
@@ -632,7 +779,7 @@ struct VecTypeDescr
                 strdup(GridBase::vecTypeToString(openvdb::VEC_CONTRAVARIANT_ABSOLUTE).c_str()) }
         };
         if (i >= 0 && i < sCount) return std::make_pair(&sStrings[i][0], &sStrings[i][1]);
-        return pyutil::CStringPair(static_cast<char**>(NULL), static_cast<char**>(NULL));
+        return pyutil::CStringPair(static_cast<char**>(nullptr), static_cast<char**>(nullptr));
     }
 };
 
@@ -659,10 +806,14 @@ BOOST_PYTHON_MODULE(PY_OPENVDB_MODULE_NAME)
 
 #ifdef PY_OPENVDB_USE_NUMPY
     // Initialize NumPy.
+#ifdef PY_OPENVDB_USE_BOOST_PYTHON_NUMPY
+    boost::python::numpy::initialize();
+#else
 #if PY_MAJOR_VERSION >= 3
     if (_import_array()) {}
 #else
     import_array();
+#endif
 #endif
 #endif
 
@@ -688,13 +839,17 @@ BOOST_PYTHON_MODULE(PY_OPENVDB_MODULE_NAME)
     _openvdbmodule::VecConverter<Vec4s>::registerConverter();
     _openvdbmodule::VecConverter<Vec4d>::registerConverter();
 
+    _openvdbmodule::MatConverter<Mat4s>::registerConverter();
+    _openvdbmodule::MatConverter<Mat4d>::registerConverter();
+
+    _openvdbmodule::PointIndexConverter<PointDataIndex32>::registerConverter();
+
     _openvdbmodule::MetaMapConverter::registerConverter();
 
 #define PYOPENVDB_TRANSLATE_EXCEPTION(_classname) \
     py::register_exception_translator<_classname>(&_openvdbmodule::translateException<_classname>)
 
     PYOPENVDB_TRANSLATE_EXCEPTION(ArithmeticError);
-    PYOPENVDB_TRANSLATE_EXCEPTION(IllegalValueException);
     PYOPENVDB_TRANSLATE_EXCEPTION(IndexError);
     PYOPENVDB_TRANSLATE_EXCEPTION(IoError);
     PYOPENVDB_TRANSLATE_EXCEPTION(KeyError);
@@ -714,6 +869,7 @@ BOOST_PYTHON_MODULE(PY_OPENVDB_MODULE_NAME)
     exportFloatGrid();
     exportIntGrid();
     exportVec3Grid();
+    exportPointGrid();
 
 
     py::def("read",
@@ -786,7 +942,3 @@ BOOST_PYTHON_MODULE(PY_OPENVDB_MODULE_NAME)
     pyutil::StringEnum<_openvdbmodule::VecTypeDescr>::wrap();
 
 } // BOOST_PYTHON_MODULE
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

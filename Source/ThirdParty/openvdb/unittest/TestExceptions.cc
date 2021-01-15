@@ -1,69 +1,15 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/Exceptions.h>
 
 
-class TestExceptions : public CppUnit::TestCase
+class TestExceptions : public ::testing::Test
 {
-public:
-    CPPUNIT_TEST_SUITE(TestExceptions);
-    CPPUNIT_TEST(testArithmeticError);
-    CPPUNIT_TEST(testIndexError);
-    CPPUNIT_TEST(testIoError);
-    CPPUNIT_TEST(testKeyError);
-    CPPUNIT_TEST(testLookupError);
-    CPPUNIT_TEST(testNotImplementedError);
-    CPPUNIT_TEST(testReferenceError);
-    CPPUNIT_TEST(testRuntimeError);
-    CPPUNIT_TEST(testTypeError);
-    CPPUNIT_TEST(testValueError);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testArithmeticError() { testException<openvdb::ArithmeticError>(); }
-    void testIndexError() { testException<openvdb::IndexError>(); }
-    void testIoError() { testException<openvdb::IoError>(); }
-    void testKeyError() { testException<openvdb::KeyError>(); }
-    void testLookupError() { testException<openvdb::LookupError>(); }
-    void testNotImplementedError() { testException<openvdb::NotImplementedError>(); }
-    void testReferenceError() { testException<openvdb::ReferenceError>(); }
-    void testRuntimeError() { testException<openvdb::RuntimeError>(); }
-    void testTypeError() { testException<openvdb::TypeError>(); }
-    void testValueError() { testException<openvdb::ValueError>(); }
-
-private:
+protected:
     template<typename ExceptionT> void testException();
 };
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestExceptions);
 
 
 template<typename ExceptionT> struct ExceptionTraits
@@ -96,16 +42,23 @@ TestExceptions::testException()
 {
     std::string ErrorMsg("Error message");
 
-    CPPUNIT_ASSERT_THROW(OPENVDB_THROW(ExceptionT, ErrorMsg), ExceptionT);
+    EXPECT_THROW(OPENVDB_THROW(ExceptionT, ErrorMsg), ExceptionT);
 
     try {
         OPENVDB_THROW(ExceptionT, ErrorMsg);
     } catch (openvdb::Exception& e) {
         const std::string expectedMsg = ExceptionTraits<ExceptionT>::name() + ": " + ErrorMsg;
-        CPPUNIT_ASSERT_EQUAL(expectedMsg, std::string(e.what()));
+        EXPECT_EQ(expectedMsg, std::string(e.what()));
     }
 }
 
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
+TEST_F(TestExceptions, testArithmeticError) { testException<openvdb::ArithmeticError>(); }
+TEST_F(TestExceptions, testIndexError) { testException<openvdb::IndexError>(); }
+TEST_F(TestExceptions, testIoError) { testException<openvdb::IoError>(); }
+TEST_F(TestExceptions, testKeyError) { testException<openvdb::KeyError>(); }
+TEST_F(TestExceptions, testLookupError) { testException<openvdb::LookupError>(); }
+TEST_F(TestExceptions, testNotImplementedError) { testException<openvdb::NotImplementedError>(); }
+TEST_F(TestExceptions, testReferenceError) { testException<openvdb::ReferenceError>(); }
+TEST_F(TestExceptions, testRuntimeError) { testException<openvdb::RuntimeError>(); }
+TEST_F(TestExceptions, testTypeError) { testException<openvdb::TypeError>(); }
+TEST_F(TestExceptions, testValueError) { testException<openvdb::ValueError>(); }

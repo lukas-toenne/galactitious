@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 ///
 /// @file   PagedArray.h
 ///
@@ -42,7 +15,9 @@
 #ifndef OPENVDB_UTIL_PAGED_ARRAY_HAS_BEEN_INCLUDED
 #define OPENVDB_UTIL_PAGED_ARRAY_HAS_BEEN_INCLUDED
 
-#include <vector>
+#include <openvdb/version.h>
+#include <openvdb/Types.h>// SharedPtr
+#include <deque>
 #include <cassert>
 #include <iostream>
 #include <algorithm>// std::swap
@@ -71,44 +46,25 @@ namespace util {
 ///          elements (when multiple instances are used).
 ///
 /// @details This data structure employes contiguous pages of elements
-///          (like a std::deque) which avoids moving data when the
+///          (a std::deque) which avoids moving data when the
 ///          capacity is out-grown and new pages are allocated. The
 ///          size of the pages can be controlled with the Log2PageSize
 ///          template parameter (defaults to 1024 elements of type ValueT).
-///          The TableT template parameter is used to define the data
-///          structure for the page table. The default, std::vector,
-///          offers fast random access in exchange for slower
-///          push_back, whereas std:deque offers faster push_back but
-///          slower random access.
 ///
 /// There are three fundamentally different ways to insert elements to
 /// this container - each with different advanteges and disadvanteges.
 ///
-/// The simplest way to insert elements is to use PagedArray::push_back e.g.
+/// The simplest way to insert elements is to use PagedArray::push_back_unsafe
+/// which is @a not thread-safe:
 /// @code
 ///   PagedArray<size_t> array;
-///   for (size_t i=0; i<100000; ++i) array.push_back(i);
+///   for (size_t i=0; i<100000; ++i) array.push_back_unsafe(i);
 /// @endcode
-/// or with TBB task-based multi-threading
-/// @code
-///   PagedArray<size_t> array;
-///   tbb::parallel_for(
-///       tbb::blocked_range<size_t>(0, 10000, array.pageSize()),
-///       [&array](const tbb::blocked_range<size_t>& range) {
-///           for (size_t i=range.begin(); i!=range.end(); ++i) array.push_back(i);
-///       }
-///   );
-/// @endcode
-/// PagedArray::push_back has the advantage that it's thread-safe and
-/// preserves the ordering of the inserted elements. In fact it returns
-/// the linear offset to the added element which can then be used for
-/// fast O(1) random access. The disadvantage is it's the slowest of
-/// the three different ways of inserting elements.
 ///
-/// The fastest way (by far) to insert elements by means of a PagedArray::ValueBuffer, e.g.
+/// The fastest way (by far) to insert elements is by means of a PagedArray::ValueBuffer:
 /// @code
 ///   PagedArray<size_t> array;
-///   PagedArray<size_t>::ValueBuffer buffer(array);
+///   auto buffer = array.getBuffer();
 ///   for (size_t i=0; i<100000; ++i) buffer.push_back(i);
 ///   buffer.flush();
 /// @endcode
@@ -117,17 +73,17 @@ namespace util {
 ///   PagedArray<size_t> array;
 ///   {
 ///       //local scope of a single thread
-///       PagedArray<size_t>::ValueBuffer buffer(array);
+///       auto buffer = array.getBuffer();
 ///       for (size_t i=0; i<100000; ++i) buffer.push_back(i);
 ///   }
 /// @endcode
-/// or with TBB task-based multi-threading
+/// or with TBB task-based multi-threading:
 /// @code
 ///   PagedArray<size_t> array;
 ///   tbb::parallel_for(
 ///       tbb::blocked_range<size_t>(0, 10000, array.pageSize()),
 ///       [&array](const tbb::blocked_range<size_t>& range) {
-///           PagedArray<size_t>::ValueBuffer buffer(array);
+///           auto buffer = array.getBuffer();
 ///           for (size_t i=range.begin(); i!=range.end(); ++i) buffer.push_back(i);
 ///       }
 ///   );
@@ -136,19 +92,19 @@ namespace util {
 /// to fewer concurrent instantiations of partially full ValueBuffers)
 /// @code
 ///   PagedArray<size_t> array;
-///   PagedArray<size_t>::ValueBuffer exemplar(array);//dummy used for initialization
+///   auto exemplar = array.getBuffer();//dummy used for initialization
 ///   tbb::enumerable_thread_specific<PagedArray<size_t>::ValueBuffer>
 ///       pool(exemplar);//thread local storage pool of ValueBuffers
 ///   tbb::parallel_for(
 ///       tbb::blocked_range<size_t>(0, 10000, array.pageSize()),
 ///       [&pool](const tbb::blocked_range<size_t>& range) {
-///           PagedArray<size_t>::ValueBuffer &buffer = pool.local();
+///           auto &buffer = pool.local();
 ///           for (size_t i=range.begin(); i!=range.end(); ++i) buffer.push_back(i);
 ///       }
 ///   );
 ///   for (auto i=pool.begin(); i!=pool.end(); ++i) i->flush();
 /// @endcode
-/// This technique generally outperforms PagedArray::push_back,
+/// This technique generally outperforms PagedArray::push_back_unsafe,
 /// std::vector::push_back, std::deque::push_back and even
 /// tbb::concurrent_vector::push_back. Additionally it
 /// is thread-safe as long as each thread has it's own instance of a
@@ -182,26 +138,22 @@ namespace util {
 /// involve multi-threading of dynamically growing linear arrays that
 /// require fast random access.
 
-template<typename ValueT,
-         size_t Log2PageSize = 10UL,
-         template<typename ...> class TableT = std::vector>
+template<typename ValueT, size_t Log2PageSize = 10UL>
 class PagedArray
 {
 private:
+    static_assert(Log2PageSize > 1UL, "Expected Log2PageSize > 1");
     class Page;
 
-#if defined(__INTEL_COMPILER) && __INTEL_COMPILER < 1700
-    // Workaround for ICC 15/16 "too few arguments to template" bug (fixed in ICC 17)
-    using PageTableT = TableT<Page*, std::allocator<Page*>>;
-#else
-    using PageTableT = TableT<Page*>;
-#endif
+    // must allow mutiple threads to call operator[] as long as only one thread calls push_back
+    using PageTableT = std::deque<Page*>;
 
 public:
-    typedef ValueT ValueType;
+    using ValueType = ValueT;
+    using Ptr       = SharedPtr<PagedArray>;
 
     /// @brief Default constructor
-    PagedArray() = default;
+    PagedArray() : mCapacity{0} { mSize = 0; }
 
     /// @brief Destructor removed all allocated pages
     ~PagedArray() { this->clear(); }
@@ -209,6 +161,9 @@ public:
     // Disallow copy construction and assignment
     PagedArray(const PagedArray&) = delete;
     PagedArray& operator=(const PagedArray&) = delete;
+
+    /// @brief Return a shared pointer to a new instance of this class
+    static Ptr create() { return Ptr(new PagedArray); }
 
     /// @brief Caches values into a local memory Page to improve
     ///        performance of push_back into a PagedArray.
@@ -220,34 +175,26 @@ public:
     ///          make sure to create an instance per thread!
     class ValueBuffer;
 
+    /// @return a new instance of a ValueBuffer which supports thread-safe push_back!
+    ValueBuffer getBuffer() { return ValueBuffer(*this); }
+
     /// Const std-compliant iterator
     class ConstIterator;
 
      /// Non-const std-compliant iterator
     class Iterator;
 
-    /// @brief   Thread safe insertion, adds a new element at
-    ///          the end and increases the container size by one and
-    ///          returns the linear offset for the inserted element.
-    ///
-    /// @param value value to be added to this PagedArray
-    ///
-    /// @details Constant time complexity. May allocate a new page.
-    size_t push_back(const ValueType& value)
+    /// @brief This method is deprecated and will be removed shortly!
+    [[deprecated]] size_t push_back(const ValueType& value)
     {
-        const size_t index = mSize.fetch_and_increment();
-        if (index >= mCapacity) this->grow(index);
-        (*mPageTable[index >> Log2PageSize])[index] = value;
-        return index;
+        return this->push_back_unsafe(value);
     }
 
-    /// @brief Slightly faster than the thread-safe push_back above.
-    ///
     /// @param value value to be added to this PagedArray
     ///
     /// @note For best performance consider using the ValueBuffer!
     ///
-    /// @warning Not thread-safe!
+    /// @warning Not thread-safe and mostly intended for debugging!
     size_t push_back_unsafe(const ValueType& value)
     {
         const size_t index = mSize.fetch_and_increment();
@@ -258,34 +205,6 @@ public:
         (*mPageTable[index >> Log2PageSize])[index] = value;
         return index;
     }
-
-    /// @brief Returns the last element, decrements the size by one.
-    ///
-    /// @deprecated This method will be removed in the near future
-    ///
-    /// @bug This method can produce unexpected results if used
-    /// in combination with a ValueBuffer (due to empty pages).
-    /// However,it can safely be used the push_back methods
-    /// defined above.
-    ///
-    /// @details Consider subsequnetly calling shrink_to_fit to
-    /// reduce the page table to match the new size.
-    ///
-    /// @note Calling this method on an empty containter is
-    /// undefined (as is also the case for std containers).
-    ///
-    /// @warning If values were added to the container by means of
-    /// multiple ValueBuffers the last value might not be what you
-    /// expect since the ordering is generally not perserved. Only
-    /// PagedArray::push_back preserves the ordering (or a single
-    /// instance of a ValueBuffer).
-    OPENVDB_DEPRECATED ValueType pop_back()
-    {
-        assert(mSize>0);
-        --mSize;
-        return (*mPageTable[mSize >> Log2PageSize])[mSize];
-    }
-
 
     /// @brief Reduce the page table to fix the current size.
     ///
@@ -537,15 +456,15 @@ private:
         }
     }
     PageTableT mPageTable;//holds points to allocated pages
-    tbb::atomic<size_t> mSize{0};// current number of elements in array
-    size_t mCapacity = 0;//capacity of array given the current page count
+    tbb::atomic<size_t> mSize;// current number of elements in array
+    size_t mCapacity;//capacity of array given the current page count
     tbb::spin_mutex mGrowthMutex;//Mutex-lock required to grow pages
 }; // Public class PagedArray
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-void PagedArray<ValueT, Log2PageSize, TableT>::shrink_to_fit()
+template <typename ValueT, size_t Log2PageSize>
+void PagedArray<ValueT, Log2PageSize>::shrink_to_fit()
 {
     if (mPageTable.size() > (mSize >> Log2PageSize) + 1) {
         tbb::spin_mutex::scoped_lock lock(mGrowthMutex);
@@ -558,8 +477,8 @@ void PagedArray<ValueT, Log2PageSize, TableT>::shrink_to_fit()
     }
 }
 
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-void PagedArray<ValueT, Log2PageSize,TableT >::merge(PagedArray& other)
+template <typename ValueT, size_t Log2PageSize>
+void PagedArray<ValueT, Log2PageSize>::merge(PagedArray& other)
 {
     if (&other != this && !other.isEmpty()) {
         tbb::spin_mutex::scoped_lock lock(mGrowthMutex);
@@ -583,8 +502,8 @@ void PagedArray<ValueT, Log2PageSize,TableT >::merge(PagedArray& other)
     }
 }
 
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-void PagedArray<ValueT, Log2PageSize, TableT>::add_full(Page*& page, size_t size)
+template <typename ValueT, size_t Log2PageSize>
+void PagedArray<ValueT, Log2PageSize>::add_full(Page*& page, size_t size)
 {
     assert(size == Page::Size);//page must be full
     if (mSize & Page::Mask) {//page-table is partially full
@@ -597,8 +516,8 @@ void PagedArray<ValueT, Log2PageSize, TableT>::add_full(Page*& page, size_t size
     page       = nullptr;
 }
 
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-void PagedArray<ValueT, Log2PageSize, TableT>::add_partially_full(Page*& page, size_t size)
+template <typename ValueT, size_t Log2PageSize>
+void PagedArray<ValueT, Log2PageSize>::add_partially_full(Page*& page, size_t size)
 {
     assert(size > 0 && size < Page::Size);//page must be partially full
     if (size_t m = mSize & Page::Mask) {//page table is also partially full
@@ -621,12 +540,12 @@ void PagedArray<ValueT, Log2PageSize, TableT>::add_partially_full(Page*& page, s
 ////////////////////////////////////////////////////////////////////////////////
 
 // Public member-class of PagedArray
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-class PagedArray<ValueT, Log2PageSize, TableT>::
+template <typename ValueT, size_t Log2PageSize>
+class PagedArray<ValueT, Log2PageSize>::
 ValueBuffer
 {
 public:
-    typedef PagedArray<ValueT, Log2PageSize, TableT> PagedArrayType;
+    using PagedArrayType = PagedArray<ValueT, Log2PageSize>;
     /// @brief Constructor from a PageArray
     ValueBuffer(PagedArray& parent) : mParent(&parent), mPage(new Page()), mSize(0) {}
     /// @warning This copy-constructor is shallow in the sense that no
@@ -659,6 +578,7 @@ public:
     PagedArrayType& parent() const { return *mParent; }
     /// @brief Return the current number of elements cached in this buffer.
     size_t size() const { return mSize; }
+    static size_t pageSize() { return 1UL << Log2PageSize; }
 private:
     PagedArray* mParent;
     Page*       mPage;
@@ -669,13 +589,13 @@ private:
 
 // Const std-compliant iterator
 // Public member-class of PagedArray
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-class PagedArray<ValueT, Log2PageSize, TableT>::
+template <typename ValueT, size_t Log2PageSize>
+class PagedArray<ValueT, Log2PageSize>::
 ConstIterator : public std::iterator<std::random_access_iterator_tag, ValueT>
 {
 public:
-    typedef std::iterator<std::random_access_iterator_tag, ValueT> BaseT;
-    typedef typename BaseT::difference_type difference_type;
+    using BaseT = std::iterator<std::random_access_iterator_tag, ValueT>;
+    using difference_type = typename BaseT::difference_type;
     // constructors and assignment
     ConstIterator() : mPos(0), mParent(nullptr) {}
     ConstIterator(const PagedArray& parent, size_t pos=0) : mPos(pos), mParent(&parent) {}
@@ -718,14 +638,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Non-const std-compliant iterator
 // Public member-class of PagedArray
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-class PagedArray<ValueT, Log2PageSize, TableT>::
+template <typename ValueT, size_t Log2PageSize>
+class PagedArray<ValueT, Log2PageSize>::
 Iterator : public std::iterator<std::random_access_iterator_tag, ValueT>
 {
 public:
-    typedef std::iterator<std::random_access_iterator_tag, ValueT> BaseT;
-    typedef typename BaseT::difference_type difference_type;
+    using BaseT = std::iterator<std::random_access_iterator_tag, ValueT>;
+    using difference_type = typename BaseT::difference_type;
     // constructors and assignment
     Iterator() : mPos(0), mParent(nullptr) {}
     Iterator(PagedArray& parent, size_t pos=0) : mPos(pos), mParent(&parent) {}
@@ -769,8 +690,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Private member-class of PagedArray implementing a memory page
-template <typename ValueT, size_t Log2PageSize, template<typename ...> class TableT>
-class PagedArray<ValueT, Log2PageSize, TableT>::
+template <typename ValueT, size_t Log2PageSize>
+class PagedArray<ValueT, Log2PageSize>::
 Page
 {
 public:
@@ -806,7 +727,3 @@ protected:
 } // namespace openvdb
 
 #endif // OPENVDB_UTIL_PAGED_ARRAY_HAS_BEEN_INCLUDED
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

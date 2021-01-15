@@ -1,40 +1,17 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/points/PointGroup.h>
 #include <openvdb/points/PointCount.h>
 #include <openvdb/points/PointConversion.h>
 
+#include <cstdio> // for std::remove()
+#include <cstdlib> // for std::getenv()
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <vector>
 
 #ifdef _MSC_VER
 #include <windows.h>
@@ -43,29 +20,13 @@
 using namespace openvdb;
 using namespace openvdb::points;
 
-class TestPointGroup: public CppUnit::TestCase
+class TestPointGroup: public ::testing::Test
 {
 public:
-    virtual void setUp() { openvdb::initialize(); }
-    virtual void tearDown() { openvdb::uninitialize(); }
-
-    CPPUNIT_TEST_SUITE(TestPointGroup);
-    CPPUNIT_TEST(testDescriptor);
-    CPPUNIT_TEST(testAppendDrop);
-    CPPUNIT_TEST(testCompact);
-    CPPUNIT_TEST(testSet);
-    CPPUNIT_TEST(testFilter);
-
-    CPPUNIT_TEST_SUITE_END();
-
-    void testDescriptor();
-    void testAppendDrop();
-    void testCompact();
-    void testSet();
-    void testFilter();
+    void SetUp() override { openvdb::initialize(); }
+    void TearDown() override { openvdb::uninitialize(); }
 }; // class TestPointGroup
 
-CPPUNIT_TEST_SUITE_REGISTRATION(TestPointGroup);
 
 ////////////////////////////////////////
 
@@ -74,6 +35,10 @@ class FirstFilter
 {
 public:
     static bool initialized() { return true; }
+
+    static index::State state() { return index::PARTIAL; }
+    template <typename LeafT>
+    static index::State state(const LeafT&) { return index::PARTIAL; }
 
     template <typename LeafT> void reset(const LeafT&) { }
 
@@ -112,8 +77,7 @@ namespace {
 } // namespace
 
 
-void
-TestPointGroup::testDescriptor()
+TEST_F(TestPointGroup, testDescriptor)
 {
     // test missing groups deletion
 
@@ -121,14 +85,14 @@ TestPointGroup::testDescriptor()
         std::vector<std::string> groups;
         AttributeSet::Descriptor descriptor;
         deleteMissingPointGroups(groups, descriptor);
-        CPPUNIT_ASSERT(testStringVector(groups));
+        EXPECT_TRUE(testStringVector(groups));
     }
 
     { // one group, empty Descriptor
         std::vector<std::string> groups{"group1"};
         AttributeSet::Descriptor descriptor;
         deleteMissingPointGroups(groups, descriptor);
-        CPPUNIT_ASSERT(testStringVector(groups));
+        EXPECT_TRUE(testStringVector(groups));
     }
 
     { // one group, Descriptor with same group
@@ -136,7 +100,7 @@ TestPointGroup::testDescriptor()
         AttributeSet::Descriptor descriptor;
         descriptor.setGroup("group1", 0);
         deleteMissingPointGroups(groups, descriptor);
-        CPPUNIT_ASSERT(testStringVector(groups, "group1"));
+        EXPECT_TRUE(testStringVector(groups, "group1"));
     }
 
     { // one group, Descriptor with different group
@@ -144,7 +108,7 @@ TestPointGroup::testDescriptor()
         AttributeSet::Descriptor descriptor;
         descriptor.setGroup("group2", 0);
         deleteMissingPointGroups(groups, descriptor);
-        CPPUNIT_ASSERT(testStringVector(groups));
+        EXPECT_TRUE(testStringVector(groups));
     }
 
     { // three groups, Descriptor with three groups, one different
@@ -154,7 +118,7 @@ TestPointGroup::testDescriptor()
         descriptor.setGroup("group2", 0);
         descriptor.setGroup("group4", 0);
         deleteMissingPointGroups(groups, descriptor);
-        CPPUNIT_ASSERT(testStringVector(groups, "group1", "group4"));
+        EXPECT_TRUE(testStringVector(groups, "group1", "group4"));
     }
 }
 
@@ -162,8 +126,7 @@ TestPointGroup::testDescriptor()
 ////////////////////////////////////////
 
 
-void
-TestPointGroup::testAppendDrop()
+TEST_F(TestPointGroup, testAppendDrop)
 {
     std::vector<Vec3s> positions{{1, 1, 1}, {1, 10, 1}, {10, 1, 1}, {10, 10, 1}};
 
@@ -174,7 +137,7 @@ TestPointGroup::testAppendDrop()
     PointDataTree& tree = grid->tree();
 
     // check one leaf per point
-    CPPUNIT_ASSERT_EQUAL(tree.leafCount(), Index32(4));
+    EXPECT_EQ(tree.leafCount(), Index32(4));
 
     // retrieve first and last leaf attribute sets
 
@@ -188,24 +151,24 @@ TestPointGroup::testAppendDrop()
     const AttributeSet& attributeSet4 = leafIter->attributeSet();
 
     { // throw on append or drop an empty group
-        CPPUNIT_ASSERT_THROW(appendGroup(tree, ""), openvdb::KeyError);
-        CPPUNIT_ASSERT_THROW(dropGroup(tree, ""), openvdb::KeyError);
+        EXPECT_THROW(appendGroup(tree, ""), openvdb::KeyError);
+        EXPECT_THROW(dropGroup(tree, ""), openvdb::KeyError);
     }
 
     { // append a group
         appendGroup(tree, "test");
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(1));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(1));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test"));
     }
 
     { // append a group with non-unique name (repeat the append)
         appendGroup(tree, "test");
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(1));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(1));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test"));
     }
 
     { // append multiple groups
@@ -213,13 +176,13 @@ TestPointGroup::testAppendDrop()
 
         appendGroups(tree, names);
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(3));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test2"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test2"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test3"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test3"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(3));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test2"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test2"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test3"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test3"));
     }
 
     { // append to a copy
@@ -227,18 +190,18 @@ TestPointGroup::testAppendDrop()
 
         appendGroup(tree2, "copy1");
 
-        CPPUNIT_ASSERT(!attributeSet.descriptor().hasGroup("copy1"));
-        CPPUNIT_ASSERT(tree2.beginLeaf()->attributeSet().descriptor().hasGroup("copy1"));
+        EXPECT_TRUE(!attributeSet.descriptor().hasGroup("copy1"));
+        EXPECT_TRUE(tree2.beginLeaf()->attributeSet().descriptor().hasGroup("copy1"));
     }
 
     { // drop a group
         dropGroup(tree, "test2");
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(2));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test3"));
-        CPPUNIT_ASSERT(attributeSet4.descriptor().hasGroup("test3"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(2));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test3"));
+        EXPECT_TRUE(attributeSet4.descriptor().hasGroup("test3"));
     }
 
     { // drop multiple groups
@@ -246,7 +209,7 @@ TestPointGroup::testAppendDrop()
 
         dropGroups(tree, names);
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(0));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(0));
     }
 
     { // drop a copy
@@ -256,8 +219,8 @@ TestPointGroup::testAppendDrop()
 
         dropGroup(tree2, "copy2");
 
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("copy2"));
-        CPPUNIT_ASSERT(!tree2.beginLeaf()->attributeSet().descriptor().hasGroup("copy2"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("copy2"));
+        EXPECT_TRUE(!tree2.beginLeaf()->attributeSet().descriptor().hasGroup("copy2"));
 
         dropGroup(tree, "copy2");
     }
@@ -267,11 +230,12 @@ TestPointGroup::testAppendDrop()
 
         setGroup(tree, "test", true);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "test"), Index64(4));
+        GroupFilter filter("test", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter), Index64(4));
 
         setGroup(tree, "test", false);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "test"), Index64(0));
+        EXPECT_EQ(pointCount(tree, filter), Index64(0));
 
         dropGroup(tree, "test");
     }
@@ -280,19 +244,64 @@ TestPointGroup::testAppendDrop()
         appendGroup(tree, "test");
         appendGroup(tree, "test2");
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(2));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(2));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
 
         dropGroups(tree);
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(0));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(0));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(0));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(0));
     }
+
+    { // check that newly added groups have empty group membership
+
+        // recreate the grid with 3 points in one leaf
+
+        positions = {{1, 1, 1}, {1, 2, 1}, {2, 1, 1}};
+        grid = createPointDataGrid<NullCodec, PointDataGrid>(positions, *transform);
+        PointDataTree& newTree = grid->tree();
+
+        appendGroup(newTree, "test");
+
+        // test that a completely new group (with a new group attribute)
+        // has empty membership
+
+        EXPECT_TRUE(newTree.cbeginLeaf());
+        GroupFilter filter("test", newTree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(newTree, filter), Index64(0));
+
+        // check that membership in a group that was not created with a
+        // new attribute array is still empty.
+        // we will append a second group, set its membership, then
+        // drop it and append a new group with the same name again
+
+        appendGroup(newTree, "test2");
+
+        PointDataTree::LeafIter leafIter2 = newTree.beginLeaf();
+        EXPECT_TRUE(leafIter2);
+
+        GroupWriteHandle test2Handle = leafIter2->groupWriteHandle("test2");
+
+        test2Handle.set(0, true);
+        test2Handle.set(2, true);
+
+        GroupFilter filter2("test2", newTree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(newTree, filter2), Index64(2));
+
+        // drop and re-add group
+
+        dropGroup(newTree, "test2");
+        appendGroup(newTree, "test2");
+
+        // check that group is fully cleared and does not have previously existing data
+
+        EXPECT_EQ(pointCount(newTree, filter2), Index64(0));
+    }
+
 }
 
 
-void
-TestPointGroup::testCompact()
+TEST_F(TestPointGroup, testCompact)
 {
     std::vector<Vec3s> positions{{1, 1, 1}};
 
@@ -303,7 +312,7 @@ TestPointGroup::testCompact()
     PointDataTree& tree = grid->tree();
 
     // check one leaf
-    CPPUNIT_ASSERT_EQUAL(tree.leafCount(), Index32(1));
+    EXPECT_EQ(tree.leafCount(), Index32(1));
 
     // retrieve first and last leaf attribute sets
 
@@ -319,33 +328,33 @@ TestPointGroup::testCompact()
             appendGroup(tree, ss.str());
         }
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(8));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(8));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
 
         appendGroup(tree, "test8");
 
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test0"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test7"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test8"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test0"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test7"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test8"));
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(9));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(2));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(9));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(2));
     }
 
     { // drop first attribute then compact
         dropGroup(tree, "test5", /*compact=*/false);
 
-        CPPUNIT_ASSERT(!attributeSet.descriptor().hasGroup("test5"));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(8));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(2));
+        EXPECT_TRUE(!attributeSet.descriptor().hasGroup("test5"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(8));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(2));
 
         compactGroups(tree);
 
-        CPPUNIT_ASSERT(!attributeSet.descriptor().hasGroup("test5"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test7"));
-        CPPUNIT_ASSERT(attributeSet.descriptor().hasGroup("test8"));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(8));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
+        EXPECT_TRUE(!attributeSet.descriptor().hasGroup("test5"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test7"));
+        EXPECT_TRUE(attributeSet.descriptor().hasGroup("test8"));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(8));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
     }
 
     { // append seventeen groups, drop most of them, then compact
@@ -355,8 +364,8 @@ TestPointGroup::testCompact()
             appendGroup(tree, ss.str());
         }
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(17));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(17));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
 
         // delete all but 0, 5, 9, 15
 
@@ -367,8 +376,8 @@ TestPointGroup::testCompact()
             dropGroup(tree, ss.str(), /*compact=*/false);
         }
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(4));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(4));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
 
         // make a copy
 
@@ -378,19 +387,18 @@ TestPointGroup::testCompact()
 
         compactGroups(tree);
 
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().groupMap().size(), size_t(4));
-        CPPUNIT_ASSERT_EQUAL(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
+        EXPECT_EQ(attributeSet.descriptor().groupMap().size(), size_t(4));
+        EXPECT_EQ(attributeSet.descriptor().count(GroupAttributeArray::attributeType()), size_t(1));
 
         // check descriptor has been deep copied
 
-        CPPUNIT_ASSERT_EQUAL(tree2.cbeginLeaf()->attributeSet().descriptor().groupMap().size(), size_t(4));
-        CPPUNIT_ASSERT_EQUAL(tree2.cbeginLeaf()->attributeSet().descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
+        EXPECT_EQ(tree2.cbeginLeaf()->attributeSet().descriptor().groupMap().size(), size_t(4));
+        EXPECT_EQ(tree2.cbeginLeaf()->attributeSet().descriptor().count(GroupAttributeArray::attributeType()), size_t(3));
     }
 }
 
 
-void
-TestPointGroup::testSet()
+TEST_F(TestPointGroup, testSet)
 {
     // four points in the same leaf
 
@@ -416,27 +424,58 @@ TestPointGroup::testSet()
 
     appendGroup(tree, "test");
 
-    CPPUNIT_ASSERT_EQUAL(pointCount(tree), Index64(6));
-    CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "test"), Index64(0));
-
-    std::vector<short> membership{1, 0, 1, 1, 0, 1};
+    EXPECT_EQ(pointCount(tree), Index64(6));
+    GroupFilter filter("test", tree.cbeginLeaf()->attributeSet());
+    EXPECT_EQ(pointCount(tree, filter), Index64(0));
 
     // copy tree for descriptor sharing test
 
     PointDataTree tree2(tree);
 
-    setGroup(tree, pointIndexGrid->tree(), membership, "test");
+    std::vector<short> membership{1, 0, 1, 1, 0, 1};
+
+    // test add to group
+
+    setGroup(tree, "test", true);
+    EXPECT_EQ(pointCount(tree, filter), Index64(6));
+
+    // test nothing is done if the index tree contains no valid indices
+
+    tools::PointIndexGrid::Ptr tmpIndexGrid = tools::PointIndexGrid::create();
+    setGroup(tree, tmpIndexGrid->tree(), {0,0,0,0,0,0}, "test", /*remove*/true);
+    EXPECT_EQ(Index64(6), pointCount(tree, filter));
+
+    // test throw on out of range index
+
+    auto indexLeaf = tmpIndexGrid->tree().touchLeaf(tree.cbeginLeaf()->origin());
+    indexLeaf->indices().emplace_back(membership.size());
+    EXPECT_THROW(setGroup(tree, tmpIndexGrid->tree(), membership, "test"), IndexError);
+    EXPECT_EQ(Index64(6), pointCount(tree, filter));
+
+    // test remove flag
+
+    setGroup(tree, pointIndexGrid->tree(), membership, "test", /*remove*/false);
+    EXPECT_EQ(Index64(6), pointCount(tree, filter));
+
+    setGroup(tree, pointIndexGrid->tree(), membership, "test", /*remove*/true);
+    EXPECT_EQ(Index64(4), pointCount(tree, filter));
+
+    setGroup(tree, pointIndexGrid->tree(), {0,1,0,0,1,0}, "test", /*remove*/false);
+    EXPECT_EQ(Index64(6), pointCount(tree, filter));
+
+    setGroup(tree, pointIndexGrid->tree(), membership, "test", /*remove*/true);
 
     // check that descriptor remains shared
 
     appendGroup(tree2, "copy1");
 
-    CPPUNIT_ASSERT(!tree.cbeginLeaf()->attributeSet().descriptor().hasGroup("copy1"));
+    EXPECT_TRUE(!tree.cbeginLeaf()->attributeSet().descriptor().hasGroup("copy1"));
 
     dropGroup(tree2, "copy1");
 
-    CPPUNIT_ASSERT_EQUAL(pointCount(tree), Index64(6));
-    CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "test"), Index64(4));
+    EXPECT_EQ(pointCount(tree), Index64(6));
+    GroupFilter filter2("test", tree.cbeginLeaf()->attributeSet());
+    EXPECT_EQ(pointCount(tree, filter2), Index64(4));
 
     { // IO
         // setup temp directory
@@ -447,7 +486,7 @@ TestPointGroup::testSet()
         if (tempDir.empty()) {
             char tempDirBuffer[MAX_PATH+1];
             int tempDirLen = GetTempPath(MAX_PATH+1, tempDirBuffer);
-            CPPUNIT_ASSERT(tempDirLen > 0 && tempDirLen <= MAX_PATH);
+            EXPECT_TRUE(tempDirLen > 0 && tempDirLen <= MAX_PATH);
             tempDir = tempDirBuffer;
         }
 #else
@@ -476,30 +515,30 @@ TestPointGroup::testSet()
 
             fileIn.close();
 
-            CPPUNIT_ASSERT_EQUAL(grids->size(), size_t(1));
+            EXPECT_EQ(grids->size(), size_t(1));
 
             PointDataGrid::Ptr inputGrid = GridBase::grid<PointDataGrid>((*grids)[0]);
             PointDataTree& treex = inputGrid->tree();
 
-            CPPUNIT_ASSERT(treex.cbeginLeaf());
+            EXPECT_TRUE(treex.cbeginLeaf());
 
             const PointDataGrid::TreeType::LeafNodeType& leaf = *treex.cbeginLeaf();
 
             const AttributeSet::Descriptor& descriptor = leaf.attributeSet().descriptor();
 
-            CPPUNIT_ASSERT(descriptor.hasGroup("test"));
-            CPPUNIT_ASSERT_EQUAL(descriptor.groupMap().size(), size_t(1));
+            EXPECT_TRUE(descriptor.hasGroup("test"));
+            EXPECT_EQ(descriptor.groupMap().size(), size_t(1));
 
-            CPPUNIT_ASSERT_EQUAL(pointCount(treex), Index64(6));
-            CPPUNIT_ASSERT_EQUAL(groupPointCount(treex, "test"), Index64(4));
+            EXPECT_EQ(pointCount(treex), Index64(6));
+            GroupFilter filter3("test", leaf.attributeSet());
+            EXPECT_EQ(pointCount(treex, filter3), Index64(4));
         }
         std::remove(filename.c_str());
     }
 }
 
 
-void
-TestPointGroup::testFilter()
+TEST_F(TestPointGroup, testFilter)
 {
     const float voxelSize(1.0);
     math::Transform::Ptr transform(math::Transform::createLinearTransform(voxelSize));
@@ -528,20 +567,22 @@ TestPointGroup::testFilter()
     { // first point filter
         appendGroup(tree, "first");
 
-        CPPUNIT_ASSERT_EQUAL(pointCount(tree), Index64(6));
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "first"), Index64(0));
+        EXPECT_EQ(pointCount(tree), Index64(6));
+        GroupFilter filter("first", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter), Index64(0));
 
-        FirstFilter filter;
+        FirstFilter filter2;
 
-        setGroupByFilter<PointDataTree, FirstFilter>(tree, "first", filter);
+        setGroupByFilter<PointDataTree, FirstFilter>(tree, "first", filter2);
 
         auto iter = tree.cbeginLeaf();
 
         for ( ; iter; ++iter) {
-            CPPUNIT_ASSERT_EQUAL(iter->groupPointCount("first"), Index64(1));
+            EXPECT_EQ(iter->groupPointCount("first"), Index64(1));
         }
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "first"), Index64(2));
+        GroupFilter filter3("first", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter3), Index64(2));
     }
 
     const openvdb::BBoxd bbox(openvdb::Vec3d(0, 1.5, 0), openvdb::Vec3d(101, 100.5, 101));
@@ -549,36 +590,40 @@ TestPointGroup::testFilter()
     { // bbox filter
         appendGroup(tree, "bbox");
 
-        CPPUNIT_ASSERT_EQUAL(pointCount(tree), Index64(6));
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "bbox"), Index64(0));
+        EXPECT_EQ(pointCount(tree), Index64(6));
+        GroupFilter filter("bbox", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter), Index64(0));
 
-        BBoxFilter filter(*transform, bbox);
+        BBoxFilter filter2(*transform, bbox);
 
-        setGroupByFilter<PointDataTree, BBoxFilter>(tree, "bbox", filter);
+        setGroupByFilter<PointDataTree, BBoxFilter>(tree, "bbox", filter2);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "bbox"), Index64(3));
+        GroupFilter filter3("bbox", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter3), Index64(3));
     }
 
     { // first point filter and bbox filter (intersection of the above two filters)
         appendGroup(tree, "first_bbox");
 
-        CPPUNIT_ASSERT_EQUAL(pointCount(tree), Index64(6));
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "first_bbox"), Index64(0));
+        EXPECT_EQ(pointCount(tree), Index64(6));
+        GroupFilter filter("first_bbox", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter), Index64(0));
 
         using FirstBBoxFilter = BinaryFilter<FirstFilter, BBoxFilter>;
 
         FirstFilter firstFilter;
         BBoxFilter bboxFilter(*transform, bbox);
-        FirstBBoxFilter filter(firstFilter, bboxFilter);
+        FirstBBoxFilter filter2(firstFilter, bboxFilter);
 
-        setGroupByFilter<PointDataTree, FirstBBoxFilter>(tree, "first_bbox", filter);
+        setGroupByFilter<PointDataTree, FirstBBoxFilter>(tree, "first_bbox", filter2);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(tree, "first_bbox"), Index64(1));
+        GroupFilter filter3("first_bbox", tree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(tree, filter3), Index64(1));
 
         std::vector<Vec3f> positions;
 
         for (auto iter = tree.cbeginLeaf(); iter; ++iter) {
-            GroupFilter filterx("first_bbox");
+            GroupFilter filterx("first_bbox", iter->attributeSet());
             auto filterIndexIter = iter->beginIndexOn(filterx);
 
             auto handle = AttributeHandle<Vec3f>::create(iter->attributeArray("P"));
@@ -589,8 +634,8 @@ TestPointGroup::testFilter()
             }
         }
 
-        CPPUNIT_ASSERT_EQUAL(positions.size(), size_t(1));
-        CPPUNIT_ASSERT_EQUAL(positions[0], Vec3f(100, 100, 100));
+        EXPECT_EQ(positions.size(), size_t(1));
+        EXPECT_EQ(positions[0], Vec3f(100, 100, 100));
     }
 
     { // add 1000 points in three leafs (positions aren't important)
@@ -608,7 +653,7 @@ TestPointGroup::testFilter()
 
         PointDataTree& newTree = grid->tree();
 
-        CPPUNIT_ASSERT_EQUAL(pointCount(newTree), Index64(3000));
+        EXPECT_EQ(pointCount(newTree), Index64(3000));
 
         // random - maximum
 
@@ -618,7 +663,8 @@ TestPointGroup::testFilter()
 
         setGroupByRandomTarget(newTree, "random_maximum", target);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(newTree, "random_maximum"), target);
+        GroupFilter filter("random_maximum", newTree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(newTree, filter), target);
 
         // random - percentage
 
@@ -626,10 +672,7 @@ TestPointGroup::testFilter()
 
         setGroupByRandomPercentage(newTree, "random_percentage", 33.333333f);
 
-        CPPUNIT_ASSERT_EQUAL(groupPointCount(newTree, "random_percentage"), Index64(1000));
+        GroupFilter filter2("random_percentage", newTree.cbeginLeaf()->attributeSet());
+        EXPECT_EQ(pointCount(newTree, filter2), Index64(1000));
     }
 }
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

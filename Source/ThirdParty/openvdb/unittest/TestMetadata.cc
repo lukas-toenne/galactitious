@@ -1,56 +1,21 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/Exceptions.h>
 #include <openvdb/Metadata.h>
+#include <sstream>
 
-class TestMetadata : public CppUnit::TestCase
+
+class TestMetadata: public ::testing::Test
 {
 public:
-    virtual void setUp() { openvdb::Metadata::clearRegistry(); }
-    virtual void tearDown() { openvdb::Metadata::clearRegistry(); }
-
-    CPPUNIT_TEST_SUITE(TestMetadata);
-    CPPUNIT_TEST(testMetadataRegistry);
-    CPPUNIT_TEST(testMetadataAsBool);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testMetadataRegistry();
-    void testMetadataAsBool();
+    void SetUp() override { openvdb::Metadata::clearRegistry(); }
+    void TearDown() override { openvdb::Metadata::clearRegistry(); }
 };
 
-CPPUNIT_TEST_SUITE_REGISTRATION(TestMetadata);
 
-void
-TestMetadata::testMetadataRegistry()
+TEST_F(TestMetadata, testMetadataRegistry)
 {
     using namespace openvdb;
 
@@ -58,70 +23,124 @@ TestMetadata::testMetadataRegistry()
 
     StringMetadata strMetadata;
 
-    CPPUNIT_ASSERT(!Metadata::isRegisteredType(strMetadata.typeName()));
+    EXPECT_TRUE(!Metadata::isRegisteredType(strMetadata.typeName()));
 
     StringMetadata::registerType();
 
-    CPPUNIT_ASSERT(Metadata::isRegisteredType(strMetadata.typeName()));
-    CPPUNIT_ASSERT(
-            Metadata::isRegisteredType(Int32Metadata::staticTypeName()));
+    EXPECT_TRUE(Metadata::isRegisteredType(strMetadata.typeName()));
+    EXPECT_TRUE(Metadata::isRegisteredType(Int32Metadata::staticTypeName()));
 
-    Metadata::Ptr stringMetadata =
-        Metadata::createMetadata(strMetadata.typeName());
+    Metadata::Ptr stringMetadata = Metadata::createMetadata(strMetadata.typeName());
 
-    CPPUNIT_ASSERT(stringMetadata->typeName() == strMetadata.typeName());
+    EXPECT_TRUE(stringMetadata->typeName() == strMetadata.typeName());
 
     StringMetadata::unregisterType();
 
-    CPPUNIT_ASSERT_THROW(Metadata::createMetadata(strMetadata.typeName()),
-                         openvdb::LookupError);
+    EXPECT_THROW(Metadata::createMetadata(strMetadata.typeName()), openvdb::LookupError);
 }
 
-void
-TestMetadata::testMetadataAsBool()
+TEST_F(TestMetadata, testMetadataAsBool)
 {
     using namespace openvdb;
 
     {
         FloatMetadata meta(0.0);
-        CPPUNIT_ASSERT(!meta.asBool());
+        EXPECT_TRUE(!meta.asBool());
         meta.setValue(1.0);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
         meta.setValue(-1.0);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
         meta.setValue(999.0);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
     }
     {
         Int32Metadata meta(0);
-        CPPUNIT_ASSERT(!meta.asBool());
+        EXPECT_TRUE(!meta.asBool());
         meta.setValue(1);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
         meta.setValue(-1);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
         meta.setValue(999);
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
     }
     {
         StringMetadata meta("");
-        CPPUNIT_ASSERT(!meta.asBool());
+        EXPECT_TRUE(!meta.asBool());
         meta.setValue("abc");
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
     }
     {
         Vec3IMetadata meta(Vec3i(0));
-        CPPUNIT_ASSERT(!meta.asBool());
+        EXPECT_TRUE(!meta.asBool());
         meta.setValue(Vec3i(-1, 0, 1));
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
     }
     {
         Vec3SMetadata meta(Vec3s(0.0));
-        CPPUNIT_ASSERT(!meta.asBool());
+        EXPECT_TRUE(!meta.asBool());
         meta.setValue(Vec3s(-1.0, 0.0, 1.0));
-        CPPUNIT_ASSERT(meta.asBool());
+        EXPECT_TRUE(meta.asBool());
+    }
+    {
+        Vec4DMetadata meta(Vec4d(0.0));
+        EXPECT_TRUE(!meta.asBool());
+        meta.setValue(Vec4d(1.0));
+        EXPECT_TRUE(meta.asBool());
     }
 }
 
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
+
+TEST_F(TestMetadata, testCustomMetadata)
+{
+    using namespace openvdb;
+
+    const Vec3i expected(1, 2, 3);
+    std::ostringstream ostr(std::ios_base::binary);
+    {
+        Vec3IMetadata::registerType();
+        Vec3IMetadata meta(expected);
+
+        // Write Vec3I metadata to a byte string.
+        meta.write(ostr);
+    }
+
+    // Unregister Vec3I metadata.
+    Metadata::clearRegistry();
+
+    {
+        std::istringstream istr(ostr.str(), std::ios_base::binary);
+
+        UnknownMetadata meta;
+        // Verify that metadata of an unregistered type can be read successfully.
+        EXPECT_NO_THROW(meta.read(istr));
+
+        // Verify that the metadata matches the original vector value.
+        EXPECT_EQ(sizeof(Vec3i), size_t(meta.size()));
+        EXPECT_TRUE(meta.value().size() == size_t(meta.size()));
+        EXPECT_EQ(expected, *reinterpret_cast<const Vec3i*>(&meta.value()[0]));
+
+        ostr.str("");
+        meta.write(ostr);
+
+        // Verify that UnknownMetadata can be copied.
+        auto metaPtr = meta.copy();
+        EXPECT_TRUE(metaPtr.get() != nullptr);
+        EXPECT_TRUE(meta == *metaPtr);
+
+        // Verify that typed metadata can be copied into UnknownMetadata.
+        meta.copy(Vec3IMetadata(expected));
+        EXPECT_EQ(sizeof(expected), size_t(meta.size()));
+        const auto* ptr = reinterpret_cast<const uint8_t*>(&expected);
+        EXPECT_TRUE(UnknownMetadata::ByteVec(ptr, ptr + sizeof(expected)) == meta.value());
+    }
+
+    Vec3IMetadata::registerType();
+
+    {
+        std::istringstream istr(ostr.str(), std::ios_base::binary);
+        Vec3IMetadata meta;
+        meta.read(istr);
+
+        EXPECT_EQ(expected, meta.value());
+    }
+}

@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef OPENVDB_VIEWER_RENDERMODULES_HAS_BEEN_INCLUDED
 #define OPENVDB_VIEWER_RENDERMODULES_HAS_BEEN_INCLUDED
@@ -37,12 +10,14 @@
 #include <openvdb/tools/PointScatter.h>
 #include <openvdb/tree/LeafManager.h>
 #include <openvdb/math/Operators.h>
-
-#include <boost/random/mersenne_twister.hpp>
+#include <string>
+#include <vector>
 
 #if defined(__APPLE__) || defined(MACOSX)
 #include <OpenGL/gl.h>
 #include <OpenGL/glu.h>
+#elif defined(_WIN32)
+#include <GL/glew.h>
 #else
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -130,9 +105,9 @@ class ViewportModule: public RenderModule
 {
 public:
     ViewportModule();
-    virtual ~ViewportModule() {}
+    ~ViewportModule() override = default;
 
-    virtual void render();
+    void render() override;
 
 private:
     float mAxisGnomonScale, mGroundPlaneScale;
@@ -147,9 +122,9 @@ class TreeTopologyModule: public RenderModule
 {
 public:
     TreeTopologyModule(const openvdb::GridBase::ConstPtr&);
-    virtual ~TreeTopologyModule() {}
+    ~TreeTopologyModule() override = default;
 
-    virtual void render();
+    void render() override;
 
 private:
     void init();
@@ -164,14 +139,14 @@ private:
 ////////////////////////////////////////
 
 
-/// @brief Tree topology render module
-class ActiveValueModule: public RenderModule
+/// @brief Module to render active voxels as points
+class VoxelModule: public RenderModule
 {
 public:
-    ActiveValueModule(const openvdb::GridBase::ConstPtr&);
-    virtual ~ActiveValueModule() {}
+    VoxelModule(const openvdb::GridBase::ConstPtr&);
+    ~VoxelModule() override = default;
 
-    virtual void render();
+    void render() override;
 
 private:
     void init();
@@ -191,9 +166,9 @@ class MeshModule: public RenderModule
 {
 public:
     MeshModule(const openvdb::GridBase::ConstPtr&);
-    virtual ~MeshModule() {}
+    ~MeshModule() override = default;
 
-    virtual void render();
+    void render() override;
 
 private:
     void init();
@@ -207,7 +182,3 @@ private:
 } // namespace openvdb_viewer
 
 #endif // OPENVDB_VIEWER_RENDERMODULES_HAS_BEEN_INCLUDED
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

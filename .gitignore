@@ -76,3 +76,9 @@ DerivedDataCache/*
 
 # UXTools plugin
 Plugins/UXTools/*
+
+# Symlink for OpenEXR includes
+Source/ThirdParty/OpenEXR
+
+# Intermediates of ThirdParty builds
+Source/ThirdParty/Intermediate

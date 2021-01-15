@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef OPENVDB_UNITTEST_UTIL_HAS_BEEN_INCLUDED
 #define OPENVDB_UNITTEST_UTIL_HAS_BEEN_INCLUDED
@@ -68,7 +41,9 @@ makeSphere(const openvdb::Coord& dim, const openvdb::Vec3f& center, float radius
             for (xyz[2]=0; xyz[2]<dim[2]; ++xyz[2]) {
                 const openvdb::Vec3R p =  grid.transform().indexToWorld(xyz);
                 const float dist = float((p-center).length() - radius);
+                OPENVDB_NO_TYPE_CONVERSION_WARNING_BEGIN
                 ValueT val = ValueT(zero + dist);
+                OPENVDB_NO_TYPE_CONVERSION_WARNING_END
                 switch (mode) {
                 case SPHERE_DENSE:
                     acc.setValue(xyz, val);
@@ -129,30 +104,30 @@ inline void genPoints(const int numPoints, std::vector<openvdb::Vec3R>& points)
     const int n = int(std::sqrt(double(numPoints)));
     const double xScale = (2.0 * M_PI) / double(n);
     const double yScale = M_PI / double(n);
-    
+
     double x, y, theta, phi;
     openvdb::Vec3R pos;
-    
+
     points.reserve(n*n);
-    
+
     // loop over a [0 to n) x [0 to n) grid.
     for (int a = 0; a < n; ++a) {
         for (int b = 0; b < n; ++b) {
-            
+
             // jitter, move to random pos. inside the current cell
             x = double(a) + randNumber();
             y = double(b) + randNumber();
-            
+
             // remap to a lat/long map
             theta = y * yScale; // [0 to PI]
             phi   = x * xScale; // [0 to 2PI]
-            
+
             // convert to cartesian coordinates on a unit sphere.
             // spherical coordinate triplet (r=1, theta, phi)
             pos[0] = std::sin(theta)*std::cos(phi);
             pos[1] = std::sin(theta)*std::sin(phi);
             pos[2] = std::cos(theta);
-            
+
             points.push_back(pos);
         }
     }
@@ -163,7 +138,3 @@ inline void genPoints(const int numPoints, std::vector<openvdb::Vec3R>& points)
 } // namespace unittest_util
 
 #endif // OPENVDB_UNITTEST_UTIL_HAS_BEEN_INCLUDED
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

@@ -1,51 +1,12 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include "Camera.h"
 
 #include <cmath>
 
-#ifdef OPENVDB_USE_GLFW_3
 #define GLFW_INCLUDE_GLU
 #include <GLFW/glfw3.h>
-#else // if !defined(OPENVDB_USE_GLFW_3)
-#if defined(__APPLE__) || defined(MACOSX)
-#include <OpenGL/gl.h>
-#include <OpenGL/glu.h>
-#else
-#include <GL/gl.h>
-#include <GL/glu.h>
-#endif
-#include <GL/glfw.h>
-#endif // !defined(OPENVDB_USE_GLFW_3)
-
 
 namespace openvdb_viewer {
 
@@ -76,9 +37,7 @@ Camera::Camera()
     , mNeedsDisplay(true)
     , mMouseXPos(0.0)
     , mMouseYPos(0.0)
-#if GLFW_VERSION_MAJOR >= 3
     , mWindow(nullptr)
-#endif
 {
 }
 
@@ -122,17 +81,11 @@ Camera::setTarget(const openvdb::Vec3d& p, double dist)
 void
 Camera::aim()
 {
-#if GLFW_VERSION_MAJOR >= 3
     if (mWindow == nullptr) return;
-#endif
 
     // Get the window size
     int width, height;
-#if GLFW_VERSION_MAJOR >= 3
     glfwGetFramebufferSize(mWindow, &width, &height);
-#else
-    glfwGetWindowSize(&width, &height);
-#endif
 
     // Make sure that height is non-zero to avoid division by zero
     height = std::max(1, height);
@@ -180,12 +133,8 @@ Camera::aim()
 void
 Camera::keyCallback(int key, int)
 {
-#if GLFW_VERSION_MAJOR >= 3
     if (mWindow == nullptr) return;
     int state = glfwGetKey(mWindow, key);
-#else
-    int state = glfwGetKey(key);
-#endif
     switch (state) {
         case GLFW_PRESS:
             switch(key) {
@@ -274,7 +223,3 @@ Camera::mouseWheelCallback(int pos, int prevPos)
 }
 
 } // namespace openvdb_viewer
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

@@ -1,40 +1,13 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/Exceptions.h>
 #include <openvdb/openvdb.h>
 #include <cstdio> // for remove()
 
 
-class TestGridIO: public CppUnit::TestCase
+class TestGridIO: public ::testing::Test
 {
 public:
     typedef openvdb::tree::Tree<
@@ -46,27 +19,12 @@ public:
         Float5432Tree;
     typedef openvdb::Grid<Float5432Tree> Float5432Grid;
 
-    virtual void setUp()    { openvdb::initialize(); }
-    virtual void tearDown() { openvdb::uninitialize(); }
+    void SetUp() override    { openvdb::initialize(); }
+    void TearDown() override { openvdb::uninitialize(); }
 
-    CPPUNIT_TEST_SUITE(TestGridIO);
-    CPPUNIT_TEST(testReadAllBool);
-    CPPUNIT_TEST(testReadAllMask);
-    CPPUNIT_TEST(testReadAllFloat);
-    CPPUNIT_TEST(testReadAllVec3S);
-    CPPUNIT_TEST(testReadAllFloat5432);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testReadAllBool()  { readAllTest<openvdb::BoolGrid>(); }
-    void testReadAllMask()  { readAllTest<openvdb::MaskGrid>(); }
-    void testReadAllFloat() { readAllTest<openvdb::FloatGrid>(); }
-    void testReadAllVec3S() { readAllTest<openvdb::Vec3SGrid>(); }
-    void testReadAllFloat5432() { Float5432Grid::registerGrid(); readAllTest<Float5432Grid>(); }
-private:
+protected:
     template<typename GridType> void readAllTest();
 };
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestGridIO);
 
 
 ////////////////////////////////////////
@@ -126,10 +84,10 @@ TestGridIO::readAllTest()
     grid2->setName("temperature");
 
     OPENVDB_NO_FP_EQUALITY_WARNING_BEGIN
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 5), tree1->getValue(coord0));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 6), tree1->getValue(coord1));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 10), tree2->getValue(coord0));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 11), tree2->getValue(coord2));
+    EXPECT_EQ(ValueT(zero + 5), tree1->getValue(coord0));
+    EXPECT_EQ(ValueT(zero + 6), tree1->getValue(coord1));
+    EXPECT_EQ(ValueT(zero + 10), tree2->getValue(coord0));
+    EXPECT_EQ(ValueT(zero + 11), tree2->getValue(coord2));
     OPENVDB_NO_FP_EQUALITY_WARNING_END
 
     // count[d] is the number of nodes already visited at depth d.
@@ -143,7 +101,7 @@ TestGridIO::readAllTest()
             coord0 & mask[depth], // origin of the first node at this depth
             coord1 & mask[depth]  // origin of the second node at this depth
         };
-        CPPUNIT_ASSERT_EQUAL(expected[count[depth]], iter.getCoord());
+        EXPECT_EQ(expected[count[depth]], iter.getCoord());
         ++count[depth];
     }
     // Verify that tree2 has correct node origins.
@@ -151,7 +109,7 @@ TestGridIO::readAllTest()
     for (NodeCIter iter = tree2->cbeginNode(); iter; ++iter) {
         const Index depth = iter.getDepth();
         const Coord expected[2] = { coord0 & mask[depth], coord2 & mask[depth] };
-        CPPUNIT_ASSERT_EQUAL(expected[count[depth]], iter.getCoord());
+        EXPECT_EQ(expected[count[depth]], iter.getCoord());
         ++count[depth];
     }
 
@@ -172,42 +130,42 @@ TestGridIO::readAllTest()
     grids.reset();
 
     io::File vdbfile("something.vdb2");
-    CPPUNIT_ASSERT_THROW(vdbfile.getGrids(), openvdb::IoError); // file has not been opened
+    EXPECT_THROW(vdbfile.getGrids(), openvdb::IoError); // file has not been opened
 
     // Read the grids back in.
     vdbfile.open();
-    CPPUNIT_ASSERT(vdbfile.isOpen());
+    EXPECT_TRUE(vdbfile.isOpen());
 
     grids = vdbfile.getGrids();
     meta = vdbfile.getMetadata();
 
     // Ensure we have the metadata.
-    CPPUNIT_ASSERT(meta.get() != NULL);
-    CPPUNIT_ASSERT_EQUAL(2, int(meta->metaCount()));
-    CPPUNIT_ASSERT_EQUAL(std::string("Einstein"), meta->metaValue<std::string>("author"));
-    CPPUNIT_ASSERT_EQUAL(2009, meta->metaValue<int32_t>("year"));
+    EXPECT_TRUE(meta.get() != NULL);
+    EXPECT_EQ(2, int(meta->metaCount()));
+    EXPECT_EQ(std::string("Einstein"), meta->metaValue<std::string>("author"));
+    EXPECT_EQ(2009, meta->metaValue<int32_t>("year"));
 
     // Ensure we got both grids.
-    CPPUNIT_ASSERT(grids.get() != NULL);
-    CPPUNIT_ASSERT_EQUAL(2, int(grids->size()));
+    EXPECT_TRUE(grids.get() != NULL);
+    EXPECT_EQ(2, int(grids->size()));
 
     grid1.reset();
     grid1 = findGridByName(*grids, "density");
-    CPPUNIT_ASSERT(grid1.get() != NULL);
+    EXPECT_TRUE(grid1.get() != NULL);
     TreePtr density = gridPtrCast<GridType>(grid1)->treePtr();
-    CPPUNIT_ASSERT(density.get() != NULL);
+    EXPECT_TRUE(density.get() != NULL);
 
     grid2.reset();
     grid2 = findGridByName(*grids, "temperature");
-    CPPUNIT_ASSERT(grid2.get() != NULL);
+    EXPECT_TRUE(grid2.get() != NULL);
     TreePtr temperature = gridPtrCast<GridType>(grid2)->treePtr();
-    CPPUNIT_ASSERT(temperature.get() != NULL);
+    EXPECT_TRUE(temperature.get() != NULL);
 
     OPENVDB_NO_FP_EQUALITY_WARNING_BEGIN
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 5), density->getValue(coord0));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 6), density->getValue(coord1));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 10), temperature->getValue(coord0));
-    CPPUNIT_ASSERT_EQUAL(ValueT(zero + 11), temperature->getValue(coord2));
+    EXPECT_EQ(ValueT(zero + 5), density->getValue(coord0));
+    EXPECT_EQ(ValueT(zero + 6), density->getValue(coord1));
+    EXPECT_EQ(ValueT(zero + 10), temperature->getValue(coord0));
+    EXPECT_EQ(ValueT(zero + 11), temperature->getValue(coord2));
     OPENVDB_NO_FP_EQUALITY_WARNING_END
 
     // Check if we got the correct node origins.
@@ -215,14 +173,14 @@ TestGridIO::readAllTest()
     for (NodeCIter iter = density->cbeginNode(); iter; ++iter) {
         const Index depth = iter.getDepth();
         const Coord expected[2] = { coord0 & mask[depth], coord1 & mask[depth] };
-        CPPUNIT_ASSERT_EQUAL(expected[count[depth]], iter.getCoord());
+        EXPECT_EQ(expected[count[depth]], iter.getCoord());
         ++count[depth];
     }
     count.assign(height, 0);
     for (NodeCIter iter = temperature->cbeginNode(); iter; ++iter) {
         const Index depth = iter.getDepth();
         const Coord expected[2] = { coord0 & mask[depth], coord2 & mask[depth] };
-        CPPUNIT_ASSERT_EQUAL(expected[count[depth]], iter.getCoord());
+        EXPECT_EQ(expected[count[depth]], iter.getCoord());
         ++count[depth];
     }
 
@@ -231,6 +189,7 @@ TestGridIO::readAllTest()
     ::remove("something.vdb2");
 }
 
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
+TEST_F(TestGridIO, testReadAllBool) { readAllTest<openvdb::BoolGrid>(); }
+TEST_F(TestGridIO, testReadAllFloat) { readAllTest<openvdb::FloatGrid>(); }
+TEST_F(TestGridIO, testReadAllVec3S) { readAllTest<openvdb::Vec3SGrid>(); }
+TEST_F(TestGridIO, testReadAllFloat5432) { Float5432Grid::registerGrid(); readAllTest<Float5432Grid>(); }

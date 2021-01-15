@@ -1,40 +1,12 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 /// @file unittest/TestPoissonSolver.cc
 /// @authors D.J. Hill, Peter Cucka
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/openvdb.h>
 #include <openvdb/Types.h>
-//#include <openvdb/math/Math.h> // for math::isApproxEqual()
 #include <openvdb/math/ConjGradient.h> // for JacobiPreconditioner
 #include <openvdb/tools/Composite.h> // for csgDifference/Union/Intersection
 #include <openvdb/tools/LevelSetSphere.h> // for tools::createLevelSetSphere()
@@ -42,38 +14,18 @@
 #include <openvdb/tools/MeshToVolume.h> // for createLevelSetBox()
 #include <openvdb/tools/Morphology.h> // for tools::erodeVoxels()
 #include <openvdb/tools/PoissonSolver.h>
-#include <boost/math/constants/constants.hpp> // for boost::math::constants::pi
 #include <cmath>
 
 
-class TestPoissonSolver: public CppUnit::TestCase
+class TestPoissonSolver: public ::testing::Test
 {
-public:
-    CPPUNIT_TEST_SUITE(TestPoissonSolver);
-    CPPUNIT_TEST(testIndexTree);
-    CPPUNIT_TEST(testTreeToVectorToTree);
-    CPPUNIT_TEST(testLaplacian);
-    CPPUNIT_TEST(testSolve);
-    CPPUNIT_TEST(testSolveWithBoundaryConditions);
-    CPPUNIT_TEST(testSolveWithSegmentedDomain);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testIndexTree();
-    void testTreeToVectorToTree();
-    void testLaplacian();
-    void testSolve();
-    void testSolveWithBoundaryConditions();
-    void testSolveWithSegmentedDomain();
 };
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestPoissonSolver);
 
 
 ////////////////////////////////////////
 
 
-void
-TestPoissonSolver::testIndexTree()
+TEST_F(TestPoissonSolver, testIndexTree)
 {
     using namespace openvdb;
     using tools::poisson::VIndex;
@@ -89,7 +41,7 @@ TestPoissonSolver::testIndexTree()
     for (size_t n = 0, N = leafManager.leafCount(); n < N; ++n) {
         const LeafNodeType& leaf = leafManager.leaf(n);
         for (LeafNodeType::ValueOnCIter it = leaf.cbeginValueOn(); it; ++it, testOffset++) {
-            CPPUNIT_ASSERT_EQUAL(testOffset, *it);
+            EXPECT_EQ(testOffset, *it);
         }
     }
 
@@ -101,12 +53,11 @@ TestPoissonSolver::testIndexTree()
     //              << tree.activeTileCount()<<std::endl;
     //}
 
-    CPPUNIT_ASSERT_EQUAL(VIndex(tree.activeVoxelCount()), testOffset);
+    EXPECT_EQ(VIndex(tree.activeVoxelCount()), testOffset);
 }
 
 
-void
-TestPoissonSolver::testTreeToVectorToTree()
+TEST_F(TestPoissonSolver, testTreeToVectorToTree)
 {
     using namespace openvdb;
     using tools::poisson::VIndex;
@@ -122,12 +73,12 @@ TestPoissonSolver::testTreeToVectorToTree()
 
     // Generate an index tree.
     VIdxTree::Ptr indexTree = tools::poisson::createIndexTree(inputTree);
-    CPPUNIT_ASSERT(bool(indexTree));
+    EXPECT_TRUE(bool(indexTree));
 
     // Copy the values of the active voxels of the tree into a vector.
     math::pcg::VectorS::Ptr vec =
         tools::poisson::createVectorFromTree<float>(inputTree, *indexTree);
-    CPPUNIT_ASSERT_EQUAL(math::pcg::SizeType(numVoxels), vec->size());
+    EXPECT_EQ(math::pcg::SizeType(numVoxels), vec->size());
 
     {
         // Convert the vector back to a tree.
@@ -142,14 +93,13 @@ TestPoissonSolver::testTreeToVectorToTree()
             //    std::cout << " value error " << *it << " "
             //        << inputTree.getValue(ijk) << std::endl;
             //}
-            CPPUNIT_ASSERT_DOUBLES_EQUAL(inputAcc.getValue(ijk), *it, /*tolerance=*/1.0e-6);
+            EXPECT_NEAR(inputAcc.getValue(ijk), *it, /*tolerance=*/1.0e-6);
         }
     }
 }
 
 
-void
-TestPoissonSolver::testLaplacian()
+TEST_F(TestPoissonSolver, testLaplacian)
 {
     using namespace openvdb;
     using tools::poisson::VIndex;
@@ -160,7 +110,7 @@ TestPoissonSolver::testLaplacian()
     for (int N = 8; N <= 20; N += 12) {
         // Construct an N x N x N volume in which the value of voxel (i, j, k)
         // is sin(i) * sin(j) * sin(k), using a voxel spacing of pi / N.
-        const double delta = boost::math::constants::pi<double>() / N;
+        const double delta = openvdb::math::pi<double>() / N;
         FloatTree inputTree(/*background=*/0.f);
         Coord ijk(0);
         Int32 &i = ijk[0], &j = ijk[1], &k = ijk[2];
@@ -176,12 +126,12 @@ TestPoissonSolver::testLaplacian()
 
         // Generate an index tree.
         VIdxTree::Ptr indexTree = tools::poisson::createIndexTree(inputTree);
-        CPPUNIT_ASSERT(bool(indexTree));
+        EXPECT_TRUE(bool(indexTree));
 
         // Copy the values of the active voxels of the tree into a vector.
         math::pcg::VectorS::Ptr source =
             tools::poisson::createVectorFromTree<float>(inputTree, *indexTree);
-        CPPUNIT_ASSERT_EQUAL(math::pcg::SizeType(numVoxels), source->size());
+        EXPECT_EQ(math::pcg::SizeType(numVoxels), source->size());
 
         // Create a mask of the interior voxels of the source tree.
         BoolTree interiorMask(/*background=*/false);
@@ -192,7 +142,7 @@ TestPoissonSolver::testLaplacian()
         tools::poisson::LaplacianMatrix::Ptr laplacian =
             tools::poisson::createISLaplacian(*indexTree, interiorMask, /*staggered=*/true);
         laplacian->scale(1.0 / (delta * delta)); // account for voxel spacing
-        CPPUNIT_ASSERT_EQUAL(math::pcg::SizeType(numVoxels), laplacian->size());
+        EXPECT_EQ(math::pcg::SizeType(numVoxels), laplacian->size());
 
         math::pcg::VectorS result(source->size());
         laplacian->vectorMultiply(*source, result);
@@ -204,14 +154,13 @@ TestPoissonSolver::testLaplacian()
             float((3.0 * src[1] - 6.0 * src[0]) / (delta * delta * src[0]));
         for (math::pcg::SizeType n = 0; n < result.size(); ++n) {
             result[n] /= src[n];
-            CPPUNIT_ASSERT_DOUBLES_EQUAL(expected, result[n], /*tolerance=*/1.0e-4);
+            EXPECT_NEAR(expected, result[n], /*tolerance=*/1.0e-4);
         }
     }
 }
 
 
-void
-TestPoissonSolver::testSolve()
+TEST_F(TestPoissonSolver, testSolve)
 {
     using namespace openvdb;
 
@@ -225,8 +174,8 @@ TestPoissonSolver::testSolve()
 
     FloatTree::Ptr outTree = tools::poisson::solve(sphere->tree(), result);
 
-    CPPUNIT_ASSERT(result.success);
-    CPPUNIT_ASSERT(result.iterations < 60);
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(result.iterations < 60);
 }
 
 
@@ -287,12 +236,12 @@ doTestSolveWithBoundaryConditions()
     typename TreeType::Ptr solution = tools::poisson::solveWithBoundaryConditions(
         source, BoundaryOp(), state, interrupter, /*staggered=*/true);
 
-    CPPUNIT_ASSERT(state.success);
-    CPPUNIT_ASSERT(state.iterations < 60);
+    EXPECT_TRUE(state.success);
+    EXPECT_TRUE(state.iterations < 60);
 
     // Verify that P = -y throughout the solution space.
     for (typename TreeType::ValueOnCIter it = solution->cbeginValueOn(); it; ++it) {
-        CPPUNIT_ASSERT_DOUBLES_EQUAL(
+        EXPECT_NEAR(
             double(-it.getCoord().y()), double(*it), /*tolerance=*/10.0 * epsilon);
     }
 }
@@ -300,8 +249,7 @@ doTestSolveWithBoundaryConditions()
 } // unnamed namespace
 
 
-void
-TestPoissonSolver::testSolveWithBoundaryConditions()
+TEST_F(TestPoissonSolver, testSolveWithBoundaryConditions)
 {
     doTestSolveWithBoundaryConditions<openvdb::FloatTree>();
     doTestSolveWithBoundaryConditions<openvdb::DoubleTree>();
@@ -383,8 +331,7 @@ private:
 } // unnamed namespace
 
 
-void
-TestPoissonSolver::testSolveWithSegmentedDomain()
+TEST_F(TestPoissonSolver, testSolveWithSegmentedDomain)
 {
     // In fluid simulations, incompressibility is enforced by the pressure, which is
     // computed as a solution of a Poisson equation.  Often, procedural animation
@@ -486,7 +433,7 @@ TestPoissonSolver::testSolveWithSegmentedDomain()
     // Identify the well-posed part of the problem.
     BoolTree wellPosedDomain(source, /*inactive=*/false, /*active=*/true, TopologyCopy());
     wellPosedDomain.topologyDifference(*interiorMask);
-    CPPUNIT_ASSERT_EQUAL(expectedWellPosedVolume, wellPosedDomain.activeVoxelCount());
+    EXPECT_EQ(expectedWellPosedVolume, wellPosedDomain.activeVoxelCount());
 
     // Solve the well-posed Poisson equation.
 
@@ -506,9 +453,9 @@ TestPoissonSolver::testSolveWithSegmentedDomain()
         tools::poisson::solveWithBoundaryConditionsAndPreconditioner<PreconditionerType>(
             source, wellPosedDomain, boundaryOp, state, interrupter, /*staggered=*/true);
 
-    CPPUNIT_ASSERT_EQUAL(expectedWellPosedVolume, wellPosedSolutionP->activeVoxelCount());
-    CPPUNIT_ASSERT(state.success);
-    CPPUNIT_ASSERT(state.iterations < 68);
+    EXPECT_EQ(expectedWellPosedVolume, wellPosedSolutionP->activeVoxelCount());
+    EXPECT_TRUE(state.success);
+    EXPECT_TRUE(state.iterations < 68);
 
     // Verify that the solution is linear with depth.
     for (FloatTree::ValueOnCIter it = wellPosedSolutionP->cbeginValueOn(); it; ++it) {
@@ -518,7 +465,7 @@ TestPoissonSolver::testSolveWithSegmentedDomain()
         } else {
             depth = 1 + liquidInClosedDomain1.max().z() - it.getCoord().z();
         }
-        CPPUNIT_ASSERT_DOUBLES_EQUAL(double(depth), double(*it), /*tolerance=*/10.0 * epsilon);
+        EXPECT_NEAR(double(depth), double(*it), /*tolerance=*/10.0 * epsilon);
     }
 
 #if 0
@@ -536,7 +483,3 @@ TestPoissonSolver::testSolveWithSegmentedDomain()
     }
 #endif
 }
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

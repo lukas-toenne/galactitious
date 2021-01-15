@@ -1,34 +1,7 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/points/AttributeArray.h>
 #include <openvdb/points/AttributeGroup.h>
 #include <openvdb/points/IndexIterator.h>
@@ -42,25 +15,12 @@
 using namespace openvdb;
 using namespace openvdb::points;
 
-class TestAttributeGroup: public CppUnit::TestCase
+class TestAttributeGroup: public ::testing::Test
 {
 public:
-    virtual void setUp() { openvdb::initialize(); }
-    virtual void tearDown() { openvdb::uninitialize(); }
-
-    CPPUNIT_TEST_SUITE(TestAttributeGroup);
-    CPPUNIT_TEST(testAttributeGroup);
-    CPPUNIT_TEST(testAttributeGroupHandle);
-    CPPUNIT_TEST(testAttributeGroupFilter);
-
-    CPPUNIT_TEST_SUITE_END();
-
-    void testAttributeGroup();
-    void testAttributeGroupHandle();
-    void testAttributeGroupFilter();
+    void SetUp() override { openvdb::initialize(); }
+    void TearDown() override { openvdb::uninitialize(); }
 }; // class TestAttributeGroup
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestAttributeGroup);
 
 
 ////////////////////////////////////////
@@ -84,42 +44,50 @@ matchingNamePairs(const openvdb::NamePair& lhs,
 ////////////////////////////////////////
 
 
-void
-TestAttributeGroup::testAttributeGroup()
+TEST_F(TestAttributeGroup, testAttributeGroup)
 {
     { // Typed class API
 
         const size_t count = 50;
         GroupAttributeArray attr(count);
 
-        CPPUNIT_ASSERT(!attr.isTransient());
-        CPPUNIT_ASSERT(!attr.isHidden());
-        CPPUNIT_ASSERT(isGroup(attr));
+        EXPECT_TRUE(!attr.isTransient());
+        EXPECT_TRUE(!attr.isHidden());
+        EXPECT_TRUE(isGroup(attr));
 
         attr.setTransient(true);
-        CPPUNIT_ASSERT(attr.isTransient());
-        CPPUNIT_ASSERT(!attr.isHidden());
-        CPPUNIT_ASSERT(isGroup(attr));
+        EXPECT_TRUE(attr.isTransient());
+        EXPECT_TRUE(!attr.isHidden());
+        EXPECT_TRUE(isGroup(attr));
 
         attr.setHidden(true);
-        CPPUNIT_ASSERT(attr.isTransient());
-        CPPUNIT_ASSERT(attr.isHidden());
-        CPPUNIT_ASSERT(isGroup(attr));
+        EXPECT_TRUE(attr.isTransient());
+        EXPECT_TRUE(attr.isHidden());
+        EXPECT_TRUE(isGroup(attr));
 
         attr.setTransient(false);
-        CPPUNIT_ASSERT(!attr.isTransient());
-        CPPUNIT_ASSERT(attr.isHidden());
-        CPPUNIT_ASSERT(isGroup(attr));
+        EXPECT_TRUE(!attr.isTransient());
+        EXPECT_TRUE(attr.isHidden());
+        EXPECT_TRUE(isGroup(attr));
 
         GroupAttributeArray attrB(attr);
 
-        CPPUNIT_ASSERT(matchingNamePairs(attr.type(), attrB.type()));
-        CPPUNIT_ASSERT_EQUAL(attr.size(), attrB.size());
-        CPPUNIT_ASSERT_EQUAL(attr.memUsage(), attrB.memUsage());
-        CPPUNIT_ASSERT_EQUAL(attr.isUniform(), attrB.isUniform());
-        CPPUNIT_ASSERT_EQUAL(attr.isTransient(), attrB.isTransient());
-        CPPUNIT_ASSERT_EQUAL(attr.isHidden(), attrB.isHidden());
-        CPPUNIT_ASSERT_EQUAL(isGroup(attr), isGroup(attrB));
+        EXPECT_TRUE(matchingNamePairs(attr.type(), attrB.type()));
+        EXPECT_EQ(attr.size(), attrB.size());
+        EXPECT_EQ(attr.memUsage(), attrB.memUsage());
+        EXPECT_EQ(attr.isUniform(), attrB.isUniform());
+        EXPECT_EQ(attr.isTransient(), attrB.isTransient());
+        EXPECT_EQ(attr.isHidden(), attrB.isHidden());
+        EXPECT_EQ(isGroup(attr), isGroup(attrB));
+
+#if OPENVDB_ABI_VERSION_NUMBER >= 6
+        AttributeArray& baseAttr(attr);
+        EXPECT_EQ(Name(typeNameAsString<GroupType>()), baseAttr.valueType());
+        EXPECT_EQ(Name("grp"), baseAttr.codecType());
+        EXPECT_EQ(Index(1), baseAttr.valueTypeSize());
+        EXPECT_EQ(Index(1), baseAttr.storageTypeSize());
+        EXPECT_TRUE(!baseAttr.valueTypeIsFloatingPoint());
+#endif
     }
 
     { // casting
@@ -127,15 +95,15 @@ TestAttributeGroup::testAttributeGroup()
         AttributeArray& floatArray = floatAttr;
         const AttributeArray& constFloatArray = floatAttr;
 
-        CPPUNIT_ASSERT_THROW(GroupAttributeArray::cast(floatArray), TypeError);
-        CPPUNIT_ASSERT_THROW(GroupAttributeArray::cast(constFloatArray), TypeError);
+        EXPECT_THROW(GroupAttributeArray::cast(floatArray), TypeError);
+        EXPECT_THROW(GroupAttributeArray::cast(constFloatArray), TypeError);
 
         GroupAttributeArray groupAttr(4);
         AttributeArray& groupArray = groupAttr;
         const AttributeArray& constGroupArray = groupAttr;
 
-        CPPUNIT_ASSERT_NO_THROW(GroupAttributeArray::cast(groupArray));
-        CPPUNIT_ASSERT_NO_THROW(GroupAttributeArray::cast(constGroupArray));
+        EXPECT_NO_THROW(GroupAttributeArray::cast(groupArray));
+        EXPECT_NO_THROW(GroupAttributeArray::cast(constGroupArray));
     }
 
     { // IO
@@ -156,29 +124,28 @@ TestAttributeGroup::testAttributeGroup()
         std::istringstream istr(ostr.str(), std::ios_base::binary);
         attrB.read(istr);
 
-        CPPUNIT_ASSERT(matchingNamePairs(attrA.type(), attrB.type()));
-        CPPUNIT_ASSERT_EQUAL(attrA.size(), attrB.size());
-        CPPUNIT_ASSERT_EQUAL(attrA.memUsage(), attrB.memUsage());
-        CPPUNIT_ASSERT_EQUAL(attrA.isUniform(), attrB.isUniform());
-        CPPUNIT_ASSERT_EQUAL(attrA.isTransient(), attrB.isTransient());
-        CPPUNIT_ASSERT_EQUAL(attrA.isHidden(), attrB.isHidden());
-        CPPUNIT_ASSERT_EQUAL(isGroup(attrA), isGroup(attrB));
+        EXPECT_TRUE(matchingNamePairs(attrA.type(), attrB.type()));
+        EXPECT_EQ(attrA.size(), attrB.size());
+        EXPECT_EQ(attrA.memUsage(), attrB.memUsage());
+        EXPECT_EQ(attrA.isUniform(), attrB.isUniform());
+        EXPECT_EQ(attrA.isTransient(), attrB.isTransient());
+        EXPECT_EQ(attrA.isHidden(), attrB.isHidden());
+        EXPECT_EQ(isGroup(attrA), isGroup(attrB));
 
         for (unsigned i = 0; i < unsigned(count); ++i) {
-            CPPUNIT_ASSERT_EQUAL(attrA.get(i), attrB.get(i));
+            EXPECT_EQ(attrA.get(i), attrB.get(i));
         }
     }
 }
 
 
-void
-TestAttributeGroup::testAttributeGroupHandle()
+TEST_F(TestAttributeGroup, testAttributeGroupHandle)
 {
     GroupAttributeArray attr(4);
     GroupHandle handle(attr, 3);
 
-    CPPUNIT_ASSERT_EQUAL(handle.size(), Index(4));
-    CPPUNIT_ASSERT_EQUAL(handle.size(), attr.size());
+    EXPECT_EQ(handle.size(), Index(4));
+    EXPECT_EQ(handle.size(), attr.size());
 
     // construct bitmasks
 
@@ -192,41 +159,50 @@ TestAttributeGroup::testAttributeGroupHandle()
     attr.set(2, bitmask6);
     attr.set(3, bitmask36);
 
-    CPPUNIT_ASSERT(attr.get(2) != bitmask36);
-    CPPUNIT_ASSERT_EQUAL(attr.get(3), bitmask36);
+    EXPECT_TRUE(attr.get(2) != bitmask36);
+    EXPECT_EQ(attr.get(3), bitmask36);
 
     { // group 3 valid for attributes 1 and 3 (using specific offset)
         GroupHandle handle3(attr, 3);
 
-        CPPUNIT_ASSERT(!handle3.get(0));
-        CPPUNIT_ASSERT(handle3.get(1));
-        CPPUNIT_ASSERT(!handle3.get(2));
-        CPPUNIT_ASSERT(handle3.get(3));
+        EXPECT_TRUE(!handle3.get(0));
+        EXPECT_TRUE(handle3.get(1));
+        EXPECT_TRUE(!handle3.get(2));
+        EXPECT_TRUE(handle3.get(3));
+    }
+
+    { // test group 3 valid for attributes 1 and 3 (unsafe access)
+        GroupHandle handle3(attr, 3);
+
+        EXPECT_TRUE(!handle3.getUnsafe(0));
+        EXPECT_TRUE(handle3.getUnsafe(1));
+        EXPECT_TRUE(!handle3.getUnsafe(2));
+        EXPECT_TRUE(handle3.getUnsafe(3));
     }
 
     { // group 6 valid for attributes 2 and 3 (using specific offset)
         GroupHandle handle6(attr, 6);
 
-        CPPUNIT_ASSERT(!handle6.get(0));
-        CPPUNIT_ASSERT(!handle6.get(1));
-        CPPUNIT_ASSERT(handle6.get(2));
-        CPPUNIT_ASSERT(handle6.get(3));
+        EXPECT_TRUE(!handle6.get(0));
+        EXPECT_TRUE(!handle6.get(1));
+        EXPECT_TRUE(handle6.get(2));
+        EXPECT_TRUE(handle6.get(3));
     }
 
     { // groups 3 and 6 only valid for attribute 3 (using bitmask)
         GroupHandle handle36(attr, bitmask36, GroupHandle::BitMask());
 
-        CPPUNIT_ASSERT(!handle36.get(0));
-        CPPUNIT_ASSERT(!handle36.get(1));
-        CPPUNIT_ASSERT(!handle36.get(2));
-        CPPUNIT_ASSERT(handle36.get(3));
+        EXPECT_TRUE(!handle36.get(0));
+        EXPECT_TRUE(!handle36.get(1));
+        EXPECT_TRUE(!handle36.get(2));
+        EXPECT_TRUE(handle36.get(3));
     }
 
     // clear the array
 
     attr.fill(0);
 
-    CPPUNIT_ASSERT_EQUAL(attr.get(1), GroupType(0));
+    EXPECT_EQ(attr.get(1), GroupType(0));
 
     // write handles
 
@@ -235,86 +211,86 @@ TestAttributeGroup::testAttributeGroupHandle()
 
     // test collapse
 
-    CPPUNIT_ASSERT_EQUAL(writeHandle3.get(1), false);
-    CPPUNIT_ASSERT_EQUAL(writeHandle6.get(1), false);
+    EXPECT_EQ(writeHandle3.get(1), false);
+    EXPECT_EQ(writeHandle6.get(1), false);
 
-    CPPUNIT_ASSERT(writeHandle6.compact());
-    CPPUNIT_ASSERT(writeHandle6.isUniform());
+    EXPECT_TRUE(writeHandle6.compact());
+    EXPECT_TRUE(writeHandle6.isUniform());
 
     attr.expand();
 
-    CPPUNIT_ASSERT(!writeHandle6.isUniform());
+    EXPECT_TRUE(!writeHandle6.isUniform());
 
-    CPPUNIT_ASSERT(writeHandle3.collapse(true));
+    EXPECT_TRUE(writeHandle3.collapse(true));
 
-    CPPUNIT_ASSERT(attr.isUniform());
-    CPPUNIT_ASSERT(writeHandle3.isUniform());
-    CPPUNIT_ASSERT(writeHandle6.isUniform());
+    EXPECT_TRUE(attr.isUniform());
+    EXPECT_TRUE(writeHandle3.isUniform());
+    EXPECT_TRUE(writeHandle6.isUniform());
 
-    CPPUNIT_ASSERT_EQUAL(writeHandle3.get(1), true);
-    CPPUNIT_ASSERT_EQUAL(writeHandle6.get(1), false);
+    EXPECT_EQ(writeHandle3.get(1), true);
+    EXPECT_EQ(writeHandle6.get(1), false);
 
-    CPPUNIT_ASSERT(writeHandle3.collapse(false));
+    EXPECT_TRUE(writeHandle3.collapse(false));
 
-    CPPUNIT_ASSERT(writeHandle3.isUniform());
-    CPPUNIT_ASSERT_EQUAL(writeHandle3.get(1), false);
-
-    attr.fill(0);
-
-    writeHandle3.set(1, true);
-
-    CPPUNIT_ASSERT(!attr.isUniform());
-    CPPUNIT_ASSERT(!writeHandle3.isUniform());
-    CPPUNIT_ASSERT(!writeHandle6.isUniform());
-
-    CPPUNIT_ASSERT(!writeHandle3.collapse(true));
-
-    CPPUNIT_ASSERT(!attr.isUniform());
-    CPPUNIT_ASSERT(!writeHandle3.isUniform());
-    CPPUNIT_ASSERT(!writeHandle6.isUniform());
-
-    CPPUNIT_ASSERT_EQUAL(writeHandle3.get(1), true);
-    CPPUNIT_ASSERT_EQUAL(writeHandle6.get(1), false);
-
-    writeHandle6.set(2, true);
-
-    CPPUNIT_ASSERT(!writeHandle3.collapse(false));
-
-    CPPUNIT_ASSERT(!writeHandle3.isUniform());
+    EXPECT_TRUE(writeHandle3.isUniform());
+    EXPECT_EQ(writeHandle3.get(1), false);
 
     attr.fill(0);
 
     writeHandle3.set(1, true);
+
+    EXPECT_TRUE(!attr.isUniform());
+    EXPECT_TRUE(!writeHandle3.isUniform());
+    EXPECT_TRUE(!writeHandle6.isUniform());
+
+    EXPECT_TRUE(!writeHandle3.collapse(true));
+
+    EXPECT_TRUE(!attr.isUniform());
+    EXPECT_TRUE(!writeHandle3.isUniform());
+    EXPECT_TRUE(!writeHandle6.isUniform());
+
+    EXPECT_EQ(writeHandle3.get(1), true);
+    EXPECT_EQ(writeHandle6.get(1), false);
+
     writeHandle6.set(2, true);
-    writeHandle3.set(3, true);
-    writeHandle6.set(3, true);
+
+    EXPECT_TRUE(!writeHandle3.collapse(false));
+
+    EXPECT_TRUE(!writeHandle3.isUniform());
+
+    attr.fill(0);
+
+    writeHandle3.set(1, true);
+    writeHandle6.set(2, true);
+    writeHandle3.setUnsafe(3, true);
+    writeHandle6.setUnsafe(3, true);
 
     { // group 3 valid for attributes 1 and 3 (using specific offset)
         GroupHandle handle3(attr, 3);
 
-        CPPUNIT_ASSERT(!handle3.get(0));
-        CPPUNIT_ASSERT(handle3.get(1));
-        CPPUNIT_ASSERT(!handle3.get(2));
-        CPPUNIT_ASSERT(handle3.get(3));
+        EXPECT_TRUE(!handle3.get(0));
+        EXPECT_TRUE(handle3.get(1));
+        EXPECT_TRUE(!handle3.get(2));
+        EXPECT_TRUE(handle3.get(3));
 
-        CPPUNIT_ASSERT(!writeHandle3.get(0));
-        CPPUNIT_ASSERT(writeHandle3.get(1));
-        CPPUNIT_ASSERT(!writeHandle3.get(2));
-        CPPUNIT_ASSERT(writeHandle3.get(3));
+        EXPECT_TRUE(!writeHandle3.get(0));
+        EXPECT_TRUE(writeHandle3.get(1));
+        EXPECT_TRUE(!writeHandle3.get(2));
+        EXPECT_TRUE(writeHandle3.get(3));
     }
 
     { // group 6 valid for attributes 2 and 3 (using specific offset)
         GroupHandle handle6(attr, 6);
 
-        CPPUNIT_ASSERT(!handle6.get(0));
-        CPPUNIT_ASSERT(!handle6.get(1));
-        CPPUNIT_ASSERT(handle6.get(2));
-        CPPUNIT_ASSERT(handle6.get(3));
+        EXPECT_TRUE(!handle6.get(0));
+        EXPECT_TRUE(!handle6.get(1));
+        EXPECT_TRUE(handle6.get(2));
+        EXPECT_TRUE(handle6.get(3));
 
-        CPPUNIT_ASSERT(!writeHandle6.get(0));
-        CPPUNIT_ASSERT(!writeHandle6.get(1));
-        CPPUNIT_ASSERT(writeHandle6.get(2));
-        CPPUNIT_ASSERT(writeHandle6.get(3));
+        EXPECT_TRUE(!writeHandle6.get(0));
+        EXPECT_TRUE(!writeHandle6.get(1));
+        EXPECT_TRUE(writeHandle6.get(2));
+        EXPECT_TRUE(writeHandle6.get(3));
     }
 
     writeHandle3.set(3, false);
@@ -322,29 +298,29 @@ TestAttributeGroup::testAttributeGroupHandle()
     { // group 3 valid for attributes 1 and 3 (using specific offset)
         GroupHandle handle3(attr, 3);
 
-        CPPUNIT_ASSERT(!handle3.get(0));
-        CPPUNIT_ASSERT(handle3.get(1));
-        CPPUNIT_ASSERT(!handle3.get(2));
-        CPPUNIT_ASSERT(!handle3.get(3));
+        EXPECT_TRUE(!handle3.get(0));
+        EXPECT_TRUE(handle3.get(1));
+        EXPECT_TRUE(!handle3.get(2));
+        EXPECT_TRUE(!handle3.get(3));
 
-        CPPUNIT_ASSERT(!writeHandle3.get(0));
-        CPPUNIT_ASSERT(writeHandle3.get(1));
-        CPPUNIT_ASSERT(!writeHandle3.get(2));
-        CPPUNIT_ASSERT(!writeHandle3.get(3));
+        EXPECT_TRUE(!writeHandle3.get(0));
+        EXPECT_TRUE(writeHandle3.get(1));
+        EXPECT_TRUE(!writeHandle3.get(2));
+        EXPECT_TRUE(!writeHandle3.get(3));
     }
 
     { // group 6 valid for attributes 2 and 3 (using specific offset)
         GroupHandle handle6(attr, 6);
 
-        CPPUNIT_ASSERT(!handle6.get(0));
-        CPPUNIT_ASSERT(!handle6.get(1));
-        CPPUNIT_ASSERT(handle6.get(2));
-        CPPUNIT_ASSERT(handle6.get(3));
+        EXPECT_TRUE(!handle6.get(0));
+        EXPECT_TRUE(!handle6.get(1));
+        EXPECT_TRUE(handle6.get(2));
+        EXPECT_TRUE(handle6.get(3));
 
-        CPPUNIT_ASSERT(!writeHandle6.get(0));
-        CPPUNIT_ASSERT(!writeHandle6.get(1));
-        CPPUNIT_ASSERT(writeHandle6.get(2));
-        CPPUNIT_ASSERT(writeHandle6.get(3));
+        EXPECT_TRUE(!writeHandle6.get(0));
+        EXPECT_TRUE(!writeHandle6.get(1));
+        EXPECT_TRUE(writeHandle6.get(2));
+        EXPECT_TRUE(writeHandle6.get(3));
     }
 }
 
@@ -352,8 +328,8 @@ TestAttributeGroup::testAttributeGroupHandle()
 class GroupNotFilter
 {
 public:
-    GroupNotFilter()
-        : mFilter("") { }
+    explicit GroupNotFilter(const AttributeSet::Descriptor::GroupIndex& index)
+        : mFilter(index) { }
 
     inline bool initialized() const { return mFilter.initialized(); }
 
@@ -377,7 +353,7 @@ struct HandleWrapper
     HandleWrapper(const GroupHandle& handle)
         : mHandle(handle) { }
 
-    GroupHandle groupHandle(const Name& /*name*/) const {
+    GroupHandle groupHandle(const AttributeSet::Descriptor::GroupIndex& /*index*/) const {
         return mHandle;
     }
 
@@ -386,9 +362,12 @@ private:
 }; // struct HandleWrapper
 
 
-void
-TestAttributeGroup::testAttributeGroupFilter()
+TEST_F(TestAttributeGroup, testAttributeGroupFilter)
 {
+    using GroupIndex = AttributeSet::Descriptor::GroupIndex;
+
+    GroupIndex zeroIndex;
+
     typedef IndexIter<ValueVoxelCIter, GroupFilter> IndexGroupAllIter;
 
     GroupAttributeArray attrGroup(4);
@@ -396,11 +375,12 @@ TestAttributeGroup::testAttributeGroupFilter()
 
     { // group values all zero
         ValueVoxelCIter indexIter(0, size);
-        GroupFilter filter("");
+        GroupFilter filter(zeroIndex);
+        EXPECT_TRUE(filter.state() == index::PARTIAL);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 0)));
         IndexGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(!iter);
+        EXPECT_TRUE(!iter);
     }
 
     // enable attributes 0 and 2 for groups 3 and 6
@@ -414,24 +394,24 @@ TestAttributeGroup::testAttributeGroupFilter()
     {
         ValueVoxelCIter indexIter(0, size);
 
-        GroupFilter filter("");
+        GroupFilter filter(zeroIndex);
 
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 0)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 1)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 2)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
-        CPPUNIT_ASSERT(IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 4)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 5)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 6)));
-        CPPUNIT_ASSERT(IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 7)));
-        CPPUNIT_ASSERT(!IndexGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexGroupAllIter(indexIter, filter));
     }
 
     attrGroup.set(1, bitmask);
@@ -443,24 +423,24 @@ TestAttributeGroup::testAttributeGroupFilter()
     {
         ValueVoxelCIter indexIter(0, size);
 
-        GroupNotFilter filter;
+        GroupNotFilter filter(zeroIndex);
 
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 0)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 1)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 2)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
-        CPPUNIT_ASSERT(!IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 4)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 5)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 6)));
-        CPPUNIT_ASSERT(!IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(!IndexNotGroupAllIter(indexIter, filter));
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 7)));
-        CPPUNIT_ASSERT(IndexNotGroupAllIter(indexIter, filter));
+        EXPECT_TRUE(IndexNotGroupAllIter(indexIter, filter));
     }
 
     // clear group membership for attributes 1 and 3
@@ -470,99 +450,95 @@ TestAttributeGroup::testAttributeGroupFilter()
 
     { // index in group next
         ValueVoxelCIter indexIter(0, size);
-        GroupFilter filter("");
+        GroupFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(0));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(0));
 
-        CPPUNIT_ASSERT(iter.next());
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(2));
+        EXPECT_TRUE(iter.next());
+        EXPECT_EQ(*iter, Index32(2));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 
     { // index in group prefix ++
         ValueVoxelCIter indexIter(0, size);
-        GroupFilter filter("");
+        GroupFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(0));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(0));
 
         IndexGroupAllIter old = ++iter;
-        CPPUNIT_ASSERT_EQUAL(*old, Index32(2));
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(2));
+        EXPECT_EQ(*old, Index32(2));
+        EXPECT_EQ(*iter, Index32(2));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 
     { // index in group postfix ++/--
         ValueVoxelCIter indexIter(0, size);
-        GroupFilter filter("");
+        GroupFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(0));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(0));
 
         IndexGroupAllIter old = iter++;
-        CPPUNIT_ASSERT_EQUAL(*old, Index32(0));
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(2));
+        EXPECT_EQ(*old, Index32(0));
+        EXPECT_EQ(*iter, Index32(2));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 
     { // index not in group next
         ValueVoxelCIter indexIter(0, size);
-        GroupNotFilter filter;
+        GroupNotFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexNotGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(1));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(1));
 
-        CPPUNIT_ASSERT(iter.next());
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(3));
+        EXPECT_TRUE(iter.next());
+        EXPECT_EQ(*iter, Index32(3));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 
     { // index not in group prefix ++
         ValueVoxelCIter indexIter(0, size);
-        GroupNotFilter filter;
+        GroupNotFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexNotGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(1));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(1));
 
         IndexNotGroupAllIter old = ++iter;
-        CPPUNIT_ASSERT_EQUAL(*old, Index32(3));
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(3));
+        EXPECT_EQ(*old, Index32(3));
+        EXPECT_EQ(*iter, Index32(3));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 
     { // index not in group postfix ++
         ValueVoxelCIter indexIter(0, size);
-        GroupNotFilter filter;
+        GroupNotFilter filter(zeroIndex);
         filter.reset(HandleWrapper(GroupHandle(attrGroup, 3)));
         IndexNotGroupAllIter iter(indexIter, filter);
 
-        CPPUNIT_ASSERT(iter);
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(1));
+        EXPECT_TRUE(iter);
+        EXPECT_EQ(*iter, Index32(1));
 
         IndexNotGroupAllIter old = iter++;
-        CPPUNIT_ASSERT_EQUAL(*old, Index32(1));
-        CPPUNIT_ASSERT_EQUAL(*iter, Index32(3));
+        EXPECT_EQ(*old, Index32(1));
+        EXPECT_EQ(*iter, Index32(3));
 
-        CPPUNIT_ASSERT(!iter.next());
+        EXPECT_TRUE(!iter.next());
     }
 }
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

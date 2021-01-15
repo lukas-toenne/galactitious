@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include "Grid.h"
 
@@ -53,12 +26,8 @@ const char
     * const GridBase::META_FILE_BBOX_MAX = "file_bbox_max",
     * const GridBase::META_FILE_COMPRESSION = "file_compression",
     * const GridBase::META_FILE_MEM_BYTES = "file_mem_bytes",
-    * const GridBase::META_FILE_VOXEL_COUNT = "file_voxel_count";
-
-namespace {
-/// @todo Remove (deprecated in favor of META_SAVE_HALF_FLOAT)
-const char *SAVE_FLOAT_AS_HALF = "write as 16-bit float";
-}
+    * const GridBase::META_FILE_VOXEL_COUNT = "file_voxel_count",
+    * const GridBase::META_FILE_DELAYED_LOAD = "file_delayed_load";
 
 
 ////////////////////////////////////////
@@ -66,11 +35,11 @@ const char *SAVE_FLOAT_AS_HALF = "write as 16-bit float";
 
 namespace {
 
-typedef std::map<Name, GridBase::GridFactory> GridFactoryMap;
-typedef GridFactoryMap::const_iterator GridFactoryMapCIter;
+using GridFactoryMap = std::map<Name, GridBase::GridFactory>;
+using GridFactoryMapCIter = GridFactoryMap::const_iterator;
 
-typedef tbb::mutex Mutex;
-typedef Mutex::scoped_lock Lock;
+using Mutex = tbb::mutex;
+using Lock = Mutex::scoped_lock;
 
 struct LockedGridRegistry {
     LockedGridRegistry() {}
@@ -78,35 +47,13 @@ struct LockedGridRegistry {
     GridFactoryMap mMap;
 };
 
-// Declare this at file scope to ensure thread-safe initialization.
-Mutex sInitGridRegistryMutex;
-
 
 // Global function for accessing the registry
 LockedGridRegistry*
 getGridRegistry()
 {
-    Lock lock(sInitGridRegistryMutex);
-
-    static LockedGridRegistry* registry = NULL;
-
-    if (registry == NULL) {
-
-#ifdef __ICC
-// Disable ICC "assignment to statically allocated variable" warning.
-// This assignment is mutex-protected and therefore thread-safe.
-__pragma(warning(disable:1711))
-#endif
-
-        registry = new LockedGridRegistry();
-
-#ifdef __ICC
-__pragma(warning(default:1711))
-#endif
-
-    }
-
-    return registry;
+    static LockedGridRegistry registry;
+    return &registry;
 }
 
 } // unnamed namespace
@@ -394,15 +341,10 @@ GridBase::setCreator(const std::string& creator)
 bool
 GridBase::saveFloatAsHalf() const
 {
-    bool saveAsHalf = false;
     if (Metadata::ConstPtr meta = (*this)[META_SAVE_HALF_FLOAT]) {
-        saveAsHalf = meta->asBool();
-    } else if ((*this)[SAVE_FLOAT_AS_HALF]) {
-        // Old behavior: saveAsHalf is true if metadata named
-        // SAVE_FLOAT_AS_HALF exists, regardless of its value.
-        saveAsHalf = true;
+        return meta->asBool();
     }
-    return saveAsHalf;
+    return false;
 }
 
 
@@ -411,9 +353,6 @@ GridBase::setSaveFloatAsHalf(bool saveAsHalf)
 {
     this->removeMeta(META_SAVE_HALF_FLOAT);
     this->insertMeta(META_SAVE_HALF_FLOAT, BoolMetadata(saveAsHalf));
-
-    // Remove the old, deprecated metadata.
-    this->removeMeta(SAVE_FLOAT_AS_HALF);
 }
 
 
@@ -465,12 +404,12 @@ GridBase::getStatsMetadata() const
         META_FILE_BBOX_MAX,
         META_FILE_MEM_BYTES,
         META_FILE_VOXEL_COUNT,
-        NULL
+        nullptr
     };
 
     /// @todo Check that the fields are of the correct type?
     MetaMap::Ptr ret(new MetaMap);
-    for (int i = 0; fields[i] != NULL; ++i) {
+    for (int i = 0; fields[i] != nullptr; ++i) {
         if (Metadata::ConstPtr m = (*this)[fields[i]]) {
             ret->insertMeta(fields[i], *m);
         }
@@ -482,7 +421,6 @@ GridBase::getStatsMetadata() const
 ////////////////////////////////////////
 
 
-#ifndef OPENVDB_2_ABI_COMPATIBLE
 void
 GridBase::clipGrid(const BBoxd& worldBBox)
 {
@@ -490,11 +428,6 @@ GridBase::clipGrid(const BBoxd& worldBBox)
         this->constTransform().worldToIndexNodeCentered(worldBBox);
     this->clip(indexBBox);
 }
-#endif
 
 } // namespace OPENVDB_VERSION_NAME
 } // namespace openvdb
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

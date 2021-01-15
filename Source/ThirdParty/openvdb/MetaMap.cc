@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include "MetaMap.h"
 
@@ -93,21 +66,20 @@ MetaMap::readMeta(std::istream &is)
         // Read in the metadata typename.
         Name typeName = readString(is);
 
-        // Create a metadata type from the typename. Make sure that the type is
-        // registered.
-        if (!Metadata::isRegisteredType(typeName)) {
-            OPENVDB_LOG_WARN("cannot read metadata \"" << name
-                << "\" of unregistered type \"" << typeName << "\"");
-            UnknownMetadata metadata;
-            metadata.read(is);
-        } else {
+        // Read in the metadata value and add it to the map.
+        if (Metadata::isRegisteredType(typeName)) {
             Metadata::Ptr metadata = Metadata::createMetadata(typeName);
-
-            // Read the value from the stream.
             metadata->read(is);
-
-            // Add the name and metadata to the map.
             insertMeta(name, *metadata);
+        } else {
+            UnknownMetadata metadata(typeName);
+            metadata.read(is); // read raw bytes into an array
+            // only add unknown metadata to the grid if not temporary,
+            // denoted by a double underscore prefix (such as __metadata)
+            bool temporary = typeName.compare(0, 2, "__") == 0;
+            if (!temporary) {
+                insertMeta(name, metadata);
+            }
         }
     }
 }
@@ -139,18 +111,18 @@ MetaMap::writeMeta(std::ostream &os) const
 void
 MetaMap::insertMeta(const Name &name, const Metadata &m)
 {
-    if(name.size() == 0)
+    if (name.size() == 0)
         OPENVDB_THROW(ValueError, "Metadata name cannot be an empty string");
 
     // See if the value already exists, if so then replace the existing one.
     MetaIterator iter = mMeta.find(name);
 
-    if(iter == mMeta.end()) {
+    if (iter == mMeta.end()) {
         // Create a copy of the metadata and store it in the map
         Metadata::Ptr tmp = m.copy();
         mMeta[name] = tmp;
     } else {
-        if(iter->second->typeName() != m.typeName()) {
+        if (iter->second->typeName() != m.typeName()) {
             std::ostringstream ostr;
             ostr << "Cannot assign value of type "
                  << m.typeName() << " to metadata attribute " << name
@@ -228,7 +200,3 @@ operator<<(std::ostream& ostr, const MetaMap& metamap)
 
 } // namespace OPENVDB_VERSION_NAME
 } // namespace openvdb
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

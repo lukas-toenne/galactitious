@@ -1,34 +1,7 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/points/StreamCompression.h>
 
 #include <openvdb/io/Compression.h> // io::COMPRESS_BLOSC
@@ -72,8 +45,13 @@ namespace boost { namespace interprocess { namespace detail {} namespace ipcdeta
 #include <blosc.h>
 // A Blosc optimization introduced in 1.11.0 uses a slightly smaller block size for
 // HCR codecs (LZ4, ZLIB, ZSTD), which otherwise fails a few regression test cases
-#if BLOSC_VERSION_MAJOR > 0 && BLOSC_VERSION_MINOR > 10
+#if BLOSC_VERSION_MAJOR > 1 || (BLOSC_VERSION_MAJOR == 1 && BLOSC_VERSION_MINOR > 10)
 #define BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
+#endif
+// Blosc 1.14+ writes backwards-compatible data by default.
+// http://blosc.org/posts/new-forward-compat-policy/
+#if BLOSC_VERSION_MAJOR > 1 || (BLOSC_VERSION_MAJOR == 1 &&  BLOSC_VERSION_MINOR >= 14)
+#define BLOSC_BACKWARDS_COMPATIBLE
 #endif
 #endif
 
@@ -127,33 +105,23 @@ private:
 using namespace openvdb;
 using namespace openvdb::compression;
 
-class TestStreamCompression: public CppUnit::TestCase
+class TestStreamCompression: public ::testing::Test
 {
 public:
-    CPPUNIT_TEST_SUITE(TestStreamCompression);
-    CPPUNIT_TEST(testBlosc);
-    CPPUNIT_TEST(testPagedStreams);
-
-    CPPUNIT_TEST_SUITE_END();
-
-    void testBlosc();
     void testPagedStreams();
 }; // class TestStreamCompression
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestStreamCompression);
 
 
 ////////////////////////////////////////
 
 
-void
-TestStreamCompression::testBlosc()
+TEST_F(TestStreamCompression, testBlosc)
 {
     // ensure that the library and unit tests are both built with or without Blosc enabled
 #ifdef OPENVDB_USE_BLOSC
-    CPPUNIT_ASSERT(bloscCanCompress());
+    EXPECT_TRUE(bloscCanCompress());
 #else
-    CPPUNIT_ASSERT(!bloscCanCompress());
+    EXPECT_TRUE(!bloscCanCompress());
 #endif
 
     const int count = 256;
@@ -177,13 +145,13 @@ TestStreamCompression::testBlosc()
             reinterpret_cast<char*>(uncompressedBuffer.get()), uncompressedBytes, compressedBytes);
 
 #ifdef OPENVDB_USE_BLOSC
-        CPPUNIT_ASSERT(compressedBytes < uncompressedBytes);
-        CPPUNIT_ASSERT(compressedBuffer);
-        CPPUNIT_ASSERT_EQUAL(testCompressedBytes, compressedBytes);
+        EXPECT_TRUE(compressedBytes < uncompressedBytes);
+        EXPECT_TRUE(compressedBuffer);
+        EXPECT_EQ(testCompressedBytes, compressedBytes);
 
         // uncompressedSize
 
-        CPPUNIT_ASSERT_EQUAL(uncompressedBytes, bloscUncompressedSize(compressedBuffer.get()));
+        EXPECT_EQ(uncompressedBytes, bloscUncompressedSize(compressedBuffer.get()));
 
         // decompress
 
@@ -191,26 +159,26 @@ TestStreamCompression::testBlosc()
             bloscDecompress(compressedBuffer.get(), uncompressedBytes);
 
         // incorrect number of expected bytes
-        CPPUNIT_ASSERT_THROW(newUncompressedBuffer =
+        EXPECT_THROW(newUncompressedBuffer =
             bloscDecompress(compressedBuffer.get(), 1), openvdb::RuntimeError);
 
-        CPPUNIT_ASSERT(newUncompressedBuffer);
+        EXPECT_TRUE(newUncompressedBuffer);
 #else
-        CPPUNIT_ASSERT(!compressedBuffer);
-        CPPUNIT_ASSERT_EQUAL(testCompressedBytes, size_t(0));
+        EXPECT_TRUE(!compressedBuffer);
+        EXPECT_EQ(testCompressedBytes, size_t(0));
 
         // uncompressedSize
 
-        CPPUNIT_ASSERT_THROW(bloscUncompressedSize(compressedBuffer.get()), openvdb::RuntimeError);
+        EXPECT_THROW(bloscUncompressedSize(compressedBuffer.get()), openvdb::RuntimeError);
 
         // decompress
 
         std::unique_ptr<char[]> newUncompressedBuffer;
-        CPPUNIT_ASSERT_THROW(
+        EXPECT_THROW(
             newUncompressedBuffer = bloscDecompress(compressedBuffer.get(), uncompressedBytes),
             openvdb::RuntimeError);
 
-        CPPUNIT_ASSERT(!newUncompressedBuffer);
+        EXPECT_TRUE(!newUncompressedBuffer);
 #endif
     }
 
@@ -223,8 +191,8 @@ TestStreamCompression::testBlosc()
         std::unique_ptr<char[]> compressedBuffer = bloscCompress(
             reinterpret_cast<char*>(uncompressedBuffer.get()), sizeof(int), compressedBytes);
 
-        CPPUNIT_ASSERT(!compressedBuffer);
-        CPPUNIT_ASSERT_EQUAL(compressedBytes, size_t(0));
+        EXPECT_TRUE(!compressedBuffer);
+        EXPECT_EQ(compressedBytes, size_t(0));
     }
 
     { // padded buffer
@@ -246,24 +214,24 @@ TestStreamCompression::testBlosc()
                 newTest.get(), paddedCount);
 
             // regardless of compression, these numbers should always match
-            CPPUNIT_ASSERT_EQUAL(compressedSizeBytes, compressedBytes);
+            EXPECT_EQ(compressedSizeBytes, compressedBytes);
 
             // no compression performed due to buffer being too small
             if (paddedCount <= BLOSC_MINIMUM_BYTES) {
-                CPPUNIT_ASSERT(!compressedBuffer);
+                EXPECT_TRUE(!compressedBuffer);
             }
             else {
-                CPPUNIT_ASSERT(compressedBuffer);
-                CPPUNIT_ASSERT(compressedBytes > 0);
-                CPPUNIT_ASSERT(int(compressedBytes) < paddedCount);
+                EXPECT_TRUE(compressedBuffer);
+                EXPECT_TRUE(compressedBytes > 0);
+                EXPECT_TRUE(int(compressedBytes) < paddedCount);
 
                 std::unique_ptr<char[]> uncompressedBuffer = bloscDecompress(
                     compressedBuffer.get(), paddedCount);
 
-                CPPUNIT_ASSERT(uncompressedBuffer);
+                EXPECT_TRUE(uncompressedBuffer);
 
                 for (int i = 0; i < paddedCount; i++) {
-                    CPPUNIT_ASSERT_EQUAL((uncompressedBuffer.get())[i], newTest[i]);
+                    EXPECT_EQ((uncompressedBuffer.get())[i], newTest[i]);
                 }
             }
 #endif
@@ -284,13 +252,13 @@ TestStreamCompression::testBlosc()
         size_t testCompressedBytes = bloscCompressedSize(
             reinterpret_cast<char*>(&smallBuffer[0]), invalidBytes);
 
-        CPPUNIT_ASSERT_EQUAL(testCompressedBytes, size_t(0));
+        EXPECT_EQ(testCompressedBytes, size_t(0));
 
         std::unique_ptr<char[]> buffer = bloscCompress(
             reinterpret_cast<char*>(&smallBuffer[0]), invalidBytes, testCompressedBytes);
 
-        CPPUNIT_ASSERT(!buffer);
-        CPPUNIT_ASSERT_EQUAL(testCompressedBytes, size_t(0));
+        EXPECT_TRUE(!buffer);
+        EXPECT_EQ(testCompressedBytes, size_t(0));
 
         // decompress
 
@@ -298,13 +266,13 @@ TestStreamCompression::testBlosc()
         std::unique_ptr<char[]> compressedBuffer = bloscCompress(
             reinterpret_cast<char*>(&smallBuffer[0]), count * sizeof(int), testCompressedBytes);
 
-        CPPUNIT_ASSERT_THROW(buffer = bloscDecompress(
+        EXPECT_THROW(buffer = bloscDecompress(
             reinterpret_cast<char*>(compressedBuffer.get()), invalidBytes - 16),
             openvdb::RuntimeError);
 
-        CPPUNIT_ASSERT(!buffer);
+        EXPECT_TRUE(!buffer);
 
-        CPPUNIT_ASSERT_THROW(bloscDecompress(
+        EXPECT_THROW(bloscDecompress(
             reinterpret_cast<char*>(compressedBuffer.get()), count * sizeof(int) + 1),
             openvdb::RuntimeError);
 #endif
@@ -318,7 +286,9 @@ TestStreamCompression::testBlosc()
 
         for (int i = 0; i < uncompressedCount; i++)     values.push_back(i*10000);
 
-        std::random_shuffle(values.begin(), values.end());
+        std::random_device rng;
+        std::mt19937 urng(rng());
+        std::shuffle(values.begin(), values.end(), urng);
 
         std::unique_ptr<int[]> uncompressedBuffer(new int[values.size()]);
 
@@ -330,8 +300,8 @@ TestStreamCompression::testBlosc()
         std::unique_ptr<char[]> compressedBuffer = bloscCompress(
             reinterpret_cast<char*>(uncompressedBuffer.get()), uncompressedBytes, compressedBytes);
 
-        CPPUNIT_ASSERT(!compressedBuffer);
-        CPPUNIT_ASSERT_EQUAL(compressedBytes, size_t(0));
+        EXPECT_TRUE(!compressedBuffer);
+        EXPECT_EQ(compressedBytes, size_t(0));
     }
 }
 
@@ -345,10 +315,10 @@ TestStreamCompression::testPagedStreams()
 
         int foo = 5;
         ostream.write(reinterpret_cast<const char*>(&foo), sizeof(int));
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(0));
+        EXPECT_EQ(ostr.tellp(), std::streampos(0));
 
         ostream.flush();
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(sizeof(int)));
+        EXPECT_EQ(ostr.tellp(), std::streampos(sizeof(int)));
     }
 
     { // small values up to page threshold
@@ -359,7 +329,7 @@ TestStreamCompression::testPagedStreams()
             uint8_t oneByte = 255;
             ostream.write(reinterpret_cast<const char*>(&oneByte), sizeof(uint8_t));
         }
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(0));
+        EXPECT_EQ(ostr.tellp(), std::streampos(0));
 
         std::vector<uint8_t> values;
         values.assign(PageSize, uint8_t(255));
@@ -370,10 +340,10 @@ TestStreamCompression::testPagedStreams()
         ostream.write(reinterpret_cast<const char*>(&oneMoreByte), sizeof(char));
 
         if (compressedSize == 0) {
-            CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(PageSize));
+            EXPECT_EQ(ostr.tellp(), std::streampos(PageSize));
         }
         else {
-            CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(compressedSize));
+            EXPECT_EQ(ostr.tellp(), std::streampos(compressedSize));
         }
     }
 
@@ -385,7 +355,7 @@ TestStreamCompression::testPagedStreams()
         values.assign(PageSize, uint8_t(255));
         ostream.write(reinterpret_cast<const char*>(&values[0]), values.size());
 
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(0));
+        EXPECT_EQ(ostr.tellp(), std::streampos(0));
     }
 
     { // two large blocks at page threshold + 1 byte
@@ -403,18 +373,18 @@ TestStreamCompression::testPagedStreams()
         compressedSize = values.size();
 #endif
 
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(compressedSize));
+        EXPECT_EQ(ostr.tellp(), std::streampos(compressedSize));
 
         ostream.write(reinterpret_cast<const char*>(&values[0]), values.size());
 
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(compressedSize * 2));
+        EXPECT_EQ(ostr.tellp(), std::streampos(compressedSize * 2));
 
         uint8_t oneMoreByte(255);
         ostream.write(reinterpret_cast<const char*>(&oneMoreByte), sizeof(uint8_t));
 
         ostream.flush();
 
-        CPPUNIT_ASSERT_EQUAL(ostr.tellp(), std::streampos(compressedSize * 2 + 1));
+        EXPECT_EQ(ostr.tellp(), std::streampos(compressedSize * 2 + 1));
     }
 
     { // one full page
@@ -425,7 +395,7 @@ TestStreamCompression::testPagedStreams()
         PagedOutputStream ostreamSizeOnly(ss);
         ostreamSizeOnly.setSizeOnly(true);
 
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(0));
+        EXPECT_EQ(ss.tellp(), std::streampos(0));
 
         std::vector<uint8_t> values;
         values.resize(PageSize);
@@ -435,10 +405,10 @@ TestStreamCompression::testPagedStreams()
 
 #ifdef OPENVDB_USE_BLOSC
         // two integers - compressed size and uncompressed size
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(sizeof(int)*2));
+        EXPECT_EQ(ss.tellp(), std::streampos(sizeof(int)*2));
 #else
         // one integer - uncompressed size
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(sizeof(int)));
+        EXPECT_EQ(ss.tellp(), std::streampos(sizeof(int)));
 #endif
 
         PagedOutputStream ostream(ss);
@@ -446,18 +416,22 @@ TestStreamCompression::testPagedStreams()
         ostream.flush();
 
 #ifdef OPENVDB_USE_BLOSC
-#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(4422));
+#ifdef BLOSC_BACKWARDS_COMPATIBLE
+        EXPECT_EQ(ss.tellp(), std::streampos(5400));
 #else
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(4452));
+#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
+        EXPECT_EQ(ss.tellp(), std::streampos(4422));
+#else
+        EXPECT_EQ(ss.tellp(), std::streampos(4452));
+#endif
 #endif
 #else
-        CPPUNIT_ASSERT_EQUAL(ss.tellp(), std::streampos(PageSize+sizeof(int)));
+        EXPECT_EQ(ss.tellp(), std::streampos(PageSize+sizeof(int)));
 #endif
 
         // read
 
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(0));
+        EXPECT_EQ(ss.tellg(), std::streampos(0));
 
         PagedInputStream istream(ss);
         istream.setSizeOnly(true);
@@ -466,30 +440,34 @@ TestStreamCompression::testPagedStreams()
 
 #ifdef OPENVDB_USE_BLOSC
         // two integers - compressed size and uncompressed size
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(sizeof(int)*2));
+        EXPECT_EQ(ss.tellg(), std::streampos(sizeof(int)*2));
 #else
         // one integer - uncompressed size
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(sizeof(int)));
+        EXPECT_EQ(ss.tellg(), std::streampos(sizeof(int)));
 #endif
 
         istream.read(handle, values.size(), false);
 
 #ifdef OPENVDB_USE_BLOSC
-#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(4422));
+#ifdef BLOSC_BACKWARDS_COMPATIBLE
+        EXPECT_EQ(ss.tellg(), std::streampos(5400));
 #else
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(4452));
+#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
+        EXPECT_EQ(ss.tellg(), std::streampos(4422));
+#else
+        EXPECT_EQ(ss.tellg(), std::streampos(4452));
+#endif
 #endif
 #else
-        CPPUNIT_ASSERT_EQUAL(ss.tellg(), std::streampos(PageSize+sizeof(int)));
+        EXPECT_EQ(ss.tellg(), std::streampos(PageSize+sizeof(int)));
 #endif
 
         std::unique_ptr<uint8_t[]> newValues(reinterpret_cast<uint8_t*>(handle->read().release()));
 
-        CPPUNIT_ASSERT(newValues);
+        EXPECT_TRUE(newValues);
 
         for (size_t i = 0; i < values.size(); i++) {
-            CPPUNIT_ASSERT_EQUAL(values[i], newValues.get()[i]);
+            EXPECT_EQ(values[i], newValues.get()[i]);
         }
     }
 
@@ -499,7 +477,7 @@ TestStreamCompression::testPagedStreams()
     if (tempDir.empty()) {
         char tempDirBuffer[MAX_PATH+1];
         int tempDirLen = GetTempPath(MAX_PATH+1, tempDirBuffer);
-        CPPUNIT_ASSERT(tempDirLen > 0 && tempDirLen <= MAX_PATH);
+        EXPECT_TRUE(tempDirLen > 0 && tempDirLen <= MAX_PATH);
         tempDir = tempDirBuffer;
     }
 #else
@@ -525,7 +503,7 @@ TestStreamCompression::testPagedStreams()
             PagedOutputStream ostreamSizeOnly(fileout);
             ostreamSizeOnly.setSizeOnly(true);
 
-            CPPUNIT_ASSERT_EQUAL(fileout.tellp(), std::streampos(0));
+            EXPECT_EQ(fileout.tellp(), std::streampos(0));
 
             int increment = PageSize/3;
 
@@ -546,7 +524,7 @@ TestStreamCompression::testPagedStreams()
             int pages = static_cast<int>(fileout.tellp() / (sizeof(int)));
 #endif
 
-            CPPUNIT_ASSERT_EQUAL(pages, 10);
+            EXPECT_EQ(pages, 10);
 
             // write
 
@@ -564,13 +542,17 @@ TestStreamCompression::testPagedStreams()
             ostream.flush();
 
 #ifdef OPENVDB_USE_BLOSC
-#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
-            CPPUNIT_ASSERT_EQUAL(fileout.tellp(), std::streampos(42424));
+#ifdef BLOSC_BACKWARDS_COMPATIBLE
+            EXPECT_EQ(fileout.tellp(), std::streampos(51480));
 #else
-            CPPUNIT_ASSERT_EQUAL(fileout.tellp(), std::streampos(42724));
+#ifdef BLOSC_HCR_BLOCKSIZE_OPTIMIZATION
+            EXPECT_EQ(fileout.tellp(), std::streampos(42424));
+#else
+            EXPECT_EQ(fileout.tellp(), std::streampos(42724));
+#endif
 #endif
 #else
-            CPPUNIT_ASSERT_EQUAL(fileout.tellp(), std::streampos(values.size()+sizeof(int)*pages));
+            EXPECT_EQ(fileout.tellp(), std::streampos(values.size()+sizeof(int)*pages));
 #endif
 
             // abuse File being a friend of MappedFile to get around the private constructor
@@ -583,7 +565,7 @@ TestStreamCompression::testPagedStreams()
             io::setStreamMetadataPtr(filein, streamMetadata);
             io::setMappedFilePtr(filein, mappedFile);
 
-            CPPUNIT_ASSERT_EQUAL(filein.tellg(), std::streampos(0));
+            EXPECT_EQ(filein.tellg(), std::streampos(0));
 
             PagedInputStream istreamSizeOnly(filein);
             istreamSizeOnly.setSizeOnly(true);
@@ -601,10 +583,10 @@ TestStreamCompression::testPagedStreams()
 
 #ifdef OPENVDB_USE_BLOSC
             // two integers - compressed size and uncompressed size
-            CPPUNIT_ASSERT_EQUAL(filein.tellg(), std::streampos(pages*sizeof(int)*2));
+            EXPECT_EQ(filein.tellg(), std::streampos(pages*sizeof(int)*2));
 #else
             // one integer - uncompressed size
-            CPPUNIT_ASSERT_EQUAL(filein.tellg(), std::streampos(pages*sizeof(int)));
+            EXPECT_EQ(filein.tellg(), std::streampos(pages*sizeof(int)));
 #endif
 
             PagedInputStream istream(filein);
@@ -627,10 +609,10 @@ TestStreamCompression::testPagedStreams()
             Page& page2 = handles[2]->page();
             Page& page3 = handles[3]->page();
 
-            CPPUNIT_ASSERT(page0.isOutOfCore());
-            CPPUNIT_ASSERT(page1.isOutOfCore());
-            CPPUNIT_ASSERT(page2.isOutOfCore());
-            CPPUNIT_ASSERT(page3.isOutOfCore());
+            EXPECT_TRUE(page0.isOutOfCore());
+            EXPECT_TRUE(page1.isOutOfCore());
+            EXPECT_TRUE(page2.isOutOfCore());
+            EXPECT_TRUE(page3.isOutOfCore());
 
             handles[0]->read();
 
@@ -640,19 +622,19 @@ TestStreamCompression::testPagedStreams()
 
             // verify use count is four (one plus three handles)
 
-            CPPUNIT_ASSERT_EQUAL(page.use_count(), long(4));
+            EXPECT_EQ(page.use_count(), long(4));
 
             // on reading from the first handle, all pages referenced
             // in the first three handles are in-core
 
-            CPPUNIT_ASSERT(!page0.isOutOfCore());
-            CPPUNIT_ASSERT(!page1.isOutOfCore());
-            CPPUNIT_ASSERT(!page2.isOutOfCore());
-            CPPUNIT_ASSERT(page3.isOutOfCore());
+            EXPECT_TRUE(!page0.isOutOfCore());
+            EXPECT_TRUE(!page1.isOutOfCore());
+            EXPECT_TRUE(!page2.isOutOfCore());
+            EXPECT_TRUE(page3.isOutOfCore());
 
             handles[1]->read();
 
-            CPPUNIT_ASSERT(handles[0]->mPage);
+            EXPECT_TRUE(handles[0]->mPage);
 
             handles[2]->read();
 
@@ -663,12 +645,9 @@ TestStreamCompression::testPagedStreams()
             // after all three handles have been read,
             // page should have just one use count (itself)
 
-            CPPUNIT_ASSERT_EQUAL(page.use_count(), long(1));
+            EXPECT_EQ(page.use_count(), long(1));
         }
         std::remove(filename.c_str());
     }
 }
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
+TEST_F(TestStreamCompression, testPagedStreams) { testPagedStreams(); }

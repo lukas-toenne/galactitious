@@ -1,32 +1,5 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 /// @file points/AttributeSet.cc
 
@@ -90,30 +63,60 @@ AttributeSet::AttributeSet()
 }
 
 
-AttributeSet::AttributeSet(const AttributeSet& attrSet, Index arrayLength)
+AttributeSet::AttributeSet(const AttributeSet& attrSet, Index arrayLength,
+    const AttributeArray::ScopedRegistryLock* lock)
     : mDescr(attrSet.descriptorPtr())
     , mAttrs(attrSet.descriptor().size(), AttributeArray::Ptr())
 {
+    std::unique_ptr<AttributeArray::ScopedRegistryLock> localLock;
+    if (!lock) {
+        localLock.reset(new AttributeArray::ScopedRegistryLock);
+        lock = localLock.get();
+    }
+
+    const MetaMap& meta = mDescr->getMetadata();
+    bool hasMetadata = meta.metaCount();
+
     for (const auto& namePos : mDescr->map()) {
         const size_t& pos = namePos.second;
-        AttributeArray::Ptr array = AttributeArray::create(mDescr->type(pos), arrayLength, 1);
+        Metadata::ConstPtr metadata;
+        if (hasMetadata)    metadata = meta["default:" + namePos.first];
+        const AttributeArray* existingArray = attrSet.getConst(pos);
+        const bool constantStride = existingArray->hasConstantStride();
+        const Index stride = constantStride ? existingArray->stride() : existingArray->dataSize();
+
+        AttributeArray::Ptr array = AttributeArray::create(mDescr->type(pos), arrayLength,
+            stride, constantStride, metadata.get(), lock);
 
         // transfer hidden and transient flags
-        if (attrSet.getConst(pos)->isHidden())      array->setHidden(true);
-        if (attrSet.getConst(pos)->isTransient())   array->setTransient(true);
+        if (existingArray->isHidden())      array->setHidden(true);
+        if (existingArray->isTransient())   array->setTransient(true);
 
         mAttrs[pos] = array;
     }
 }
 
 
-AttributeSet::AttributeSet(const DescriptorPtr& descr, Index arrayLength)
+AttributeSet::AttributeSet(const DescriptorPtr& descr, Index arrayLength,
+    const AttributeArray::ScopedRegistryLock* lock)
     : mDescr(descr)
     , mAttrs(descr->size(), AttributeArray::Ptr())
 {
+    std::unique_ptr<AttributeArray::ScopedRegistryLock> localLock;
+    if (!lock) {
+        localLock.reset(new AttributeArray::ScopedRegistryLock);
+        lock = localLock.get();
+    }
+
+    const MetaMap& meta = mDescr->getMetadata();
+    bool hasMetadata = meta.metaCount();
+
     for (const auto& namePos : mDescr->map()) {
         const size_t& pos = namePos.second;
-        mAttrs[pos] = AttributeArray::create(mDescr->type(pos), arrayLength, 1);
+        Metadata::ConstPtr metadata;
+        if (hasMetadata)    metadata = meta["default:" + namePos.first];
+        mAttrs[pos] = AttributeArray::create(mDescr->type(pos), arrayLength,
+            /*stride=*/1, /*constantStride=*/true, metadata.get(), lock);
     }
 }
 
@@ -220,74 +223,44 @@ AttributeSet::get(size_t pos)
 size_t
 AttributeSet::groupOffset(const Name& group) const
 {
-    const Descriptor::NameToPosMap& map = this->descriptor().groupMap();
-    const Descriptor::ConstIterator it = map.find(group);
-    if (it == map.end()) {
-        return INVALID_POS;
-    }
-    return it->second;
+    return mDescr->groupOffset(group);
 }
 
 
 size_t
 AttributeSet::groupOffset(const Util::GroupIndex& index) const
 {
-    if (index.first >= mAttrs.size()) {
-        OPENVDB_THROW(LookupError, "Out of range group index.")
-    }
-
-    if (!isGroup(*mAttrs[index.first])) {
-        OPENVDB_THROW(LookupError, "Group index invalid.")
-    }
-
-    // find the relative index in the group attribute arrays
-
-    size_t relativeIndex = 0;
-    for (size_t i = 0; i < mAttrs.size(); i++) {
-        if (i < index.first && isGroup(*mAttrs[i]))    relativeIndex++;
-    }
-
-    const size_t GROUP_BITS = sizeof(GroupType) * CHAR_BIT;
-
-    return (relativeIndex * GROUP_BITS) + index.second;
+    return mDescr->groupOffset(index);
 }
 
 
 AttributeSet::Descriptor::GroupIndex
 AttributeSet::groupIndex(const Name& group) const
 {
-    const size_t offset = this->groupOffset(group);
-    if (offset == INVALID_POS) {
-        OPENVDB_THROW(LookupError, "Group not found - " << group << ".")
-    }
-    return this->groupIndex(offset);
+    return mDescr->groupIndex(group);
 }
 
 
 AttributeSet::Descriptor::GroupIndex
 AttributeSet::groupIndex(const size_t offset) const
 {
-    // extract all attribute array group indices
+    return mDescr->groupIndex(offset);
+}
 
-    const size_t GROUP_BITS = sizeof(GroupType) * CHAR_BIT;
+std::vector<size_t>
+AttributeSet::groupAttributeIndices() const
+{
+    std::vector<size_t> indices;
 
-    std::vector<unsigned> groups;
-    for (size_t i = 0; i < mAttrs.size(); i++) {
-        if (isGroup(*mAttrs[i])) {
-            groups.push_back(static_cast<unsigned>(i));
+    for (const auto& namePos : mDescr->map()) {
+        const AttributeArray* array = this->getConst(namePos.first);
+        if (isGroup(*array)) {
+            indices.push_back(namePos.second);
         }
     }
 
-    if (offset >= groups.size() * GROUP_BITS) {
-        OPENVDB_THROW(LookupError, "Out of range group offset - " << offset << ".")
-    }
-
-    // adjust relative offset to find offset into the array vector
-
-    return Util::GroupIndex(groups[offset / GROUP_BITS],
-			    static_cast<uint8_t>(offset % GROUP_BITS));
+    return indices;
 }
-
 
 bool
 AttributeSet::isShared(size_t pos) const
@@ -314,7 +287,7 @@ AttributeSet::appendAttribute(  const Name& name,
                                 const NamePair& type,
                                 const Index strideOrTotalSize,
                                 const bool constantStride,
-                                Metadata::Ptr defaultValue)
+                                const Metadata* defaultValue)
 {
     Descriptor::Ptr descriptor = mDescr->duplicateAppend(name, type);
 
@@ -324,13 +297,15 @@ AttributeSet::appendAttribute(  const Name& name,
     // extract the index from the descriptor
     const size_t pos = descriptor->find(name);
 
-    return this->appendAttribute(*mDescr, descriptor, pos, strideOrTotalSize, constantStride);
+    return this->appendAttribute(*mDescr, descriptor, pos, strideOrTotalSize, constantStride, defaultValue);
 }
 
 
 AttributeArray::Ptr
 AttributeSet::appendAttribute(  const Descriptor& expected, DescriptorPtr& replacement,
-                                const size_t pos, const Index strideOrTotalSize, const bool constantStride)
+                                const size_t pos, const Index strideOrTotalSize, const bool constantStride,
+                                const Metadata* defaultValue,
+                                const AttributeArray::ScopedRegistryLock* lock)
 {
     // ensure the descriptor is as expected
     if (*mDescr != expected) {
@@ -351,13 +326,55 @@ AttributeSet::appendAttribute(  const Descriptor& expected, DescriptorPtr& repla
 
     // append the new array
 
-    AttributeArray::Ptr array = AttributeArray::create(type, arrayLength, strideOrTotalSize, constantStride);
+    AttributeArray::Ptr array = AttributeArray::create(
+        type, arrayLength, strideOrTotalSize, constantStride,
+        defaultValue, lock);
 
     // if successful, update Descriptor and append the created array
 
     mDescr = replacement;
 
     mAttrs.push_back(array);
+
+    return array;
+}
+
+
+AttributeArray::Ptr
+AttributeSet::removeAttribute(const Name& name)
+{
+    const size_t pos = this->find(name);
+    if (pos == INVALID_POS) return AttributeArray::Ptr();
+    return this->removeAttribute(pos);
+}
+
+
+AttributeArray::Ptr
+AttributeSet::removeAttribute(const size_t pos)
+{
+    if (pos >= mAttrs.size())     return AttributeArray::Ptr();
+
+    assert(mAttrs[pos]);
+    AttributeArray::Ptr array;
+    std::swap(array, mAttrs[pos]);
+    assert(array);
+
+    // safely drop the attribute and update the descriptor
+    std::vector<size_t> toDrop{pos};
+    this->dropAttributes(toDrop);
+
+    return array;
+}
+
+
+AttributeArray::Ptr
+AttributeSet::removeAttributeUnsafe(const size_t pos)
+{
+    if (pos >= mAttrs.size())     return AttributeArray::Ptr();
+
+    assert(mAttrs[pos]);
+    AttributeArray::Ptr array;
+    std::swap(array, mAttrs[pos]);
 
     return array;
 }
@@ -685,6 +702,27 @@ AttributeSet::Descriptor::rename(const std::string& fromName, const std::string&
     return pos;
 }
 
+size_t
+AttributeSet::Descriptor::renameGroup(const std::string& fromName, const std::string& toName)
+{
+    if (!validName(toName))  throw RuntimeError("Group name contains invalid characters - " + toName);
+
+    size_t pos = INVALID_POS;
+
+    // check if the new name is already used.
+    auto it = mGroupMap.find(toName);
+    if (it != mGroupMap.end()) return pos;
+
+    it = mGroupMap.find(fromName);
+    if (it != mGroupMap.end()) {
+        pos = it->second;
+        mGroupMap.erase(it);
+        mGroupMap[toName] = pos;
+    }
+
+    return pos;
+}
+
 
 const Name&
 AttributeSet::Descriptor::valueType(size_t pos) const
@@ -861,11 +899,70 @@ AttributeSet::Descriptor::duplicateDrop(const std::vector<size_t>& pos) const
     NameAndTypeVec vec;
     this->appendTo(vec);
 
-    // drop the indices in pos from vec
+    Descriptor::Ptr descriptor;
 
-    eraseIndices(vec, pos);
+    // If groups exist, check to see if those arrays are being dropped
 
-    Descriptor::Ptr descriptor = Descriptor::create(vec, mGroupMap, mMetadata);
+    if (!mGroupMap.empty()) {
+
+        // extract all attribute array group indices and specific groups
+        // to drop
+
+        std::vector<size_t> groups, groupsToDrop;
+        for (size_t i = 0; i < vec.size(); i++) {
+            if (vec[i].type == GroupAttributeArray::attributeType()) {
+                groups.push_back(i);
+                if (std::find(pos.begin(), pos.end(), i) != pos.end()) {
+                    groupsToDrop.push_back(i);
+                }
+            }
+        }
+
+        // drop the indices in indices from vec
+
+        eraseIndices(vec, pos);
+
+        if (!groupsToDrop.empty()) {
+
+            // configure group mapping if group arrays have been dropped
+
+            NameToPosMap droppedGroupMap = mGroupMap;
+
+            const size_t GROUP_BITS = sizeof(GroupType) * CHAR_BIT;
+            for (auto iter = droppedGroupMap.begin(); iter != droppedGroupMap.end();) {
+                const size_t groupArrayPos = iter->second / GROUP_BITS;
+                const size_t arrayPos = groups[groupArrayPos];
+                if (std::find(pos.begin(), pos.end(), arrayPos) != pos.end()) {
+                    iter = droppedGroupMap.erase(iter);
+                }
+                else {
+                    size_t offset(0);
+                    for (const size_t& idx : groupsToDrop) {
+                        if (idx >= arrayPos) break;
+                        ++offset;
+                    }
+                    iter->second -= (offset * GROUP_BITS);
+                    ++iter;
+                }
+            }
+
+            descriptor = Descriptor::create(vec, droppedGroupMap, mMetadata);
+
+            // remove any unused default values
+
+            descriptor->pruneUnusedDefaultValues();
+
+            return descriptor;
+        }
+    }
+    else {
+
+        // drop the indices in pos from vec
+
+        eraseIndices(vec, pos);
+    }
+
+    descriptor = Descriptor::create(vec, mGroupMap, mMetadata);
 
     // remove any unused default values
 
@@ -901,9 +998,24 @@ AttributeSet::Descriptor::hasGroup(const Name& group) const
 }
 
 void
-AttributeSet::Descriptor::setGroup(const Name& group, const size_t offset)
+AttributeSet::Descriptor::setGroup(const Name& group, const size_t offset,
+    const bool checkValidOffset)
 {
-    if (!validName(group))  throw RuntimeError("Group name contains invalid characters - " + group);
+    if (!validName(group)) {
+        throw RuntimeError("Group name contains invalid characters - " + group);
+    }
+    if (checkValidOffset) {
+        // check offset is not out-of-range
+        if (offset >= this->availableGroups()) {
+            throw RuntimeError("Group offset is out-of-range - " + group);
+        }
+        // check offset is not already in use
+        for (const auto& namePos : mGroupMap) {
+            if (namePos.second == offset) {
+                throw RuntimeError("Group offset is already in use - " + group);
+            }
+        }
+    }
 
     mGroupMap[group] = offset;
 }
@@ -923,13 +1035,225 @@ AttributeSet::Descriptor::clearGroups()
 const Name
 AttributeSet::Descriptor::uniqueName(const Name& name) const
 {
+    auto it = mNameMap.find(name);
+    if (it == mNameMap.end()) return name;
+
     std::ostringstream ss;
-    for (size_t i = 0; i < this->size() + 1; i++) {
+    size_t i(0);
+    while (it != mNameMap.end()) {
         ss.str("");
-        ss << name << i;
-        if (this->find(ss.str()) == INVALID_POS)    break;
+        ss << name << i++;
+        it = mNameMap.find(ss.str());
     }
     return ss.str();
+}
+
+const Name
+AttributeSet::Descriptor::uniqueGroupName(const Name& name) const
+{
+    auto it = mGroupMap.find(name);
+    if (it == mGroupMap.end()) return name;
+
+    std::ostringstream ss;
+    size_t i(0);
+    while (it != mGroupMap.end()) {
+        ss.str("");
+        ss << name << i++;
+        it = mGroupMap.find(ss.str());
+    }
+    return ss.str();
+}
+
+size_t
+AttributeSet::Descriptor::groupOffset(const Name& group) const
+{
+    const auto it = mGroupMap.find(group);
+    if (it == mGroupMap.end()) {
+        return INVALID_POS;
+    }
+    return it->second;
+}
+
+size_t
+AttributeSet::Descriptor::groupOffset(const Util::GroupIndex& index) const
+{
+    if (index.first >= mNameMap.size()) {
+        OPENVDB_THROW(LookupError, "Out of range group index.")
+    }
+
+    if (mTypes[index.first] != GroupAttributeArray::attributeType()) {
+        OPENVDB_THROW(LookupError, "Group index invalid.")
+    }
+
+    // find the relative index in the group attribute arrays
+
+    size_t relativeIndex = 0;
+    for (const auto& namePos : mNameMap) {
+        if (namePos.second < index.first &&
+            mTypes[namePos.second] == GroupAttributeArray::attributeType()) {
+            relativeIndex++;
+        }
+    }
+
+    const size_t GROUP_BITS = sizeof(GroupType) * CHAR_BIT;
+
+    return (relativeIndex * GROUP_BITS) + index.second;
+}
+
+AttributeSet::Descriptor::GroupIndex
+AttributeSet::Descriptor::groupIndex(const Name& group) const
+{
+    const size_t offset = this->groupOffset(group);
+    if (offset == INVALID_POS) {
+        OPENVDB_THROW(LookupError, "Group not found - " << group << ".")
+    }
+    return this->groupIndex(offset);
+}
+
+AttributeSet::Descriptor::GroupIndex
+AttributeSet::Descriptor::groupIndex(const size_t offset) const
+{
+    // extract all attribute array group indices
+
+    std::vector<size_t> groups;
+    for (const auto& namePos : mNameMap) {
+        if (mTypes[namePos.second] == GroupAttributeArray::attributeType()) {
+            groups.push_back(namePos.second);
+        }
+    }
+
+    if (offset >= groups.size() * this->groupBits()) {
+        OPENVDB_THROW(LookupError, "Out of range group offset - " << offset << ".")
+    }
+
+    // adjust relative offset to find offset into the array vector
+
+    std::sort(groups.begin(), groups.end());
+    return Util::GroupIndex(groups[offset / this->groupBits()],
+                static_cast<uint8_t>(offset % this->groupBits()));
+}
+
+size_t
+AttributeSet::Descriptor::availableGroups() const
+{
+    // the number of group attributes * number of bits per group
+
+    const size_t groupAttributes =
+        this->count(GroupAttributeArray::attributeType());
+
+    return groupAttributes * this->groupBits();
+}
+
+size_t
+AttributeSet::Descriptor::unusedGroups() const
+{
+    // compute total slots (one slot per bit of the group attributes)
+
+    const size_t availableGroups = this->availableGroups();
+
+    if (availableGroups == 0)   return 0;
+
+    // compute slots in use
+
+    const size_t usedGroups = mGroupMap.size();
+
+    return availableGroups - usedGroups;
+}
+
+bool
+AttributeSet::Descriptor::canCompactGroups() const
+{
+    // can compact if more unused groups than in one group attribute array
+
+    return this->unusedGroups() >= this->groupBits();
+}
+
+size_t
+AttributeSet::Descriptor::unusedGroupOffset(size_t hint) const
+{
+    // all group offsets are in use
+
+    if (unusedGroups() == size_t(0)) {
+        return std::numeric_limits<size_t>::max();
+    }
+
+    // build a list of group indices
+
+    std::vector<size_t> indices;
+    indices.reserve(mGroupMap.size());
+    for (const auto& namePos : mGroupMap) {
+        indices.push_back(namePos.second);
+    }
+
+    std::sort(indices.begin(), indices.end());
+
+    // return hint if not already in use
+
+    if (hint != std::numeric_limits<Index>::max() &&
+        hint < availableGroups() &&
+        std::find(indices.begin(), indices.end(), hint) == indices.end()) {
+        return hint;
+    }
+
+    // otherwise return first index not present
+
+    size_t offset = 0;
+    for (const size_t& index : indices) {
+        if (index != offset)     break;
+        offset++;
+    }
+
+    return offset;
+}
+
+bool
+AttributeSet::Descriptor::requiresGroupMove(Name& sourceName,
+    size_t& sourceOffset, size_t& targetOffset) const
+{
+    targetOffset = this->unusedGroupOffset();
+
+    for (const auto& namePos : mGroupMap) {
+
+        // move only required if source comes after the target
+
+        if (namePos.second >= targetOffset) {
+            sourceName = namePos.first;
+            sourceOffset = namePos.second;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
+AttributeSet::Descriptor::groupIndexCollision(const Descriptor& rhs) const
+{
+    const auto& groupMap = this->groupMap();
+    const auto& otherGroupMap = rhs.groupMap();
+
+    // iterate both group maps at the same time and find any keys that occur
+    // in both maps and test their values for equality
+
+    auto groupsIt1 = groupMap.cbegin();
+    auto groupsIt2 = otherGroupMap.cbegin();
+
+    while (groupsIt1 != groupMap.cend() && groupsIt2 != otherGroupMap.cend()) {
+        if (groupsIt1->first < groupsIt2->first) {
+            ++groupsIt1;
+        } else if (groupsIt1->first > groupsIt2->first) {
+            ++groupsIt2;
+        } else {
+            if (groupsIt1->second != groupsIt2->second) {
+                return true;
+            } else {
+                ++groupsIt1;
+                ++groupsIt2;
+            }
+        }
+    }
+
+    return false;
 }
 
 bool
@@ -943,9 +1267,10 @@ AttributeSet::Descriptor::validName(const Name& name)
 void
 AttributeSet::Descriptor::parseNames(   std::vector<std::string>& includeNames,
                                         std::vector<std::string>& excludeNames,
+                                        bool& includeAll,
                                         const std::string& nameStr)
 {
-    bool includeAll = false;
+    includeAll = false;
 
     std::stringstream tokenStream(nameStr);
 
@@ -970,6 +1295,15 @@ AttributeSet::Descriptor::parseNames(   std::vector<std::string>& includeNames,
             includeNames.push_back(token);
         }
     }
+}
+
+void
+AttributeSet::Descriptor::parseNames(   std::vector<std::string>& includeNames,
+                                        std::vector<std::string>& excludeNames,
+                                        const std::string& nameStr)
+{
+    bool includeAll = false;
+    Descriptor::parseNames(includeNames, excludeNames, includeAll, nameStr);
 }
 
 void
@@ -1044,7 +1378,3 @@ AttributeSet::Descriptor::read(std::istream& is)
 } // namespace points
 } // namespace OPENVDB_VERSION_NAME
 } // namespace openvdb
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

@@ -1,35 +1,8 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #include <vector>
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 
 #include <openvdb/openvdb.h>
 #include <openvdb/Exceptions.h>
@@ -38,38 +11,24 @@
 #include <openvdb/util/Util.h>
 
 
-class TestMeshToVolume: public CppUnit::TestCase
+class TestMeshToVolume: public ::testing::Test
 {
-public:
-    CPPUNIT_TEST_SUITE(TestMeshToVolume);
-    CPPUNIT_TEST(testUtils);
-    CPPUNIT_TEST(testConversion);
-    CPPUNIT_TEST(testCreateLevelSetBox);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testUtils();
-    void testConversion();
-    void testCreateLevelSetBox();
-
 };
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestMeshToVolume);
 
 
 ////////////////////////////////////////
 
 
-void
-TestMeshToVolume::testUtils()
+TEST_F(TestMeshToVolume, testUtils)
 {
     /// Test nearestCoord
     openvdb::Vec3d xyz(0.7, 2.2, -2.7);
     openvdb::Coord ijk = openvdb::util::nearestCoord(xyz);
-    CPPUNIT_ASSERT(ijk[0] == 0 && ijk[1] == 2 && ijk[2] == -3);
+    EXPECT_TRUE(ijk[0] == 0 && ijk[1] == 2 && ijk[2] == -3);
 
     xyz = openvdb::Vec3d(-22.1, 4.6, 202.34);
     ijk = openvdb::util::nearestCoord(xyz);
-    CPPUNIT_ASSERT(ijk[0] == -23 && ijk[1] == 4 && ijk[2] == 202);
+    EXPECT_TRUE(ijk[0] == -23 && ijk[1] == 4 && ijk[2] == 202);
 
     /// Test the coordinate offset table for neghbouring voxels
     openvdb::Coord sum(0, 0, 0);
@@ -90,18 +49,17 @@ TestMeshToVolume::testUtils()
         else if (ijk[2] == -1) ++mZ;
     }
 
-    CPPUNIT_ASSERT(sum == openvdb::Coord(0, 0, 0));
+    EXPECT_TRUE(sum == openvdb::Coord(0, 0, 0));
 
-    CPPUNIT_ASSERT( pX == 9);
-    CPPUNIT_ASSERT( pY == 9);
-    CPPUNIT_ASSERT( pZ == 9);
-    CPPUNIT_ASSERT( mX == 9);
-    CPPUNIT_ASSERT( mY == 9);
-    CPPUNIT_ASSERT( mZ == 9);
+    EXPECT_TRUE( pX == 9);
+    EXPECT_TRUE( pY == 9);
+    EXPECT_TRUE( pZ == 9);
+    EXPECT_TRUE( mX == 9);
+    EXPECT_TRUE( mY == 9);
+    EXPECT_TRUE( mZ == 9);
 }
 
-void
-TestMeshToVolume::testConversion()
+TEST_F(TestMeshToVolume, testConversion)
 {
     using namespace openvdb;
 
@@ -132,20 +90,19 @@ TestMeshToVolume::testConversion()
 
     FloatGrid::Ptr grid = tools::meshToVolume<FloatGrid>(mesh, *xform);
 
-    CPPUNIT_ASSERT(grid.get() != NULL);
-    CPPUNIT_ASSERT_EQUAL(int(GRID_LEVEL_SET), int(grid->getGridClass()));
-    CPPUNIT_ASSERT_EQUAL(1, int(grid->baseTree().leafCount()));
+    EXPECT_TRUE(grid.get() != NULL);
+    EXPECT_EQ(int(GRID_LEVEL_SET), int(grid->getGridClass()));
+    EXPECT_EQ(1, int(grid->baseTree().leafCount()));
 
     grid = tools::meshToLevelSet<FloatGrid>(*xform, points, quads);
 
-    CPPUNIT_ASSERT(grid.get() != NULL);
-    CPPUNIT_ASSERT_EQUAL(int(GRID_LEVEL_SET), int(grid->getGridClass()));
-    CPPUNIT_ASSERT_EQUAL(1, int(grid->baseTree().leafCount()));
+    EXPECT_TRUE(grid.get() != NULL);
+    EXPECT_EQ(int(GRID_LEVEL_SET), int(grid->getGridClass()));
+    EXPECT_EQ(1, int(grid->baseTree().leafCount()));
 }
 
 
-void
-TestMeshToVolume::testCreateLevelSetBox()
+TEST_F(TestMeshToVolume, testCreateLevelSetBox)
 {
     typedef openvdb::FloatGrid          FloatGrid;
     typedef openvdb::Vec3s              Vec3s;
@@ -161,20 +118,16 @@ TestMeshToVolume::testCreateLevelSetBox()
     double gridBackground = grid->background();
     double expectedBackground = transform->voxelSize().x() * double(openvdb::LEVEL_SET_HALF_WIDTH);
 
-    CPPUNIT_ASSERT_DOUBLES_EQUAL(expectedBackground, gridBackground, 1e-6);
+    EXPECT_NEAR(expectedBackground, gridBackground, 1e-6);
 
-    CPPUNIT_ASSERT(grid->tree().leafCount() > 0);
+    EXPECT_TRUE(grid->tree().leafCount() > 0);
 
     // test inside coord value
     openvdb::Coord ijk = transform->worldToIndexNodeCentered(openvdb::Vec3d(0.5, 0.5, 0.5));
-    CPPUNIT_ASSERT(grid->tree().getValue(ijk) < 0.0f);
+    EXPECT_TRUE(grid->tree().getValue(ijk) < 0.0f);
 
     // test outside coord value
     ijk = transform->worldToIndexNodeCentered(openvdb::Vec3d(1.5, 1.5, 1.5));
-    CPPUNIT_ASSERT(grid->tree().getValue(ijk) > 0.0f);
+    EXPECT_TRUE(grid->tree().getValue(ijk) > 0.0f);
 }
 
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

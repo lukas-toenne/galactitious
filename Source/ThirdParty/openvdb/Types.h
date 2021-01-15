@@ -1,42 +1,13 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
 #ifndef OPENVDB_TYPES_HAS_BEEN_INCLUDED
 #define OPENVDB_TYPES_HAS_BEEN_INCLUDED
 
-
 #include "version.h"
 #include "Platform.h"
-#include <OpenEXR/include/half.h>
-//#include <OpenEXR/half.h>
-
+#include "TypeList.h" // backwards compat
+#include <OpenEXR/half.h>
 #include <openvdb/math/Math.h>
 #include <openvdb/math/BBox.h>
 #include <openvdb/math/Quat.h>
@@ -46,6 +17,7 @@
 #include <openvdb/math/Mat3.h>
 #include <openvdb/math/Mat4.h>
 #include <openvdb/math/Coord.h>
+#include <cstdint>
 #include <memory>
 #include <type_traits>
 
@@ -100,37 +72,25 @@ using math::Vec4d;
 
 // Three-dimensional matrix types
 using Mat3R = math::Mat3<Real>;
+using math::Mat3s;
+using math::Mat3d;
 
 // Four-dimensional matrix types
 using Mat4R = math::Mat4<Real>;
-using Mat4d = math::Mat4<double>;
-using Mat4s = math::Mat4<float>;
+using math::Mat4s;
+using math::Mat4d;
 
 // Quaternions
 using QuatR = math::Quat<Real>;
+using math::Quats;
+using math::Quatd;
 
 // Dummy type for a voxel with a binary mask value, e.g. the active state
 class ValueMask {};
 
-
-#ifdef OPENVDB_3_ABI_COMPATIBLE
-
-// Use Boost shared pointers in OpenVDB 3 ABI compatibility mode.
-template<typename T> using SharedPtr = boost::shared_ptr<T>;
-
-template<typename T, typename U> inline SharedPtr<T>
-ConstPtrCast(const SharedPtr<U>& ptr) { return boost::const_pointer_cast<T, U>(ptr); }
-
-template<typename T, typename U> inline SharedPtr<T>
-DynamicPtrCast(const SharedPtr<U>& ptr) { return boost::dynamic_pointer_cast<T, U>(ptr); }
-
-template<typename T, typename U> inline SharedPtr<T>
-StaticPtrCast(const SharedPtr<U>& ptr) { return boost::static_pointer_cast<T, U>(ptr); }
-
-#else // if !defined(OPENVDB_3_ABI_COMPATIBLE)
-
 // Use STL shared pointers from OpenVDB 4 on.
 template<typename T> using SharedPtr = std::shared_ptr<T>;
+template<typename T> using WeakPtr = std::weak_ptr<T>;
 
 /// @brief Return a new shared pointer that points to the same object
 /// as the given pointer but with possibly different <TT>const</TT>-ness.
@@ -163,8 +123,6 @@ DynamicPtrCast(const SharedPtr<U>& ptr) { return std::dynamic_pointer_cast<T, U>
 template<typename T, typename U> inline SharedPtr<T>
 StaticPtrCast(const SharedPtr<U>& ptr) { return std::static_pointer_cast<T, U>(ptr); }
 
-#endif // OPENVDB_3_ABI_COMPATIBLE
-
 
 ////////////////////////////////////////
 
@@ -180,6 +138,9 @@ struct PointIndex
     using IntType = IntType_;
 
     PointIndex(IntType i = IntType(0)): mIndex(i) {}
+
+    /// Explicit type conversion constructor
+    template<typename T> explicit PointIndex(T i): mIndex(static_cast<IntType>(i)) {}
 
     operator IntType() const { return mIndex; }
 
@@ -202,27 +163,93 @@ using PointDataIndex64 = PointIndex<Index64, 1>;
 ////////////////////////////////////////
 
 
-template<typename T> struct VecTraits {
+/// @brief Helper metafunction used to determine if the first template
+/// parameter is a specialization of the class template given in the second
+/// template parameter
+template <typename T, template <typename...> class Template>
+struct IsSpecializationOf: public std::false_type {};
+
+template <typename... Args, template <typename...> class Template>
+struct IsSpecializationOf<Template<Args...>, Template>: public std::true_type {};
+
+
+////////////////////////////////////////
+
+
+template<typename T, bool = IsSpecializationOf<T, math::Vec2>::value ||
+                            IsSpecializationOf<T, math::Vec3>::value ||
+                            IsSpecializationOf<T, math::Vec4>::value>
+struct VecTraits
+{
+    static const bool IsVec = true;
+    static const int Size = T::size;
+    using ElementType = typename T::ValueType;
+};
+
+template<typename T>
+struct VecTraits<T, false>
+{
     static const bool IsVec = false;
     static const int Size = 1;
     using ElementType = T;
 };
 
-template<typename T> struct VecTraits<math::Vec2<T> > {
-    static const bool IsVec = true;
-    static const int Size = 2;
+template<typename T, bool = IsSpecializationOf<T, math::Quat>::value>
+struct QuatTraits
+{
+    static const bool IsQuat = true;
+    static const int Size = T::size;
+    using ElementType = typename T::ValueType;
+};
+
+template<typename T>
+struct QuatTraits<T, false>
+{
+    static const bool IsQuat = false;
+    static const int Size = 1;
     using ElementType = T;
 };
 
-template<typename T> struct VecTraits<math::Vec3<T> > {
-    static const bool IsVec = true;
-    static const int Size = 3;
+template<typename T, bool = IsSpecializationOf<T, math::Mat3>::value ||
+                            IsSpecializationOf<T, math::Mat4>::value>
+struct MatTraits
+{
+    static const bool IsMat = true;
+    static const int Size = T::size;
+    using ElementType = typename T::ValueType;
+};
+
+template<typename T>
+struct MatTraits<T, false>
+{
+    static const bool IsMat = false;
+    static const int Size = 1;
     using ElementType = T;
 };
 
-template<typename T> struct VecTraits<math::Vec4<T> > {
-    static const bool IsVec = true;
-    static const int Size = 4;
+template<typename T, bool = VecTraits<T>::IsVec ||
+                            QuatTraits<T>::IsQuat ||
+                            MatTraits<T>::IsMat>
+struct ValueTraits
+{
+    static const bool IsVec = VecTraits<T>::IsVec;
+    static const bool IsQuat = QuatTraits<T>::IsQuat;
+    static const bool IsMat = MatTraits<T>::IsMat;
+    static const bool IsScalar = false;
+    static const int Size = T::size;
+    static const int Elements = IsMat ? Size*Size : Size;
+    using ElementType = typename T::ValueType;
+};
+
+template<typename T>
+struct ValueTraits<T, false>
+{
+    static const bool IsVec = false;
+    static const bool IsQuat = false;
+    static const bool IsMat = false;
+    static const bool IsScalar = true;
+    static const int Size = 1;
+    static const int Elements = 1;
     using ElementType = T;
 };
 
@@ -256,6 +283,27 @@ template<typename T>
 struct CanConvertType<T, ValueMask> { enum {value = CanConvertType<T, bool>::value}; };
 template<typename T>
 struct CanConvertType<ValueMask, T> { enum {value = CanConvertType<bool, T>::value}; };
+
+
+////////////////////////////////////////
+
+
+/// @brief CopyConstness<T1, T2>::Type is either <tt>const T2</tt>
+/// or @c T2 with no @c const qualifier, depending on whether @c T1 is @c const.
+/// @details For example,
+/// - CopyConstness<int, int>::Type is @c int
+/// - CopyConstness<int, const int>::Type is @c int
+/// - CopyConstness<const int, int>::Type is <tt>const int</tt>
+/// - CopyConstness<const int, const int>::Type is <tt>const int</tt>
+template<typename FromType, typename ToType> struct CopyConstness {
+    using Type = typename std::remove_const<ToType>::type;
+};
+
+/// @cond OPENVDB_TYPES_INTERNAL
+template<typename FromType, typename ToType> struct CopyConstness<const FromType, ToType> {
+    using Type = const ToType;
+};
+/// @endcond
 
 
 ////////////////////////////////////////
@@ -331,6 +379,7 @@ template<> inline const char* typeNameAsString<ValueMask>()         { return "ma
 template<> inline const char* typeNameAsString<half>()              { return "half"; }
 template<> inline const char* typeNameAsString<float>()             { return "float"; }
 template<> inline const char* typeNameAsString<double>()            { return "double"; }
+template<> inline const char* typeNameAsString<int8_t>()            { return "int8"; }
 template<> inline const char* typeNameAsString<uint8_t>()           { return "uint8"; }
 template<> inline const char* typeNameAsString<int16_t>()           { return "int16"; }
 template<> inline const char* typeNameAsString<uint16_t>()          { return "uint16"; }
@@ -345,7 +394,12 @@ template<> inline const char* typeNameAsString<Vec3U16>()           { return "ve
 template<> inline const char* typeNameAsString<Vec3i>()             { return "vec3i"; }
 template<> inline const char* typeNameAsString<Vec3f>()             { return "vec3s"; }
 template<> inline const char* typeNameAsString<Vec3d>()             { return "vec3d"; }
+template<> inline const char* typeNameAsString<Vec4i>()             { return "vec4i"; }
+template<> inline const char* typeNameAsString<Vec4f>()             { return "vec4s"; }
+template<> inline const char* typeNameAsString<Vec4d>()             { return "vec4d"; }
 template<> inline const char* typeNameAsString<std::string>()       { return "string"; }
+template<> inline const char* typeNameAsString<Mat3s>()             { return "mat3s"; }
+template<> inline const char* typeNameAsString<Mat3d>()             { return "mat3d"; }
 template<> inline const char* typeNameAsString<Mat4s>()             { return "mat4s"; }
 template<> inline const char* typeNameAsString<Mat4d>()             { return "mat4d"; }
 template<> inline const char* typeNameAsString<math::Quats>()       { return "quats"; }
@@ -378,8 +432,8 @@ public:
     using BValueT = BValueType;
 
     CombineArgs()
-        : mAValPtr(NULL)
-        , mBValPtr(NULL)
+        : mAValPtr(nullptr)
+        , mBValPtr(nullptr)
         , mResultValPtr(&mResultVal)
         , mAIsActive(false)
         , mBIsActive(false)
@@ -480,30 +534,16 @@ struct SwappedCombineOp
 ////////////////////////////////////////
 
 
-#ifdef OPENVDB_3_ABI_COMPATIBLE
-/// In copy constructors, members stored as shared pointers can be handled
-/// in several ways:
-/// <dl>
-/// <dt><b>CP_NEW</b>
-/// <dd>Don't copy the member; default construct a new member object instead.
-///
-/// <dt><b>CP_SHARE</b>
-/// <dd>Copy the shared pointer, so that the original and new objects share
-///     the same member.
-///
-/// <dt><b>CP_COPY</b>
-/// <dd>Create a deep copy of the member.
-/// </dl>
-enum CopyPolicy { CP_NEW, CP_SHARE, CP_COPY };
-#endif
-
-
 /// @brief Tag dispatch class that distinguishes shallow copy constructors
 /// from deep copy constructors
 class ShallowCopy {};
 /// @brief Tag dispatch class that distinguishes topology copy constructors
 /// from deep copy constructors
 class TopologyCopy {};
+/// @brief Tag dispatch class that distinguishes constructors that deep copy
+class DeepCopy {};
+/// @brief Tag dispatch class that distinguishes constructors that steal
+class Steal {};
 /// @brief Tag dispatch class that distinguishes constructors during file input
 class PartialCreate {};
 
@@ -511,58 +551,4 @@ class PartialCreate {};
 } // namespace openvdb
 
 
-#if defined(__ICC)
-
-// Use these defines to bracket a region of code that has safe static accesses.
-// Keep the region as small as possible.
-#define OPENVDB_START_THREADSAFE_STATIC_REFERENCE   __pragma(warning(disable:1710))
-#define OPENVDB_FINISH_THREADSAFE_STATIC_REFERENCE  __pragma(warning(default:1710))
-#define OPENVDB_START_THREADSAFE_STATIC_WRITE       __pragma(warning(disable:1711))
-#define OPENVDB_FINISH_THREADSAFE_STATIC_WRITE      __pragma(warning(default:1711))
-#define OPENVDB_START_THREADSAFE_STATIC_ADDRESS     __pragma(warning(disable:1712))
-#define OPENVDB_FINISH_THREADSAFE_STATIC_ADDRESS    __pragma(warning(default:1712))
-
-// Use these defines to bracket a region of code that has unsafe static accesses.
-// Keep the region as small as possible.
-#define OPENVDB_START_NON_THREADSAFE_STATIC_REFERENCE   __pragma(warning(disable:1710))
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_REFERENCE  __pragma(warning(default:1710))
-#define OPENVDB_START_NON_THREADSAFE_STATIC_WRITE       __pragma(warning(disable:1711))
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_WRITE      __pragma(warning(default:1711))
-#define OPENVDB_START_NON_THREADSAFE_STATIC_ADDRESS     __pragma(warning(disable:1712))
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_ADDRESS    __pragma(warning(default:1712))
-
-// Simpler version for one-line cases
-#define OPENVDB_THREADSAFE_STATIC_REFERENCE(CODE) \
-    __pragma(warning(disable:1710)); CODE; __pragma(warning(default:1710))
-#define OPENVDB_THREADSAFE_STATIC_WRITE(CODE) \
-    __pragma(warning(disable:1711)); CODE; __pragma(warning(default:1711))
-#define OPENVDB_THREADSAFE_STATIC_ADDRESS(CODE) \
-    __pragma(warning(disable:1712)); CODE; __pragma(warning(default:1712))
-
-#else // GCC does not support these compiler warnings
-
-#define OPENVDB_START_THREADSAFE_STATIC_REFERENCE
-#define OPENVDB_FINISH_THREADSAFE_STATIC_REFERENCE
-#define OPENVDB_START_THREADSAFE_STATIC_WRITE
-#define OPENVDB_FINISH_THREADSAFE_STATIC_WRITE
-#define OPENVDB_START_THREADSAFE_STATIC_ADDRESS
-#define OPENVDB_FINISH_THREADSAFE_STATIC_ADDRESS
-
-#define OPENVDB_START_NON_THREADSAFE_STATIC_REFERENCE
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_REFERENCE
-#define OPENVDB_START_NON_THREADSAFE_STATIC_WRITE
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_WRITE
-#define OPENVDB_START_NON_THREADSAFE_STATIC_ADDRESS
-#define OPENVDB_FINISH_NON_THREADSAFE_STATIC_ADDRESS
-
-#define OPENVDB_THREADSAFE_STATIC_REFERENCE(CODE) CODE
-#define OPENVDB_THREADSAFE_STATIC_WRITE(CODE) CODE
-#define OPENVDB_THREADSAFE_STATIC_ADDRESS(CODE) CODE
-
-#endif // defined(__ICC)
-
 #endif // OPENVDB_TYPES_HAS_BEEN_INCLUDED
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )

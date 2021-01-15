@@ -1,61 +1,21 @@
-///////////////////////////////////////////////////////////////////////////
-//
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-//
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
-//
-// Redistributions of source code must retain the above copyright
-// and license notice and the following restrictions and disclaimer.
-//
-// *     Neither the name of DreamWorks Animation nor the names of
-// its contributors may be used to endorse or promote products derived
-// from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-// IN NO EVENT SHALL THE COPYRIGHT HOLDERS' AND CONTRIBUTORS' AGGREGATE
-// LIABILITY FOR ALL CLAIMS REGARDLESS OF THEIR BASIS EXCEED US$250.00.
-//
-///////////////////////////////////////////////////////////////////////////
+// Copyright Contributors to the OpenVDB Project
+// SPDX-License-Identifier: MPL-2.0
 
-#include <cppunit/extensions/HelperMacros.h>
+#include "gtest/gtest.h"
 #include <openvdb/openvdb.h>
 #include <openvdb/version.h>
 #include <openvdb/math/ConjGradient.h>
 
 
-class TestConjGradient: public CppUnit::TestCase
+class TestConjGradient: public ::testing::Test
 {
-public:
-    CPPUNIT_TEST_SUITE(TestConjGradient);
-    CPPUNIT_TEST(testJacobi);
-    CPPUNIT_TEST(testIncompleteCholesky);
-    CPPUNIT_TEST(testVectorDotProduct);
-    CPPUNIT_TEST_SUITE_END();
-
-    void testJacobi();
-    void testIncompleteCholesky();
-    void testVectorDotProduct();
 };
-
-CPPUNIT_TEST_SUITE_REGISTRATION(TestConjGradient);
 
 
 ////////////////////////////////////////
 
 
-void
-TestConjGradient::testJacobi()
+TEST_F(TestConjGradient, testJacobi)
 {
     using namespace openvdb;
 
@@ -78,7 +38,7 @@ TestConjGradient::testJacobi()
     A.setValue(4, 2,  2.0);
     A.setValue(4, 4,  8.0);
 
-    CPPUNIT_ASSERT(A.isFinite());
+    EXPECT_TRUE(A.isFinite());
 
     MatrixType::VectorType
         x(rows, 0.0),
@@ -97,14 +57,13 @@ TestConjGradient::testJacobi()
     math::pcg::State result = math::pcg::solve(
         A, b, x, precond, math::pcg::terminationDefaults<double>());
 
-    CPPUNIT_ASSERT(result.success);
-    CPPUNIT_ASSERT(result.iterations <= 20);
-    CPPUNIT_ASSERT(x.eq(expected, 1.0e-5));
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(result.iterations <= 20);
+    EXPECT_TRUE(x.eq(expected, 1.0e-5));
 }
 
 
-void
-TestConjGradient::testIncompleteCholesky()
+TEST_F(TestConjGradient, testIncompleteCholesky)
 {
     using namespace openvdb;
 
@@ -128,7 +87,7 @@ TestConjGradient::testIncompleteCholesky()
     A.setValue(4, 2,  2.0);
     A.setValue(4, 4,  8.0);
 
-    CPPUNIT_ASSERT(A.isFinite());
+    EXPECT_TRUE(A.isFinite());
 
     CholeskyPrecond precond(A);
     {
@@ -156,7 +115,7 @@ TestConjGradient::testIncompleteCholesky()
         }
 #endif
 
-        CPPUNIT_ASSERT(lower.eq(expected, 1.0e-5));
+        EXPECT_TRUE(lower.eq(expected, 1.0e-5));
     }
     {
         const CholeskyPrecond::TriangularMatrix upper = precond.upperMatrix();
@@ -185,7 +144,7 @@ TestConjGradient::testIncompleteCholesky()
         }
 #endif
 
-        CPPUNIT_ASSERT(upper.eq(expected, 1.0e-5));
+        EXPECT_TRUE(upper.eq(expected, 1.0e-5));
     }
 
     MatrixType::VectorType
@@ -203,13 +162,12 @@ TestConjGradient::testIncompleteCholesky()
     math::pcg::State result = math::pcg::solve(
         A, b, x, precond, math::pcg::terminationDefaults<double>());
 
-    CPPUNIT_ASSERT(result.success);
-    CPPUNIT_ASSERT(result.iterations <= 20);
-    CPPUNIT_ASSERT(x.eq(expected, 1.0e-5));
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(result.iterations <= 20);
+    EXPECT_TRUE(x.eq(expected, 1.0e-5));
 }
 
-void
-TestConjGradient::testVectorDotProduct()
+TEST_F(TestConjGradient, testVectorDotProduct)
 {
     using namespace openvdb;
 
@@ -223,7 +181,7 @@ TestConjGradient::testVectorDotProduct()
 
         VectorType::ValueType result = aVec.dot(bVec);
 
-        CPPUNIT_ASSERT_DOUBLES_EQUAL(result, 6.0 * length, 1.0e-7);
+        EXPECT_NEAR(result, 6.0 * length, 1.0e-7);
     }
     // Test long vector  - runs in parallel
     {
@@ -233,10 +191,6 @@ TestConjGradient::testVectorDotProduct()
 
         VectorType::ValueType result = aVec.dot(bVec);
 
-        CPPUNIT_ASSERT_DOUBLES_EQUAL(result, 6.0 * length, 1.0e-7);
+        EXPECT_NEAR(result, 6.0 * length, 1.0e-7);
     }
 }
-
-// Copyright (c) 2012-2017 DreamWorks Animation LLC
-// All rights reserved. This software is distributed under the
-// Mozilla Public License 2.0 ( http://www.mozilla.org/MPL/2.0/ )
