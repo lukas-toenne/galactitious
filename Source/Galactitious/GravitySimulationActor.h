@@ -29,6 +29,7 @@ public:
 
 protected:
 	void DistributePoints(TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
+	void GatherMoments(const TArray<FVector>& InPositions, const GridType::Ptr& InGrid) const;
 
 private:
 	GridType::Ptr Grid;
