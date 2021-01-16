@@ -10,6 +10,6 @@ public class GalactitiousTarget : TargetRules
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V2;
 
-		ExtraModuleNames.AddRange( new string[] { "Galactitious" } );
+		ExtraModuleNames.AddRange( new string[] { "Galactitious", "GalactitiousNiagara" } );
 	}
 }
