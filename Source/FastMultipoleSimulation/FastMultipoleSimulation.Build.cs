@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class GalactitiousNiagara : ModuleRules
+public class FastMultipoleSimulation : ModuleRules
 {
-	public GalactitiousNiagara(ReadOnlyTargetRules Target) : base(Target)
+	public FastMultipoleSimulation(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
@@ -12,15 +12,11 @@ public class GalactitiousNiagara : ModuleRules
 			"Core",
 			"CoreUObject",
 			"Engine",
-			"Niagara"
+			"GalactitiousOpenVDB",
+			"UEOpenExr"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
-			"NiagaraCore",
-			"NiagaraShader",
-			"RenderCore",
-			"Renderer",
-			"RHI",
 		});
 	}
 }
