@@ -4,11 +4,11 @@
 
 #include "CoreMinimal.h"
 
-THIRD_PARTY_INCLUDES_START
+#include "FastMultipoleOpenVDBGuardEnter.h"
 #include <openvdb/openvdb.h>
-THIRD_PARTY_INCLUDES_END
+#include "FastMultipoleOpenVDBGuardLeave.h"
 
-struct OpenVDBConvert
+struct FASTMULTIPOLESIMULATION_API OpenVDBConvert
 {
 	static inline FVector Vector(const openvdb::Vec3f& v) { return FVector(v.x(), v.y(), v.z()); }
 	static inline openvdb::Vec3f Vector(const FVector& v) { return openvdb::Vec3f(v.X, v.Y, v.Z); }

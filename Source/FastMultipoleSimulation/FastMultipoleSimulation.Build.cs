@@ -8,6 +8,9 @@ public class FastMultipoleSimulation : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// For boost:: and TBB:: code
+		bUseRTTI = true;
+
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",

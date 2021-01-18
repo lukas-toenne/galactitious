@@ -11,7 +11,16 @@ public class Galactitious : ModuleRules
 		// For boost:: and TBB:: code
 		bUseRTTI = true;
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara", "GalactitiousOpenVDB", "UEOpenExr"});
+		PublicDependencyModuleNames.AddRange(new string[] {
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			"Niagara",
+			"FastMultipoleSimulation",
+			"GalactitiousOpenVDB",
+			"UEOpenExr"
+		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
