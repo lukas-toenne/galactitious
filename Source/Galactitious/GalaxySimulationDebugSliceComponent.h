@@ -29,6 +29,10 @@ protected:
 		int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings);
 	void UpdateSliceTexture(const class UFastMultipoleSimulation* Simulation);
 
+	UFUNCTION()
+	void OnSimulationReset(class UFastMultipoleSimulation* Simulation);
+	UFUNCTION()
+	void OnSimulationStep(class UFastMultipoleSimulation* Simulation);
 	void OnTransformUpdated(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
 private:

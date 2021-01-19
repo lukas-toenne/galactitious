@@ -23,13 +23,10 @@ public:
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 NumStars = 100;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Scale = 100.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	UCurveFloat* RadialDensityCurve;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	UCurveFloat* ThicknessCurve;
 
 protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;

@@ -13,6 +13,9 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipole, Log, All);
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationResetDelegate, UFastMultipoleSimulation*, Simulation);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationStepDelegate, UFastMultipoleSimulation*, Simulation);
+
 UCLASS()
 class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulation : public UObject
 {
@@ -21,22 +24,38 @@ class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulation : public UObject
 public:
 	using PointBuffer = TArray<FVector>;
 
-	using PointTreeType = openvdb::tree::Tree<openvdb::tree::RootNode<
+	using PointDataTreeType = openvdb::tree::Tree<openvdb::tree::RootNode<
 		openvdb::tree::InternalNode<openvdb::tree::InternalNode<openvdb::points::PointDataLeafNode<openvdb::PointDataIndex32, 3>, 4>, 5>>>;
-	using PointGridType = openvdb::Grid<PointTreeType>;
+	using PointIndexTreeType = openvdb::tree::Tree<openvdb::tree::RootNode<openvdb::tree::InternalNode<openvdb::tree::InternalNode<openvdb::tools::PointIndexLeafNode<openvdb::PointIndex32, 3>, 4>, 5>>>;
 
-	void SetPositions(const TSharedPtr<PointBuffer>& InPositions);
+	using PointDataGridType = openvdb::Grid<PointDataTreeType>;
+	using PointIndexGridType = openvdb::Grid<PointIndexTreeType>;
+
+	UFastMultipoleSimulation();
+
+	void Reset(const TSharedPtr<PointBuffer>& InPositions);
+	void Clear();
+
 	TSharedPtr<PointBuffer> GetPositions() const { return Positions; }
 
-	PointGridType::Ptr GetPointGrid() const { return PointGrid; }
+	PointDataGridType::Ptr GetPointDataGrid() const { return PointDataGrid; }
+
+protected:
 
 	void BuildPointGrid();
 	void ClearPointGrid();
 
 	// void BuildMomentsGrid();
 
+public:
+	UPROPERTY(BlueprintAssignable)
+	FFastMultipoleSimulationResetDelegate OnSimulationReset;
+
+	UPROPERTY(BlueprintAssignable)
+	FFastMultipoleSimulationStepDelegate OnSimulationStep;
+
 private:
 	TSharedPtr<PointBuffer> Positions;
 
-	PointGridType::Ptr PointGrid;
+	PointDataGridType::Ptr PointDataGrid;
 };

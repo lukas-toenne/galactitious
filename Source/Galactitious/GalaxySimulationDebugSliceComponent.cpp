@@ -36,7 +36,12 @@ void UGalaxySimulationDebugSliceComponent::BeginPlay()
 	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
 	if (SimActor)
 	{
-		UpdateSliceTexture(SimActor->GetSimulation());
+		if (UFastMultipoleSimulation* Sim = SimActor->GetSimulation())
+		{
+			UpdateSliceTexture(Sim);
+			Sim->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
+		}
+
 		TransformUpdated.AddUObject(this, &UGalaxySimulationDebugSliceComponent::OnTransformUpdated);
 	}
 }
@@ -110,6 +115,16 @@ void UGalaxySimulationDebugSliceComponent::UpdateSliceTexture(const class UFastM
 	SetComponentTickEnabled(true);
 
 	UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(PendingTextureData, MeshToWorld, Simulation);
+}
+
+void UGalaxySimulationDebugSliceComponent::OnSimulationReset(class UFastMultipoleSimulation* Simulation)
+{
+	UpdateSliceTexture(Simulation);
+}
+
+void UGalaxySimulationDebugSliceComponent::OnSimulationStep(class UFastMultipoleSimulation* Simulation)
+{
+	UpdateSliceTexture(Simulation);
 }
 
 void UGalaxySimulationDebugSliceComponent::OnTransformUpdated(
