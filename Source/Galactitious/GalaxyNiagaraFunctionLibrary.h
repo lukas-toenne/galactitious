@@ -19,4 +19,8 @@ public:
 		class UNiagaraParameterCollectionInstance* NiagaraParameters, const FString& Name, const FRichCurve& Value, bool bOverride = true);
 	static void SetFloatParameter(
 		class UNiagaraParameterCollectionInstance* NiagaraParameters, const FString& Name, float Value, bool bOverride = true);
+
+	static void ApplyParameterCollectionUpdate(
+		class UNiagaraParameterCollectionInstance* NiagaraParameters,
+		TFunctionRef<void(class UNiagaraParameterCollectionInstance* UpdatedParameters)> ApplyFn);
 };

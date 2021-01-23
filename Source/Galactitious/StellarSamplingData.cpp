@@ -28,30 +28,6 @@ namespace
 
 		return true;
 	}
-
-// Utility macros to perform additional update hacks made necessary due to Niagara bugs
-#define NIAGARA_UPDATE_HACK_BEGIN(_Collection, _UpdatedParameters)                                   \
-	{                                                                                                \
-		/** Restart any systems using this collection. */                                            \
-		FNiagaraSystemUpdateContext _UpdateContext(_Collection, true);                               \
-		/** XXX BUG in UE 4.26: Parameter overrides do not work, have to modify the default instance \
-		/*  https://issues.unrealengine.com/issue/UE-97301                                           \
-		 */                                                                                          \
-		UNiagaraParameterCollectionInstance* _UpdatedParameters = _Collection->GetDefaultInstance();
-
-#if WITH_EDITOR
-#define NIAGARA_UPDATE_HACK_END(_Collection)                             \
-	/** Push the change to anyone already bound. */                      \
-	_Collection->GetDefaultInstance()->GetParameterStore().Tick();       \
-	/** XXX this is necessary to update editor windows using old data */ \
-	_Collection->OnChangedDelegate.Broadcast();                          \
-	}
-#else
-#define NIAGARA_UPDATE_HACK_END()                   \
-	/** Push the change to anyone already bound. */ \
-	_Collection->GetDefaultInstance()->GetParameterStore().Tick();  \
-	}
-#endif
 } // namespace
 
 void UStarSettings::UpdateNiagaraParameters()
@@ -177,14 +153,15 @@ void UStarSettings::UpdateNiagaraParameters()
 		}
 	}
 
-	NIAGARA_UPDATE_HACK_BEGIN(NiagaraParameters->Collection, UpdatedParameters)
-	const bool bOverride = false;
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
-		UpdatedParameters, TEXT("LuminositySamplingCurve"), LogLuminositySamplingCurve, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("AverageLuminosity"), AverageLuminosity, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
-		UpdatedParameters, TEXT("TemperatureSamplingCurve"), TemperatureSamplingCurve, bOverride);
-	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
+	UGalaxyNiagaraFunctionLibrary::ApplyParameterCollectionUpdate(
+		NiagaraParameters, [=](UNiagaraParameterCollectionInstance* UpdatedParameters) {
+			const bool bOverride = false;
+			UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+				UpdatedParameters, TEXT("LuminositySamplingCurve"), LogLuminositySamplingCurve, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("AverageLuminosity"), AverageLuminosity, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+				UpdatedParameters, TEXT("TemperatureSamplingCurve"), TemperatureSamplingCurve, bOverride);
+		});
 }
 
 void UGalaxyShapeSettings::UpdateNiagaraParameters()
@@ -194,19 +171,22 @@ void UGalaxyShapeSettings::UpdateNiagaraParameters()
 		return;
 	}
 
-	NIAGARA_UPDATE_HACK_BEGIN(NiagaraParameters->Collection, UpdatedParameters)
-	const bool bOverride = false;
-	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Radius"), Radius, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Velocity"), Velocity, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Perturbation"), Perturbation, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("WindingFrequency"), WindingFrequency, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("ThicknessCurve"), ThicknessCurve->FloatCurve, bOverride);
+	UGalaxyNiagaraFunctionLibrary::ApplyParameterCollectionUpdate(
+		NiagaraParameters, [=](UNiagaraParameterCollectionInstance* UpdatedParameters) {
+			const bool bOverride = false;
+			UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Radius"), Radius, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Velocity"), Velocity, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("Perturbation"), Perturbation, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetFloatParameter(UpdatedParameters, TEXT("WindingFrequency"), WindingFrequency, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+				UpdatedParameters, TEXT("ThicknessCurve"), ThicknessCurve->FloatCurve, bOverride);
 
-	FRichCurve RadialDensityNormalizedCurve, RadialSamplingCurve;
-	UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(
-		RadialDensityCurve->FloatCurve, RadialDensityNormalizedCurve, RadialSamplingCurve);
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
-		UpdatedParameters, TEXT("RadialDensityCurve"), RadialDensityNormalizedCurve, bOverride);
-	UGalaxyNiagaraFunctionLibrary::SetCurveParameter(UpdatedParameters, TEXT("RadialSamplingCurve"), RadialSamplingCurve, bOverride);
-	NIAGARA_UPDATE_HACK_END(NiagaraParameters->Collection)
+			FRichCurve RadialDensityNormalizedCurve, RadialSamplingCurve;
+			UProbabilityCurveFunctionLibrary::ComputeQuantileRichCurve(
+				RadialDensityCurve->FloatCurve, RadialDensityNormalizedCurve, RadialSamplingCurve);
+			UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+				UpdatedParameters, TEXT("RadialDensityCurve"), RadialDensityNormalizedCurve, bOverride);
+			UGalaxyNiagaraFunctionLibrary::SetCurveParameter(
+				UpdatedParameters, TEXT("RadialSamplingCurve"), RadialSamplingCurve, bOverride);
+		});
 }
