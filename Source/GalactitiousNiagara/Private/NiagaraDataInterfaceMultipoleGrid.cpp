@@ -9,15 +9,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogMultipoleGrid, Log, All);
 
 //------------------------------------------------------------------------------------------------------------
 
-static const FName BuildDistanceFieldName(TEXT("BuildDistanceField"));
-static const FName BuildDensityFieldName(TEXT("BuildDensityField"));
-static const FName SolveGridPressureName(TEXT("SolveGridPressure"));
-static const FName ScaleCellFieldsName(TEXT("ScaleCellFields"));
-static const FName SetSolidBoundaryName(TEXT("SetSolidBoundary"));
-static const FName ComputeBoundaryWeightsName(TEXT("ComputeBoundaryWeights"));
-static const FName GetNodePositionName(TEXT("GetNodePosition"));
-static const FName GetDensityFieldName(TEXT("GetDensityField"));
-static const FName UpdateDeformationGradientName(TEXT("UpdateDeformationGradient"));
+static const FName GetPointPositionName(TEXT("GetPointPosition"));
 
 //------------------------------------------------------------------------------------------------------------
 
@@ -194,6 +186,24 @@ void UNiagaraDataInterfaceMultipoleGrid::PostInitProperties()
 
 void UNiagaraDataInterfaceMultipoleGrid::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
 {
+	OutFunctions.Reserve(OutFunctions.Num() + 1);
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = GetPointPositionName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("GetPointPosition", "Get the position of the simulation point at the given zero based index.");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Value")));
+	}
+
 	//{
 	//	FNiagaraFunctionSignature Sig;
 	//	Sig.Name = BuildVelocityFieldName;

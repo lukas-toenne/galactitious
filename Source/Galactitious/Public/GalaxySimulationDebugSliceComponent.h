@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleTextureFunctionLibrary.h"
 
 #include "Components/StaticMeshComponent.h"
-#include "FastMultipoleSimulation/FastMultipoleTextureFunctionLibrary.h"
 
 #include "GalaxySimulationDebugSliceComponent.generated.h"
 

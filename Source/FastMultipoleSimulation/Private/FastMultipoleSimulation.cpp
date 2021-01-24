@@ -53,6 +53,12 @@ void UFastMultipoleSimulation::Clear()
 	OnSimulationReset.Broadcast(this);
 }
 
+const TArray<FVector>& UFastMultipoleSimulation::GetPositionData() const
+{
+	static const TArray<FVector> DefaultPositions;
+	return Positions ? *Positions : DefaultPositions;
+}
+
 void UFastMultipoleSimulation::BuildPointGrid()
 {
 	//openvdb::points::PointAttributeVector;

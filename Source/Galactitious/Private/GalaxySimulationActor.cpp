@@ -2,11 +2,18 @@
 
 #include "GalaxySimulationActor.h"
 
-#include "FastMultipoleSimulation/FastMultipoleSimulation.h"
+#include "FastMultipoleSimulation.h"
+
+#include "Components/SceneComponent.h"
 
 AGalaxySimulationActor::AGalaxySimulationActor()
 {
 	Simulation = CreateDefaultSubobject<UFastMultipoleSimulation>(TEXT("FMM Simulation"));
+
+	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+	AddOwnedComponent(SceneRootComponent);
+	SetRootComponent(SceneRootComponent);
+	SceneRootComponent->SetMobility(EComponentMobility::Movable);
 }
 
 void AGalaxySimulationActor::BeginPlay()
@@ -30,7 +37,7 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 	OutVelocities.SetNum(NumPoints);
 	for (uint32 i = 0; i < NumPoints; ++i)
 	{
-		float Radius = FMath::Pow(RadiusRng.GetFraction(), 1/3.0f) * Scale;
+		float Radius = FMath::Pow(RadiusRng.GetFraction(), 1 / 3.0f) * Scale;
 
 		float Phi = 2.0f * PI * PhiRng.GetFraction();
 		float CosPhi = FMath::Cos(Phi);
@@ -45,4 +52,3 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 		const FVector V = OutVelocities[i] = FVector::CrossProduct(Omega, P);
 	}
 }
-

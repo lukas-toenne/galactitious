@@ -2,9 +2,8 @@
 
 #include "GalaxySimulationDebugSliceComponent.h"
 
+#include "FastMultipoleSimulation.h"
 #include "GalaxySimulationActor.h"
-
-#include "FastMultipoleSimulation/FastMultipoleSimulation.h"
 
 #include "Async/Async.h"
 #include "Components/StaticMeshComponent.h"
@@ -13,7 +12,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogGravityDebugSlice, Log, All);
 
-UGalaxySimulationDebugSliceComponent::UGalaxySimulationDebugSliceComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+UGalaxySimulationDebugSliceComponent::UGalaxySimulationDebugSliceComponent(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = false;
@@ -46,7 +46,8 @@ void UGalaxySimulationDebugSliceComponent::BeginPlay()
 	}
 }
 
-void UGalaxySimulationDebugSliceComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UGalaxySimulationDebugSliceComponent::TickComponent(
+	float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	if (!PendingTextureData.IsValid())
 	{

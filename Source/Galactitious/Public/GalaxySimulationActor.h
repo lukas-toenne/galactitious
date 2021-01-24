@@ -18,7 +18,7 @@ public:
 
 	virtual void BeginPlay() override;
 
-	UFUNCTION()
+	UFUNCTION(BlueprintGetter)
 	class UFastMultipoleSimulation* GetSimulation() const { return Simulation; }
 
 public:
@@ -32,6 +32,6 @@ protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
 
 private:
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, BlueprintGetter = GetSimulation)
 	class UFastMultipoleSimulation* Simulation;
 };

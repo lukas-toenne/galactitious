@@ -16,7 +16,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipole, Log, All);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationResetDelegate, UFastMultipoleSimulation*, Simulation);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationStepDelegate, UFastMultipoleSimulation*, Simulation);
 
-UCLASS()
+UCLASS(BlueprintType)
 class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulation : public UObject
 {
 	GENERATED_BODY()
@@ -37,6 +37,9 @@ public:
 	void Clear();
 
 	TSharedPtr<PointBuffer> GetPositions() const { return Positions; }
+
+	UFUNCTION(BlueprintCallable)
+	const TArray<FVector>& GetPositionData() const;
 
 	PointDataGridType::Ptr GetPointDataGrid() const { return PointDataGrid; }
 
