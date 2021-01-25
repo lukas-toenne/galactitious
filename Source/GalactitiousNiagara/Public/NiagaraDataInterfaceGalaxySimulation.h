@@ -4,10 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "NiagaraDataInterfaceRW.h"
-#include "NiagaraDataInterfaceMultipoleGrid.generated.h"
+#include "NiagaraDataInterfaceGalaxySimulation.generated.h"
 
-/** Data stored per strand base instance*/
-struct FNDIMultipoleGridData
+/** Data stored per simulation interface instance*/
+struct FNDIGalaxySimulationData
 {
 	/** Initialize the buffers */
 	bool Init(FNiagaraSystemInstance* SystemInstance);
@@ -15,10 +15,10 @@ struct FNDIMultipoleGridData
 	void Release();
 };
 
-/** Data Interface paramaters name */
-struct FNDIMultipoleGridParametersName
+/** Data Interface parameters name */
+struct FNDIGalaxySimulationParametersName
 {
-	FNDIMultipoleGridParametersName(const FString& Suffix);
+	FNDIGalaxySimulationParametersName(const FString& Suffix);
 
 	//FString GridCurrentBufferName;
 	//FString GridDestinationBufferName;
@@ -28,9 +28,9 @@ struct FNDIMultipoleGridParametersName
 	//FString WorldInverseName;
 };
 
-struct FNDIMultipoleGridParametersCS : public FNiagaraDataInterfaceParametersCS
+struct FNDIGalaxySimulationParametersCS : public FNiagaraDataInterfaceParametersCS
 {
-	DECLARE_TYPE_LAYOUT(FNDIMultipoleGridParametersCS, NonVirtual);
+	DECLARE_TYPE_LAYOUT(FNDIGalaxySimulationParametersCS, NonVirtual);
 
 	void Bind(const FNiagaraDataInterfaceGPUParamInfo& ParameterInfo, const class FShaderParameterMap& ParameterMap);
 
@@ -49,7 +49,7 @@ private:
 
 /** Data Interface for accessing a point interaction simulation. */
 UCLASS(EditInlineNew, Category = "Physics", meta = (DisplayName = "Multipole Grid"))
-class GALACTITIOUSNIAGARA_API UNiagaraDataInterfaceMultipoleGrid : public UNiagaraDataInterfaceRWBase
+class GALACTITIOUSNIAGARA_API UNiagaraDataInterfaceGalaxySimulation : public UNiagaraDataInterfaceRWBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -67,7 +67,7 @@ public:
 	virtual bool InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
 	virtual void DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
 	virtual bool PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds) override;
-	virtual int32 PerInstanceDataSize() const override { return sizeof(FNDIMultipoleGridData); }
+	virtual int32 PerInstanceDataSize() const override { return sizeof(FNDIGalaxySimulationData); }
 	virtual bool Equals(const UNiagaraDataInterface* Other) const override;
 
 	/** GPU simulation functionality */
@@ -94,16 +94,21 @@ public:
 	/** Set the grid dimension */
 	void SetGridDimension(FVectorVMContext& Context);
 
+public:
+	/** Simulation targeted by the data interface */
+	UPROPERTY(EditAnywhere)
+	class UGalaxySimulationAsset* Simulation;
+
 protected:
 	/** Copy one niagara DI to this */
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 };
 
 /** Proxy to send data to gpu */
-struct FNDIMultipoleGridProxy : public FNiagaraDataInterfaceProxyRW
+struct FNDIGalaxySimulationProxy : public FNiagaraDataInterfaceProxyRW
 {
 	/** Get the size of the data that will be passed to render*/
-	virtual int32 PerInstanceDataPassedToRenderThreadSize() const override { return sizeof(FNDIMultipoleGridData); }
+	virtual int32 PerInstanceDataPassedToRenderThreadSize() const override { return sizeof(FNDIGalaxySimulationData); }
 
 	/** Get the data that will be passed to render*/
 	virtual void ConsumePerInstanceDataFromGameThread(void* PerInstanceData, const FNiagaraSystemInstanceID& Instance) override;
@@ -121,5 +126,5 @@ struct FNDIMultipoleGridProxy : public FNiagaraDataInterfaceProxyRW
 	virtual FIntVector GetElementCount(FNiagaraSystemInstanceID SystemInstanceID) const override;
 
 	/** List of proxy data for each system instances*/
-	TMap<FNiagaraSystemInstanceID, FNDIMultipoleGridData> SystemInstancesToProxyData;
+	TMap<FNiagaraSystemInstanceID, FNDIGalaxySimulationData> SystemInstancesToProxyData;
 };

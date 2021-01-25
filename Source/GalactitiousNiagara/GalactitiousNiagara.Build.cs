@@ -8,11 +8,18 @@ public class GalactitiousNiagara : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// For boost:: and TBB:: code
+		bUseRTTI = true;
+
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
 			"Engine",
-			"Niagara"
+			"FastMultipoleSimulation",
+			"Galactitious",
+			"GalactitiousOpenVDB",
+			"Niagara",
+			"UEOpenExr"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
