@@ -3,6 +3,7 @@
 #include "NiagaraDataInterfaceGalaxySimulation.h"
 
 #include "FastMultipoleSimulation.h"
+#include "GalaxySimulationAsset.h"
 #include "NiagaraSystemInstance.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraDataInterfaceGalaxySimulation"
@@ -11,15 +12,28 @@ DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulation, Log, All);
 //------------------------------------------------------------------------------------------------------------
 
 static const FName GetPointPositionName(TEXT("GetPointPosition"));
+static const FName GetNumPointsName(TEXT("GetNumPoints"));
 
 //------------------------------------------------------------------------------------------------------------
 
-bool FNDIGalaxySimulationData::Init(FNiagaraSystemInstance* SystemInstance)
+bool FNDIGalaxySimulation_InstanceData::Init(UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance)
 {
+	Simulation = nullptr;
+
+	if (!Interface->SimulationAsset)
+	{
+		UE_LOG(
+			LogGalaxySimulation, Log, TEXT("GalaxySimulation data interface has no valid simulation asset - %s"),
+			*Interface->GetFullName());
+		return false;
+	}
+
+	Simulation = Interface->SimulationAsset->GetSimulation();
+
 	return true;
 }
 
-void FNDIGalaxySimulationData::Release()
+void FNDIGalaxySimulation_InstanceData::Release()
 {
 }
 
@@ -57,7 +71,7 @@ void FNDIGalaxySimulationParametersCS::Set(FRHICommandList& RHICmdList, const FN
 	FRHIComputeShader* ComputeShaderRHI = RHICmdList.GetBoundComputeShader();
 
 	FNDIGalaxySimulationProxy* InterfaceProxy = static_cast<FNDIGalaxySimulationProxy*>(Context.DataInterface);
-	FNDIGalaxySimulationData* ProxyData = InterfaceProxy->SystemInstancesToProxyData.Find(Context.SystemInstanceID);
+	FNDIGalaxySimulation_InstanceData* ProxyData = InterfaceProxy->SystemInstancesToProxyData.Find(Context.SystemInstanceID);
 
 	// if (ProxyData != nullptr && ProxyData->CurrentGridBuffer != nullptr && ProxyData->DestinationGridBuffer != nullptr &&
 	//	ProxyData->CurrentGridBuffer->IsInitialized() && ProxyData->DestinationGridBuffer->IsInitialized())
@@ -98,7 +112,7 @@ IMPLEMENT_NIAGARA_DI_PARAMETER(UNiagaraDataInterfaceGalaxySimulation, FNDIGalaxy
 
 UNiagaraDataInterfaceGalaxySimulation::UNiagaraDataInterfaceGalaxySimulation(FObjectInitializer const& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, Simulation(nullptr)
+	, SimulationAsset(nullptr)
 {
 	Proxy.Reset(new FNDIGalaxySimulationProxy());
 }
@@ -114,18 +128,18 @@ bool UNiagaraDataInterfaceGalaxySimulation::InitPerInstanceData(void* PerInstanc
 	//}
 	// GridSize = ClampedSize;
 
-	FNDIGalaxySimulationData* InstanceData = new (PerInstanceData) FNDIGalaxySimulationData();
+	FNDIGalaxySimulation_InstanceData* InstanceData = new (PerInstanceData) FNDIGalaxySimulation_InstanceData();
 	check(InstanceData);
 
-	return InstanceData->Init(SystemInstance);
+	return InstanceData->Init(this, SystemInstance);
 }
 
 void UNiagaraDataInterfaceGalaxySimulation::DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
-	FNDIGalaxySimulationData* InstanceData = static_cast<FNDIGalaxySimulationData*>(PerInstanceData);
+	FNDIGalaxySimulation_InstanceData* InstanceData = static_cast<FNDIGalaxySimulation_InstanceData*>(PerInstanceData);
 
 	InstanceData->Release();
-	InstanceData->~FNDIGalaxySimulationData();
+	InstanceData->~FNDIGalaxySimulation_InstanceData();
 
 	FNDIGalaxySimulationProxy* ThisProxy = GetProxyAs<FNDIGalaxySimulationProxy>();
 	ENQUEUE_RENDER_COMMAND(FNiagaraDIDestroyInstanceData)
@@ -134,9 +148,10 @@ void UNiagaraDataInterfaceGalaxySimulation::DestroyPerInstanceData(void* PerInst
 	});
 }
 
-bool UNiagaraDataInterfaceGalaxySimulation::PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float InDeltaSeconds)
+bool UNiagaraDataInterfaceGalaxySimulation::PerInstanceTick(
+	void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float InDeltaSeconds)
 {
-	FNDIGalaxySimulationData* InstanceData = static_cast<FNDIGalaxySimulationData*>(PerInstanceData);
+	FNDIGalaxySimulation_InstanceData* InstanceData = static_cast<FNDIGalaxySimulation_InstanceData*>(PerInstanceData);
 
 	bool RequireReset = false;
 	if (InstanceData)
@@ -159,7 +174,7 @@ bool UNiagaraDataInterfaceGalaxySimulation::CopyToInternal(UNiagaraDataInterface
 	}
 
 	UNiagaraDataInterfaceGalaxySimulation* OtherTyped = CastChecked<UNiagaraDataInterfaceGalaxySimulation>(Destination);
-	OtherTyped->Simulation = Simulation;
+	OtherTyped->SimulationAsset = SimulationAsset;
 
 	return true;
 }
@@ -172,7 +187,7 @@ bool UNiagaraDataInterfaceGalaxySimulation::Equals(const UNiagaraDataInterface* 
 	}
 	const UNiagaraDataInterfaceGalaxySimulation* OtherTyped = CastChecked<const UNiagaraDataInterfaceGalaxySimulation>(Other);
 
-	return (OtherTyped->Simulation == Simulation);
+	return (OtherTyped->SimulationAsset == SimulationAsset);
 }
 
 void UNiagaraDataInterfaceGalaxySimulation::PostInitProperties()
@@ -187,7 +202,22 @@ void UNiagaraDataInterfaceGalaxySimulation::PostInitProperties()
 
 void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
 {
-	OutFunctions.Reserve(OutFunctions.Num() + 1);
+	OutFunctions.Reserve(OutFunctions.Num() + 2);
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = GetNumPointsName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("GetNumPoints", "Get the position of the simulation point at the given zero based index.");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Value")));
+	}
 
 	{
 		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
@@ -204,217 +234,71 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Value")));
 	}
-
-	//{
-	//	FNiagaraFunctionSignature Sig;
-	//	Sig.Name = BuildVelocityFieldName;
-	//	Sig.bMemberFunction = true;
-	//	Sig.bRequiresContext = false;
-	//	Sig.bWriteFunction = true;
-	//	Sig.bSupportsGPU = true;
-	//	Sig.bSupportsCPU = false;
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT(" Velocity Grid")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Origin")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Grid Length")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particle Position")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particle Mass")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particle Velocity")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetMatrix4Def(), TEXT("Velocity Gradient")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Function Status")));
-
-	//	OutFunctions.Add(Sig);
-	//}
-	//{
-	//	FNiagaraFunctionSignature Sig;
-	//	Sig.Name = SampleVelocityFieldName;
-	//	Sig.bMemberFunction = true;
-	//	Sig.bRequiresContext = false;
-	//	Sig.bSupportsGPU = true;
-	//	Sig.bSupportsCPU = false;
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT(" Velocity Grid")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Origin")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Grid Length")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particle Position")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Scaled Velocity")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Particle Mass")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Particle Velocity")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetMatrix4Def(), TEXT("Velocity Gradient")));
-
-	//	OutFunctions.Add(Sig);
-	//}
-	//{
-	//	FNiagaraFunctionSignature Sig;
-	//	Sig.Name = ComputeGridSizeName;
-	//	Sig.bMemberFunction = true;
-	//	Sig.bRequiresContext = false;
-	//	Sig.bSupportsGPU = true;
-	//	Sig.bSupportsCPU = false;
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT(" Velocity Grid")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Center")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Extent")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Origin")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Grid Length")));
-
-	//	OutFunctions.Add(Sig);
-	//}
-	//{
-	//	FNiagaraFunctionSignature Sig;
-	//	Sig.Name = UpdateGridTransformName;
-	//	Sig.bMemberFunction = true;
-	//	Sig.bRequiresContext = false;
-	//	Sig.bWriteFunction = true;
-	//	Sig.bSupportsGPU = false;
-	//	Sig.bSupportsCPU = true;
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT(" Velocity Grid")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetMatrix4Def(), TEXT("Grid Transform")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Function Status")));
-
-	//	OutFunctions.Add(Sig);
-	//}
-	//{
-	//	FNiagaraFunctionSignature Sig;
-	//	Sig.Name = SetGridDimensionName;
-	//	Sig.bMemberFunction = true;
-	//	Sig.bRequiresContext = false;
-	//	Sig.bWriteFunction = true;
-	//	Sig.bSupportsGPU = true;
-	//	Sig.bSupportsCPU = true;
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT(" Velocity Grid")));
-	//	Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Grid Dimension")));
-	//	Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Function Status")));
-
-	//	OutFunctions.Add(Sig);
-	//}
 }
 
-// DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, BuildVelocityField);
-// DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, SampleVelocityField);
-// DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ComputeGridSize);
-// DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, UpdateGridTransform);
-// DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, SetGridDimension);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetNumPoints);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetPointPosition);
 
 void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 	const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
-	// if (BindingInfo.Name == BuildVelocityFieldName)
-	//{
-	//	check(BindingInfo.GetNumInputs() == 28 && BindingInfo.GetNumOutputs() == 1);
-	//	NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, BuildVelocityField)::Bind(this, OutFunc);
-	//}
-	// else if (BindingInfo.Name == SampleVelocityFieldName)
-	//{
-	//	check(BindingInfo.GetNumInputs() == 9 && BindingInfo.GetNumOutputs() == 20);
-	//	NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, SampleVelocityField)::Bind(this, OutFunc);
-	//}
-	// else if (BindingInfo.Name == ComputeGridSizeName)
-	//{
-	//	check(BindingInfo.GetNumInputs() == 7 && BindingInfo.GetNumOutputs() == 4);
-	//	NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ComputeGridSize)::Bind(this, OutFunc);
-	//}
-	// else if (BindingInfo.Name == UpdateGridTransformName)
-	//{
-	//	check(BindingInfo.GetNumInputs() == 17 && BindingInfo.GetNumOutputs() == 1);
-	//	NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, UpdateGridTransform)::Bind(this, OutFunc);
-	//}
-	// else if (BindingInfo.Name == SetGridDimensionName)
-	//{
-	//	check(BindingInfo.GetNumInputs() == 4 && BindingInfo.GetNumOutputs() == 1);
-	//	NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, SetGridDimension)::Bind(this, OutFunc);
-	//}
+	if (BindingInfo.Name == GetNumPointsName)
+	{
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetNumPoints)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == GetPointPositionName)
+	{
+		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 1);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetPointPosition)::Bind(this, OutFunc);
+	}
 }
 
-void UNiagaraDataInterfaceGalaxySimulation::BuildVelocityField(FVectorVMContext& Context)
+void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Context)
 {
-	// @todo : implement function for cpu
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulation_InstanceData> InstData(Context);
+	FNDIOutputParam<int32> OutNumPoints(Context);
+
+	UFastMultipoleSimulation* Simulation = InstData->Simulation.Get();
+	if (!Simulation)
+	{
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			OutNumPoints.SetAndAdvance(0);
+		}
+		return;
+	}
+
+	int32 NumPoints = Simulation->GetPositionData().Num();
+	for (int32 i = 0; i < Context.NumInstances; ++i)
+	{
+		OutNumPoints.SetAndAdvance(NumPoints);
+	}
 }
 
-void UNiagaraDataInterfaceGalaxySimulation::SampleVelocityField(FVectorVMContext& Context)
+void UNiagaraDataInterfaceGalaxySimulation::GetPointPosition(FVectorVMContext& Context)
 {
-	// @todo : implement function for cpu
-}
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulation_InstanceData> InstData(Context);
+	FNDIInputParam<int32> InIndex(Context);
+	FNDIOutputParam<FVector> OutPosition(Context);
 
-void UNiagaraDataInterfaceGalaxySimulation::ComputeGridSize(FVectorVMContext& Context)
-{
-	// @todo : implement function for cpu
-}
+	UFastMultipoleSimulation* Simulation = InstData->Simulation.Get();
+	if (!Simulation)
+	{
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			OutPosition.SetAndAdvance(FVector::ZeroVector);
+		}
+		return;
+	}
 
-void UNiagaraDataInterfaceGalaxySimulation::SetGridDimension(FVectorVMContext& Context)
-{
-	// VectorVM::FUserPtrHandler<FNDIGalaxySimulationData> InstData(Context);
-	// VectorVM::FExternalFuncInputHandler<float> GridDimensionX(Context);
-	// VectorVM::FExternalFuncInputHandler<float> GridDimensionY(Context);
-	// VectorVM::FExternalFuncInputHandler<float> GridDimensionZ(Context);
-
-	// VectorVM::FExternalFuncRegisterHandler<bool> OutFunctionStatus(Context);
-
-	// for (int32 InstanceIdx = 0; InstanceIdx < Context.NumInstances; ++InstanceIdx)
-	//{
-	//	FIntVector GridDimension;
-	//	GridDimension.X = *GridDimensionX.GetDestAndAdvance();
-	//	GridDimension.Y = *GridDimensionY.GetDestAndAdvance();
-	//	GridDimension.Z = *GridDimensionZ.GetDestAndAdvance();
-
-	//	InstData->GridSize = GridDimension;
-	//	InstData->NeedResize = true;
-
-	//	*OutFunctionStatus.GetDestAndAdvance() = true;
-	//}
-}
-
-void UNiagaraDataInterfaceGalaxySimulation::UpdateGridTransform(FVectorVMContext& Context)
-{
-	// VectorVM::FUserPtrHandler<FNDIGalaxySimulationData> InstData(Context);
-
-	// VectorVM::FExternalFuncInputHandler<float> Out00(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out01(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out02(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out03(Context);
-
-	// VectorVM::FExternalFuncInputHandler<float> Out10(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out11(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out12(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out13(Context);
-
-	// VectorVM::FExternalFuncInputHandler<float> Out20(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out21(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out22(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out23(Context);
-
-	// VectorVM::FExternalFuncInputHandler<float> Out30(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out31(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out32(Context);
-	// VectorVM::FExternalFuncInputHandler<float> Out33(Context);
-
-	// VectorVM::FExternalFuncRegisterHandler<bool> OutTransformStatus(Context);
-
-	// for (int32 InstanceIdx = 0; InstanceIdx < Context.NumInstances; ++InstanceIdx)
-	//{
-	//	FMatrix Transform;
-	//	Transform.M[0][0] = *Out00.GetDestAndAdvance();
-	//	Transform.M[0][1] = *Out01.GetDestAndAdvance();
-	//	Transform.M[0][2] = *Out02.GetDestAndAdvance();
-	//	Transform.M[0][3] = *Out03.GetDestAndAdvance();
-
-	//	Transform.M[1][0] = *Out10.GetDestAndAdvance();
-	//	Transform.M[1][1] = *Out11.GetDestAndAdvance();
-	//	Transform.M[1][2] = *Out12.GetDestAndAdvance();
-	//	Transform.M[1][3] = *Out13.GetDestAndAdvance();
-
-	//	Transform.M[2][0] = *Out20.GetDestAndAdvance();
-	//	Transform.M[2][1] = *Out21.GetDestAndAdvance();
-	//	Transform.M[2][2] = *Out22.GetDestAndAdvance();
-	//	Transform.M[2][3] = *Out23.GetDestAndAdvance();
-
-	//	Transform.M[3][0] = *Out30.GetDestAndAdvance();
-	//	Transform.M[3][1] = *Out31.GetDestAndAdvance();
-	//	Transform.M[3][2] = *Out32.GetDestAndAdvance();
-	//	Transform.M[3][3] = *Out33.GetDestAndAdvance();
-
-	//	InstData->WorldTransform = Transform;
-	//	InstData->WorldInverse = Transform.Inverse();
-
-	//	*OutTransformStatus.GetDestAndAdvance() = true;
-	//}
+	const TArray<FVector>& Positions = Simulation->GetPositionData();
+	for (int32 i = 0; i < Context.NumInstances; ++i)
+	{
+		int32 Index = InIndex.GetAndAdvance();
+		FVector Position = Positions.IsValidIndex(Index) ? Positions[Index] : FVector::ZeroVector;
+		OutPosition.SetAndAdvance(Position);
+	}
 }
 
 bool UNiagaraDataInterfaceGalaxySimulation::GetFunctionHLSL(
@@ -432,7 +316,7 @@ bool UNiagaraDataInterfaceGalaxySimulation::GetFunctionHLSL(
 	//{
 	//	static const TCHAR* FormatSample = TEXT(R"(
 	//			void {InstanceFunctionName} (in float3 GridOrigin, in float GridLength, in float3 ParticlePosition, in float ParticleMass,
-	//in float3 ParticleVelocity, in float4x4 VelocityGradient, out bool OutFunctionStatus)
+	// in float3 ParticleVelocity, in float4x4 VelocityGradient, out bool OutFunctionStatus)
 	//			{
 	//				{VelocityGridContextName}
 	// DIVelocityGrid_BuildVelocityField(DIContext,GridOrigin,GridLength,ParticlePosition,ParticleMass,ParticleVelocity,VelocityGradient,OutFunctionStatus);
@@ -445,7 +329,7 @@ bool UNiagaraDataInterfaceGalaxySimulation::GetFunctionHLSL(
 	//{
 	//	static const TCHAR* FormatSample = TEXT(R"(
 	//			void {InstanceFunctionName} (in float3 GridOrigin, in float GridLength, in float3 ParticlePosition, in bool ScaledVelocity,
-	//out float OutParticleMass, out float3 OutParticleVelocity, out float4x4 OutVelocityGradient)
+	// out float OutParticleMass, out float3 OutParticleVelocity, out float4x4 OutVelocityGradient)
 	//			{
 	//				{VelocityGridContextName}
 	// DIVelocityGrid_SampleVelocityField(DIContext,GridOrigin,GridLength,ParticlePosition,ScaledVelocity,OutParticleMass,OutParticleVelocity,OutVelocityGradient);
@@ -482,8 +366,8 @@ void UNiagaraDataInterfaceGalaxySimulation::GetParameterDefinitionHLSL(const FNi
 void UNiagaraDataInterfaceGalaxySimulation::ProvidePerInstanceDataForRenderThread(
 	void* DataForRenderThread, void* PerInstanceData, const FNiagaraSystemInstanceID& SystemInstance)
 {
-	FNDIGalaxySimulationData* GameThreadData = static_cast<FNDIGalaxySimulationData*>(PerInstanceData);
-	FNDIGalaxySimulationData* RenderThreadData = static_cast<FNDIGalaxySimulationData*>(DataForRenderThread);
+	FNDIGalaxySimulation_InstanceData* GameThreadData = static_cast<FNDIGalaxySimulation_InstanceData*>(PerInstanceData);
+	FNDIGalaxySimulation_InstanceData* RenderThreadData = static_cast<FNDIGalaxySimulation_InstanceData*>(DataForRenderThread);
 
 	// RenderThreadData->WorldTransform = GameThreadData->WorldTransform;
 	// RenderThreadData->WorldInverse = GameThreadData->WorldInverse;
@@ -572,8 +456,8 @@ void UNiagaraDataInterfaceGalaxySimulation::ProvidePerInstanceDataForRenderThrea
 
 void FNDIGalaxySimulationProxy::ConsumePerInstanceDataFromGameThread(void* PerInstanceData, const FNiagaraSystemInstanceID& Instance)
 {
-	FNDIGalaxySimulationData* SourceData = static_cast<FNDIGalaxySimulationData*>(PerInstanceData);
-	FNDIGalaxySimulationData* TargetData = &(SystemInstancesToProxyData.FindOrAdd(Instance));
+	FNDIGalaxySimulation_InstanceData* SourceData = static_cast<FNDIGalaxySimulation_InstanceData*>(PerInstanceData);
+	FNDIGalaxySimulation_InstanceData* TargetData = &(SystemInstancesToProxyData.FindOrAdd(Instance));
 
 	ensure(TargetData);
 	if (TargetData)
@@ -594,7 +478,7 @@ void FNDIGalaxySimulationProxy::ConsumePerInstanceDataFromGameThread(void* PerIn
 
 void FNDIGalaxySimulationProxy::PreStage(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceStageArgs& Context)
 {
-	FNDIGalaxySimulationData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
+	FNDIGalaxySimulation_InstanceData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
 
 	if (ProxyData != nullptr)
 	{
@@ -613,7 +497,7 @@ void FNDIGalaxySimulationProxy::PreStage(FRHICommandList& RHICmdList, const FNia
 
 void FNDIGalaxySimulationProxy::PostStage(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceStageArgs& Context)
 {
-	FNDIGalaxySimulationData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
+	FNDIGalaxySimulation_InstanceData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
 
 	if (ProxyData != nullptr)
 	{
@@ -627,23 +511,13 @@ void FNDIGalaxySimulationProxy::PostStage(FRHICommandList& RHICmdList, const FNi
 
 void FNDIGalaxySimulationProxy::ResetData(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceArgs& Context)
 {
-	FNDIGalaxySimulationData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
+	FNDIGalaxySimulation_InstanceData* ProxyData = SystemInstancesToProxyData.Find(Context.SystemInstanceID);
 
 	// if (ProxyData != nullptr && ProxyData->DestinationGridBuffer != nullptr && ProxyData->CurrentGridBuffer != nullptr)
 	//{
 	//	ClearBuffer(RHICmdList, ProxyData->DestinationGridBuffer);
 	//	ClearBuffer(RHICmdList, ProxyData->CurrentGridBuffer);
 	//}
-}
-
-// Get the element count for this instance
-FIntVector FNDIGalaxySimulationProxy::GetElementCount(FNiagaraSystemInstanceID SystemInstanceID) const
-{
-	if (const FNDIGalaxySimulationData* ProxyData = SystemInstancesToProxyData.Find(SystemInstanceID))
-	{
-		// return FIntVector(ProxyData->GridSize.X + 1, ProxyData->GridSize.Y + 1, ProxyData->GridSize.Z + 1);
-	}
-	return FIntVector::ZeroValue;
 }
 
 #undef LOCTEXT_NAMESPACE
