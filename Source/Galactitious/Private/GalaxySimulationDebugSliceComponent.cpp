@@ -10,7 +10,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogGravityDebugSlice, Log, All);
+DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationDebugSlice, Log, All);
 
 UGalaxySimulationDebugSliceComponent::UGalaxySimulationDebugSliceComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -36,10 +36,10 @@ void UGalaxySimulationDebugSliceComponent::BeginPlay()
 	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
 	if (SimActor)
 	{
-		if (UFastMultipoleSimulation* Sim = SimActor->GetSimulation())
+		if (UFastMultipoleSimulation* Simulation = SimActor->GetSimulation())
 		{
-			UpdateSliceTexture(Sim);
-			Sim->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
+			UpdateSliceTexture(Simulation);
+			Simulation->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
 		}
 
 		TransformUpdated.AddUObject(this, &UGalaxySimulationDebugSliceComponent::OnTransformUpdated);
