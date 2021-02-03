@@ -2,13 +2,14 @@
 
 #include "GalaxySimulationActor.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 
+#include "Async/Async.h"
 #include "Components/SceneComponent.h"
 
 AGalaxySimulationActor::AGalaxySimulationActor()
 {
-	Simulation = CreateDefaultSubobject<UFastMultipoleSimulation>(TEXT("FMM Simulation"));
+	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
 
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	AddOwnedComponent(SceneRootComponent);
@@ -18,13 +19,32 @@ AGalaxySimulationActor::AGalaxySimulationActor()
 
 void AGalaxySimulationActor::BeginPlay()
 {
+	ThreadRunnable = MakeUnique<FFastMultipoleSimulationThreadRunnable>();
+
 	Super::BeginPlay();
 
-	TSharedPtr<TArray<FVector>> Positions = MakeShared<TArray<FVector>>();
-	TSharedPtr<TArray<FVector>> Velocities = MakeShared<TArray<FVector>>();
-	DistributePoints(NumStars, *Positions, *Velocities);
+	TArray<FVector> Positions;
+	TArray<FVector> Velocities;
+	DistributePoints(NumStars, Positions, Velocities);
+	SimulationCache->Reset(Positions, Velocities);
+}
 
-	Simulation->Reset(Positions);
+void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	ThreadRunnable.Reset();
+}
+
+void AGalaxySimulationActor::StartSimulation()
+{
+	if (!ThreadRunnable->IsRunning())
+	{
+		ThreadRunnable->Launch();
+	}
+}
+
+void AGalaxySimulationActor::StopSimulation()
+{
+	ThreadRunnable->Stop();
 }
 
 void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const
@@ -43,8 +63,8 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 		float CosPhi = FMath::Cos(Phi);
 		float SinPhi = FMath::Sin(Phi);
 
-		float CosTheta = 2.0f * ThetaRng.GetFraction() - 1.0f;
-		float SinTheta = FMath::Sqrt(FMath::Max(1.0f - CosTheta * CosTheta, 0.0f));
+		float SinTheta = 2.0f * ThetaRng.GetFraction() - 1.0f;
+		float CosTheta = FMath::Sqrt(FMath::Max(1.0f - SinTheta * SinTheta, 0.0f));
 
 		const FVector P = OutPositions[i] = FVector(CosPhi * CosTheta, SinPhi * CosTheta, SinTheta) * Radius;
 

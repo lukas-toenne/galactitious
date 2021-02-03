@@ -27,5 +27,5 @@ public:
 	using FAsyncTextureDataPtr = TSharedPtr<FAsyncTextureData, ESPMode::ThreadSafe>;
 
 	static void BakeSliceTextureAsync(
-		FAsyncTextureDataPtr TextureData, const FTransform& TextureToWorld, const class UFastMultipoleSimulation* Simulation);
+		FAsyncTextureDataPtr TextureData, const FTransform& TextureToWorld, const class UFastMultipoleSimulationCache* SimulationCache);
 };

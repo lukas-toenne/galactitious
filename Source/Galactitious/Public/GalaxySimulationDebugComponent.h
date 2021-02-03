@@ -8,6 +8,8 @@
 
 #include "GalaxySimulationDebugComponent.generated.h"
 
+class UFastMultipoleSimulationCache;
+
 UCLASS(meta = (BlueprintSpawnableComponent))
 class GALACTITIOUS_API UGalaxySimulationDebugComponent : public UActorComponent
 {
@@ -26,9 +28,9 @@ public:
 
 protected:
 	UFUNCTION()
-	void OnSimulationReset(class UFastMultipoleSimulation* Simulation);
+	void OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache);
 	UFUNCTION()
-	void OnSimulationStep(class UFastMultipoleSimulation* Simulation);
+	void OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache);
 
-	void LogPoints(const class UFastMultipoleSimulation* Simulation) const;
+	void LogPoints(const UFastMultipoleSimulationCache* SimulationCache) const;
 };

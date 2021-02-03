@@ -18,7 +18,7 @@ static const FName GetNumPointsName(TEXT("GetNumPoints"));
 
 bool FNDIGalaxySimulation_InstanceData::Init(UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance)
 {
-	Simulation = nullptr;
+	SimulationCache = nullptr;
 
 	if (!Interface->SimulationAsset)
 	{
@@ -28,7 +28,7 @@ bool FNDIGalaxySimulation_InstanceData::Init(UNiagaraDataInterfaceGalaxySimulati
 		return false;
 	}
 
-	Simulation = Interface->SimulationAsset->GetSimulation();
+	SimulationCache = Interface->SimulationAsset->GetSimulationCache();
 
 	return true;
 }
@@ -259,8 +259,9 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulation_InstanceData> InstData(Context);
 	FNDIOutputParam<int32> OutNumPoints(Context);
 
-	UFastMultipoleSimulation* Simulation = InstData->Simulation.Get();
-	if (!Simulation)
+	UFastMultipoleSimulationCache* SimulationCache = InstData->SimulationCache.Get();
+	FFastMultipoleSimulationFramePtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
+	if (!Frame)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
 		{
@@ -269,7 +270,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 		return;
 	}
 
-	int32 NumPoints = Simulation->GetPositionData().Num();
+	int32 NumPoints = Frame->Positions.Num();
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		OutNumPoints.SetAndAdvance(NumPoints);
@@ -282,8 +283,9 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointPosition(FVectorVMContext& C
 	FNDIInputParam<int32> InIndex(Context);
 	FNDIOutputParam<FVector> OutPosition(Context);
 
-	UFastMultipoleSimulation* Simulation = InstData->Simulation.Get();
-	if (!Simulation)
+	UFastMultipoleSimulationCache* SimulationCache = InstData->SimulationCache.Get();
+	FFastMultipoleSimulationFramePtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
+	if (!Frame)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
 		{
@@ -292,7 +294,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointPosition(FVectorVMContext& C
 		return;
 	}
 
-	const TArray<FVector>& Positions = Simulation->GetPositionData();
+	const TArray<FVector>& Positions = Frame->Positions;
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		int32 Index = InIndex.GetAndAdvance();

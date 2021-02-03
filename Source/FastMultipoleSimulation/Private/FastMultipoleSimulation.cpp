@@ -2,6 +2,7 @@
 
 #include "FastMultipoleSimulation.h"
 
+#include "FastMultipoleSimulationCache.h"
 #include "OpenVDBConvert.h"
 
 #include "FastMultipoleOpenVDBGuardEnter.h"
@@ -32,38 +33,35 @@ private:
 	const openvdb::Index mStride;
 }; // PointAttributeVector
 
-UFastMultipoleSimulation::UFastMultipoleSimulation()
+void FFastMultipoleSimulation::Init()
 {
 	openvdb::initialize();
 }
 
-void UFastMultipoleSimulation::Reset(const TSharedPtr<PointBuffer>& InPositions)
+void FFastMultipoleSimulation::Shutdown()
 {
-	Positions = InPositions;
-
-	BuildPointGrid();
-
-	OnSimulationReset.Broadcast(this);
 }
 
-void UFastMultipoleSimulation::Clear()
+void FFastMultipoleSimulation::ComputeForces()
 {
-	Positions.Reset();
 
-	OnSimulationReset.Broadcast(this);
 }
 
-const TArray<FVector>& UFastMultipoleSimulation::GetPositionData() const
+void FFastMultipoleSimulation::IntegratePositions(float DeltaTime)
 {
-	static const TArray<FVector> DefaultPositions;
-	return Positions ? *Positions : DefaultPositions;
+
 }
 
-void UFastMultipoleSimulation::BuildPointGrid()
+void FFastMultipoleSimulation::ComputeForcesDirect()
+{
+
+}
+
+void FFastMultipoleSimulation::BuildPointGrid(const TArray<FVector>& Positions, PointDataGridType::Ptr& PointDataGrid)
 {
 	//openvdb::points::PointAttributeVector;
 
-	PointAttributeVectorArray PositionsWrapper(*Positions);
+	PointAttributeVectorArray PositionsWrapper(Positions);
 
 	int PointsPerVoxel = 4;
 	float VoxelSize = openvdb::points::computeVoxelSize(PositionsWrapper, PointsPerVoxel);
@@ -76,7 +74,7 @@ void UFastMultipoleSimulation::BuildPointGrid()
 	PointDataGrid->setName("Points");
 }
 
-void UFastMultipoleSimulation::ClearPointGrid()
+void FFastMultipoleSimulation::ClearPointGrid()
 {
 
 }

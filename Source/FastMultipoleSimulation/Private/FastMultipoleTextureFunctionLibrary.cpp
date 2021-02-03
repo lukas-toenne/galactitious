@@ -2,7 +2,7 @@
 
 #include "FastMultipoleTextureFunctionLibrary.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 #include "OpenVDBConvert.h"
 
 #include "Async/Async.h"
@@ -16,7 +16,7 @@ namespace
 	template <class SamplerType>
 	void BakeMassTextureData(
 		UFastMultipoleTextureFunctionLibrary::FAsyncTextureData* TextureData, const FTransform& TextureToWorld,
-		const UFastMultipoleSimulation::PointDataGridType& Grid)
+		const FastMultipole::PointDataGridType& Grid)
 	{
 		using SamplerType = openvdb::tools::GridSampler<GridType, openvdb::tools::PointSampler>;
 
@@ -61,7 +61,7 @@ namespace
 
 	void BakePointsTextureData(
 		UFastMultipoleTextureFunctionLibrary::FAsyncTextureData* TextureData, const FTransform& TextureToWorld,
-		const UFastMultipoleSimulation::PointDataGridType& Grid)
+		const FastMultipole::PointDataGridType& Grid)
 	{
 		if (TextureData->bStopRequested)
 		{
@@ -115,22 +115,25 @@ namespace
 
 void UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(
 	UFastMultipoleTextureFunctionLibrary::FAsyncTextureDataPtr TextureData, const FTransform& TextureToWorld,
-	const UFastMultipoleSimulation* Simulation)
+	const UFastMultipoleSimulationCache* SimulationCache)
 {
-	using GridType = UFastMultipoleSimulation::PointDataGridType;
+	using GridType = FastMultipole::PointDataGridType;
 
 	if (TextureData->bStopRequested)
 	{
 		return;
 	}
 
-	GridType::Ptr Grid = Simulation->GetPointDataGrid();
-	if (!Grid)
+	if (FFastMultipoleSimulationFramePtr Frame = SimulationCache->GetLastFrame())
 	{
-		return;
-	}
+		GridType::Ptr Grid = Frame->PointDataGrid;
+		if (!Grid)
+		{
+			return;
+		}
 
-	Async(EAsyncExecution::ThreadPool, [TextureData, TextureToWorld, Grid]() {
-		BakePointsTextureData(TextureData.Get(), TextureToWorld, *Grid);
-	});
+		Async(EAsyncExecution::ThreadPool, [TextureData, TextureToWorld, Grid]() {
+			BakePointsTextureData(TextureData.Get(), TextureToWorld, *Grid);
+		});
+	}
 }

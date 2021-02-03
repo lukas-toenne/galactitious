@@ -3,10 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleSimulationThreadRunnable.h"
 
+#include "Containers/Queue.h"
 #include "GameFramework/Actor.h"
 
 #include "GalaxySimulationActor.generated.h"
+
+class UFastMultipoleSimulationCache;
 
 UCLASS(BlueprintType)
 class GALACTITIOUS_API AGalaxySimulationActor : public AActor
@@ -17,9 +21,16 @@ public:
 	AGalaxySimulationActor();
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	UFUNCTION(BlueprintGetter)
-	class UFastMultipoleSimulation* GetSimulation() const { return Simulation; }
+	UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
+
+	UFUNCTION(BlueprintCallable)
+	void StartSimulation();
+
+	UFUNCTION(BlueprintCallable)
+	void StopSimulation();
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -32,6 +43,9 @@ protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
 
 private:
-	UPROPERTY(Transient, BlueprintGetter = GetSimulation)
-	class UFastMultipoleSimulation* Simulation;
+	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache)
+	UFastMultipoleSimulationCache* SimulationCache;
+
+	/** Thread that runs the simulation. */
+	class TUniquePtr<struct FFastMultipoleSimulationThreadRunnable> ThreadRunnable;
 };

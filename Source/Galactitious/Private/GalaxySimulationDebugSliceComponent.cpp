@@ -2,7 +2,7 @@
 
 #include "GalaxySimulationDebugSliceComponent.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 #include "GalaxySimulationActor.h"
 
 #include "Async/Async.h"
@@ -36,10 +36,10 @@ void UGalaxySimulationDebugSliceComponent::BeginPlay()
 	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
 	if (SimActor)
 	{
-		if (UFastMultipoleSimulation* Simulation = SimActor->GetSimulation())
+		if (UFastMultipoleSimulationCache* SimulationCache = SimActor->GetSimulationCache())
 		{
-			UpdateSliceTexture(Simulation);
-			Simulation->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
+			UpdateSliceTexture(SimulationCache);
+			SimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
 		}
 
 		TransformUpdated.AddUObject(this, &UGalaxySimulationDebugSliceComponent::OnTransformUpdated);
@@ -94,9 +94,9 @@ void UGalaxySimulationDebugSliceComponent::InitSliceTexture(
 	}
 }
 
-void UGalaxySimulationDebugSliceComponent::UpdateSliceTexture(const class UFastMultipoleSimulation* Simulation)
+void UGalaxySimulationDebugSliceComponent::UpdateSliceTexture(const class UFastMultipoleSimulationCache* SimulationCache)
 {
-	if (!SliceTexture || !Simulation)
+	if (!SliceTexture || !SimulationCache)
 	{
 		return;
 	}
@@ -115,17 +115,17 @@ void UGalaxySimulationDebugSliceComponent::UpdateSliceTexture(const class UFastM
 	PendingTextureData->SourceFormat = TSF_BGRA8;
 	SetComponentTickEnabled(true);
 
-	UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(PendingTextureData, MeshToWorld, Simulation);
+	UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(PendingTextureData, MeshToWorld, SimulationCache);
 }
 
-void UGalaxySimulationDebugSliceComponent::OnSimulationReset(class UFastMultipoleSimulation* Simulation)
+void UGalaxySimulationDebugSliceComponent::OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache)
 {
-	UpdateSliceTexture(Simulation);
+	UpdateSliceTexture(SimulationCache);
 }
 
-void UGalaxySimulationDebugSliceComponent::OnSimulationStep(class UFastMultipoleSimulation* Simulation)
+void UGalaxySimulationDebugSliceComponent::OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache)
 {
-	UpdateSliceTexture(Simulation);
+	UpdateSliceTexture(SimulationCache);
 }
 
 void UGalaxySimulationDebugSliceComponent::OnTransformUpdated(
@@ -134,6 +134,6 @@ void UGalaxySimulationDebugSliceComponent::OnTransformUpdated(
 	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
 	if (SimActor)
 	{
-		UpdateSliceTexture(SimActor->GetSimulation());
+		UpdateSliceTexture(SimActor->GetSimulationCache());
 	}
 }

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 #include "NiagaraDataInterface.h"
 
 #include "NiagaraDataInterfaceGalaxySimulation.generated.h"
@@ -17,7 +17,7 @@ struct FNDIGalaxySimulation_InstanceData
 	void Release();
 
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
-	TWeakObjectPtr<UFastMultipoleSimulation> Simulation;
+	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCache;
 };
 
 /** Data Interface parameters name */

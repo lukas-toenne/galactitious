@@ -6,7 +6,7 @@
 
 #include "GalaxySimulationAsset.generated.h"
 
-class UFastMultipoleSimulation;
+class UFastMultipoleSimulationCache;
 
 UCLASS(BlueprintType, NotBlueprintable, AutoExpandCategories = "Fast Multipole Simulation")
 class GALACTITIOUS_API UGalaxySimulationAsset : public UObject
@@ -14,9 +14,9 @@ class GALACTITIOUS_API UGalaxySimulationAsset : public UObject
 	GENERATED_BODY()
 
 public:
-	void SetSimulation(UFastMultipoleSimulation* InSimulation);
-	const UFastMultipoleSimulation* GetSimulation() const { return Simulation; }
-	UFastMultipoleSimulation* GetSimulation() { return Simulation; }
+	void SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache);
+	const UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
+	UFastMultipoleSimulationCache* GetSimulationCache() { return SimulationCache; }
 
 	virtual void BeginDestroy() override;
 #if WITH_EDITOR
@@ -30,9 +30,9 @@ public:
 
 private:
 #if WITH_EDITOR
-	void OnSimulationReset(UFastMultipoleSimulation* InSimulation);
-	void OnSimulationStep(UFastMultipoleSimulation* InSimulation);
-	void RegisterOnUpdateSimulation(UFastMultipoleSimulation* InSimulation, bool bRegister);
+	void OnSimulationReset(UFastMultipoleSimulationCache* InSimulation);
+	void OnSimulationStep(UFastMultipoleSimulationCache* InSimulation);
+	void RegisterOnUpdateSimulation(UFastMultipoleSimulationCache* InSimulation, bool bRegister);
 #endif // WITH_EDITOR
 
 public:
@@ -45,5 +45,5 @@ public:
 
 private:
 	UPROPERTY(EditAnywhere, Instanced)
-	UFastMultipoleSimulation* Simulation = nullptr;
+	UFastMultipoleSimulationCache* SimulationCache = nullptr;
 };

@@ -2,7 +2,7 @@
 
 #include "GalaxySimulationDebugComponent.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 #include "GalaxySimulationActor.h"
 
 #include "VisualLogger/VisualLogger.h"
@@ -22,10 +22,10 @@ void UGalaxySimulationDebugComponent::BeginPlay()
 	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
 	if (SimActor)
 	{
-		if (UFastMultipoleSimulation* Simulation = SimActor->GetSimulation())
+		if (UFastMultipoleSimulationCache* SimulationCache = SimActor->GetSimulationCache())
 		{
-			LogPoints(Simulation);
-			Simulation->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugComponent::OnSimulationReset);
+			LogPoints(SimulationCache);
+			SimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugComponent::OnSimulationReset);
 		}
 	}
 }
@@ -34,26 +34,29 @@ void UGalaxySimulationDebugComponent::TickComponent(float DeltaTime, enum ELevel
 {
 }
 
-void UGalaxySimulationDebugComponent::OnSimulationReset(UFastMultipoleSimulation* Simulation)
+void UGalaxySimulationDebugComponent::OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache)
 {
-	LogPoints(Simulation);
+	LogPoints(SimulationCache);
 }
 
-void UGalaxySimulationDebugComponent::OnSimulationStep(UFastMultipoleSimulation* Simulation)
+void UGalaxySimulationDebugComponent::OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache)
 {
-	LogPoints(Simulation);
+	LogPoints(SimulationCache);
 }
 
-void UGalaxySimulationDebugComponent::LogPoints(const UFastMultipoleSimulation* Simulation) const
+void UGalaxySimulationDebugComponent::LogPoints(const UFastMultipoleSimulationCache* SimulationCache) const
 {
-	check(Simulation);
+	check(SimulationCache);
 
 #if ENABLE_VISUAL_LOG
-	const TArray<FVector> Positions = Simulation->GetPositionData();
-	for (int32 i = 0; i < Positions.Num(); ++i)
+	if (FFastMultipoleSimulationFramePtr Frame = SimulationCache->GetLastFrame())
 	{
-		const FVector& Point = Positions[i];
-		UE_VLOG_LOCATION(this, LogGalaxySimulationDebug_Points, Log, Point, 1.0f, PointColor, TEXT(""));
+		const TArray<FVector>& Positions = Frame->Positions;
+		for (int32 i = 0; i < Positions.Num(); ++i)
+		{
+			const FVector& Point = Positions[i];
+			UE_VLOG_LOCATION(this, LogGalaxySimulationDebug_Points, Log, Point, 1.0f, PointColor, TEXT(""));
+		}
 	}
 #endif
 }

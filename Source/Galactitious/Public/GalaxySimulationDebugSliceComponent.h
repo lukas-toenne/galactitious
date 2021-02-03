@@ -9,6 +9,8 @@
 
 #include "GalaxySimulationDebugSliceComponent.generated.h"
 
+class UFastMultipoleSimulationCache;
+
 UCLASS(meta = (BlueprintSpawnableComponent))
 class GALACTITIOUS_API UGalaxySimulationDebugSliceComponent : public UStaticMeshComponent
 {
@@ -27,12 +29,12 @@ public:
 protected:
 	void InitSliceTexture(
 		int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings);
-	void UpdateSliceTexture(const class UFastMultipoleSimulation* Simulation);
+	void UpdateSliceTexture(const UFastMultipoleSimulationCache* SimulationCache);
 
 	UFUNCTION()
-	void OnSimulationReset(class UFastMultipoleSimulation* Simulation);
+	void OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache);
 	UFUNCTION()
-	void OnSimulationStep(class UFastMultipoleSimulation* Simulation);
+	void OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache);
 	void OnTransformUpdated(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
 private:

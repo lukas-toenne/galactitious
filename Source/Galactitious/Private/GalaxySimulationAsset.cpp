@@ -2,20 +2,20 @@
 
 #include "GalaxySimulationAsset.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 
-void UGalaxySimulationAsset::SetSimulation(UFastMultipoleSimulation* InSimulation)
+void UGalaxySimulationAsset::SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache)
 {
-	if (InSimulation != Simulation)
+	if (InSimulationCache != SimulationCache)
 	{
 #if WITH_EDITOR
-		RegisterOnUpdateSimulation(Simulation, /*bRegister = */ false);
+		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
 #endif // WITH_EDITOR
 
-		Simulation = InSimulation;
+		SimulationCache = InSimulationCache;
 
 #if WITH_EDITOR
-		RegisterOnUpdateSimulation(Simulation, /*bRegister = */ true);
+		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
 		OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::ValueSet);
 #endif // WITH_EDITOR
 	}
@@ -26,7 +26,7 @@ void UGalaxySimulationAsset::BeginDestroy()
 	Super::BeginDestroy();
 
 #if WITH_EDITOR
-	RegisterOnUpdateSimulation(Simulation, /*bRegister = */ false);
+	RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
 #endif // WITH_EDITOR
 }
 
@@ -35,14 +35,14 @@ void UGalaxySimulationAsset::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
 	Super::PostDuplicate(DuplicateMode);
 
-	RegisterOnUpdateSimulation(Simulation, /*bRegister = */ true);
+	RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
 }
 
 void UGalaxySimulationAsset::PostLoad()
 {
 	Super::PostLoad();
 
-	RegisterOnUpdateSimulation(Simulation, /*bRegister = */ true);
+	RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
 }
 
 void UGalaxySimulationAsset::PreEditUndo()
@@ -50,7 +50,7 @@ void UGalaxySimulationAsset::PreEditUndo()
 	Super::PreEditUndo();
 
 	// On undo, when PreEditChange is called, PropertyAboutToChange is nullptr so we need to unregister from the previous object here :
-	RegisterOnUpdateSimulation(Simulation, /*bRegister = */ false);
+	RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
 }
 
 void UGalaxySimulationAsset::PostEditUndo()
@@ -58,7 +58,7 @@ void UGalaxySimulationAsset::PostEditUndo()
 	Super::PostEditUndo();
 
 	// On undo, when PostEditChangeProperty is called, PropertyChangedEvent is fake so we need to register to the new object here :
-	RegisterOnUpdateSimulation(Simulation, /*bRegister = */ true);
+	RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
 }
 
 void UGalaxySimulationAsset::PreEditChange(FProperty* PropertyAboutToChange)
@@ -66,9 +66,9 @@ void UGalaxySimulationAsset::PreEditChange(FProperty* PropertyAboutToChange)
 	Super::PreEditChange(PropertyAboutToChange);
 
 	const FName PropertyName = PropertyAboutToChange ? PropertyAboutToChange->GetFName() : NAME_None;
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UGalaxySimulationAsset, Simulation))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UGalaxySimulationAsset, SimulationCache))
 	{
-		RegisterOnUpdateSimulation(Simulation, /*bRegister = */ false);
+		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
 	}
 }
 
@@ -76,39 +76,39 @@ void UGalaxySimulationAsset::PostEditChangeProperty(FPropertyChangedEvent& Prope
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UGalaxySimulationAsset, Simulation))
+	if (PropertyChangedEvent.GetPropertyName() == GET_MEMBER_NAME_CHECKED(UGalaxySimulationAsset, SimulationCache))
 	{
-		RegisterOnUpdateSimulation(Simulation, /*bRegister = */ true);
+		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
 	}
 
 	OnUpdateSimulationAssetData.Broadcast(this, PropertyChangedEvent.ChangeType);
 }
 
-void UGalaxySimulationAsset::OnSimulationReset(UFastMultipoleSimulation* InSimulation)
+void UGalaxySimulationAsset::OnSimulationReset(UFastMultipoleSimulationCache* InSimulationCache)
 {
 	// There was a data change on our internal data, just forward the event :
 	OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::Unspecified);
 }
 
-void UGalaxySimulationAsset::OnSimulationStep(UFastMultipoleSimulation* InSimulation)
+void UGalaxySimulationAsset::OnSimulationStep(UFastMultipoleSimulationCache* InSimulationCache)
 {
 	// There was a data change on our internal data, just forward the event :
 	OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::Unspecified);
 }
 
-void UGalaxySimulationAsset::RegisterOnUpdateSimulation(UFastMultipoleSimulation* InSimulation, bool bRegister)
+void UGalaxySimulationAsset::RegisterOnUpdateSimulation(UFastMultipoleSimulationCache* InSimulationCache, bool bRegister)
 {
-	if (InSimulation != nullptr)
+	if (InSimulationCache != nullptr)
 	{
 		if (bRegister)
 		{
-			InSimulation->OnSimulationReset.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationReset);
-			InSimulation->OnSimulationStep.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationStep);
+			InSimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationReset);
+			InSimulationCache->OnSimulationStep.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationStep);
 		}
 		else
 		{
-			InSimulation->OnSimulationReset.RemoveAll(this);
-			InSimulation->OnSimulationStep.RemoveAll(this);
+			InSimulationCache->OnSimulationReset.RemoveAll(this);
+			InSimulationCache->OnSimulationStep.RemoveAll(this);
 		}
 	}
 }
