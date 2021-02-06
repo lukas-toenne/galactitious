@@ -3,13 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleSimulation.h"
 
-#include "Containers/Queue.h"
+#include "Containers/CircularQueue.h"
 
-struct FASTMULTIPOLESIMULATION_API FGalaxySimulationStepResult
-{
-	int32 StepIndex;
-};
+class UFastMultipoleSimulationCache;
 
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationThreadRunnable : public FRunnable
 {
@@ -17,25 +15,42 @@ public:
 	FFastMultipoleSimulationThreadRunnable();
 	virtual ~FFastMultipoleSimulationThreadRunnable();
 
-	void Launch();
+	int32 GetMaxCompletedSteps() const { return MaxCompletedSteps; }
+	void SetMaxCompletedSteps(int32 MaxCompletedSteps);
 
+	void LaunchThread();
+	void StopThread();
 	inline bool IsRunning() { return bIsRunning; }
 
-	virtual void Stop() override;
+	void StartSimulation(
+		UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities,
+		float DeltaTime);
+	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
 	// FRunnable interface.
 	virtual bool Init() override;
 	virtual void Exit() override;
 	virtual uint32 Run() override;
+	virtual void Stop() override;
 
 private:
-	float DeltaTime;
-	TQueue<FGalaxySimulationStepResult> CompletedSteps;
+	TUniquePtr<class FFastMultipoleSimulation> Simulation;
+
+	// Maximum number of steps that can be computed in advance.
+	int32 MaxCompletedSteps;
+	// Queue of completed simulation steps.
+	// When capacity is reached completed steps need to be consumed by calling PopCompletedStep
+	// for the simulation to continue.
+	TQueue<FFastMultipoleSimulationStepResult> CompletedSteps;
+	FThreadSafeCounter CompletedStepsCount;
 
 	TUniquePtr<FRunnableThread> Thread;
-	TUniquePtr<FQueuedThreadPool> WorkerThreadPool;
+	// TUniquePtr<FQueuedThreadPool> WorkerThreadPool;
 
-	volatile bool bIsRunning;
-	volatile bool bStopRequested;
+	FThreadSafeBool bIsRunning;
+	FThreadSafeBool bStopRequested;
+
+	/** Event signalling that simulation can continue. */
+	FEvent* WorkEvent;
 };

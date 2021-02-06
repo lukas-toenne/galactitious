@@ -5,40 +5,30 @@
 #define LOCTEXT_NAMESPACE "FastMultipole"
 DEFINE_LOG_CATEGORY(LogFastMultipoleSimulationCache)
 
+FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame()
+{
+}
+
+FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities)
+{
+	if (Positions.Num() != Velocities.Num())
+	{
+		UE_LOG(
+			LogFastMultipoleSimulationCache, Error, TEXT("Input arrays must have same size (positions: %d, velocities: %d)"),
+			Positions.Num(), Velocities.Num());
+		return;
+	}
+
+	Positions = MoveTemp(Positions);
+	Velocities = MoveTemp(Velocities);
+}
+
 UFastMultipoleSimulationCache::UFastMultipoleSimulationCache()
 {
 }
 
 UFastMultipoleSimulationCache::~UFastMultipoleSimulationCache()
 {
-}
-
-void UFastMultipoleSimulationCache::Reset(TArray<FVector>& InInitialPositions, TArray<FVector>& InInitialVelocities)
-{
-	FRWScopeLock Lock(FramesMutex, SLT_Write);
-
-	Frames.SetNum(1);
-
-	if (InInitialPositions.Num() != InInitialVelocities.Num())
-	{
-		UE_LOG(
-			LogFastMultipoleSimulationCache, Error, TEXT("Input arrays must have same size (positions: %d, velocities: %d)"),
-			InInitialPositions.Num(), InInitialVelocities.Num());
-		return;
-	}
-
-	Frames[0] = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
-	Frames[0]->Positions = MoveTemp(InInitialPositions);
-	Frames[0]->Velocities = MoveTemp(InInitialVelocities);
-
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[&]() { OnSimulationReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
-}
-
-void UFastMultipoleSimulationCache::Clear()
-{
-	FRWScopeLock Lock(FramesMutex, SLT_Write);
-	Frames.Empty();
 }
 
 int32 UFastMultipoleSimulationCache::GetNumFrames() const
@@ -65,6 +55,30 @@ FFastMultipoleSimulationFramePtr UFastMultipoleSimulationCache::GetLastFrame() c
 		return Frames.Last();
 	}
 	return nullptr;
+}
+
+void UFastMultipoleSimulationCache::Reset()
+{
+	{
+		FRWScopeLock Lock(FramesMutex, SLT_Write);
+		Frames.Empty();
+	}
+
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[&]() { OnSimulationReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+}
+
+bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFramePtr& InFrame)
+{
+	{
+		FRWScopeLock Lock(FramesMutex, SLT_Write);
+		Frames.Add(InFrame);
+	}
+
+	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
+		[&]() { OnSimulationStep.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

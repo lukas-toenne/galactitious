@@ -22,29 +22,32 @@ void AGalaxySimulationActor::BeginPlay()
 	ThreadRunnable = MakeUnique<FFastMultipoleSimulationThreadRunnable>();
 
 	Super::BeginPlay();
-
-	TArray<FVector> Positions;
-	TArray<FVector> Velocities;
-	DistributePoints(NumStars, Positions, Velocities);
-	SimulationCache->Reset(Positions, Velocities);
 }
 
 void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	StopSimulation();
 	ThreadRunnable.Reset();
 }
 
 void AGalaxySimulationActor::StartSimulation()
 {
-	if (!ThreadRunnable->IsRunning())
+	if (ThreadRunnable->IsRunning())
 	{
-		ThreadRunnable->Launch();
+		ThreadRunnable->StopThread();
 	}
+
+	ThreadRunnable->LaunchThread();
+
+	TArray<FVector> Positions;
+	TArray<FVector> Velocities;
+	DistributePoints(NumStars, Positions, Velocities);
+	ThreadRunnable->StartSimulation(SimulationCache, Positions, Velocities, 1.0f);
 }
 
 void AGalaxySimulationActor::StopSimulation()
 {
-	ThreadRunnable->Stop();
+	ThreadRunnable->StopThread();
 }
 
 void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const

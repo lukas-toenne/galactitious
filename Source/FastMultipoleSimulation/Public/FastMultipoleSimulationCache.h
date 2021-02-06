@@ -22,7 +22,12 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 {
 	GENERATED_BODY()
 
-public:
+	FFastMultipoleSimulationFrame();
+	FFastMultipoleSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities);
+	FFastMultipoleSimulationFrame(const FFastMultipoleSimulationFrame& Other) = default;
+
+	FFastMultipoleSimulationFrame& operator=(const FFastMultipoleSimulationFrame& Other) = default;
+
 	float DeltaTime;
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
@@ -42,13 +47,13 @@ public:
 	UFastMultipoleSimulationCache();
 	virtual ~UFastMultipoleSimulationCache();
 
-	void Reset(TArray<FVector>& InInitialPositions, TArray<FVector>& InInitialVelocities);
-	void Clear();
-
 	int32 GetNumFrames() const;
 
 	FFastMultipoleSimulationFramePtr GetFrame(int32 Step) const;
 	FFastMultipoleSimulationFramePtr GetLastFrame() const;
+
+	void Reset();
+	bool AddFrame(const FFastMultipoleSimulationFramePtr& InFrame);
 
 public:
 	UPROPERTY(BlueprintAssignable)

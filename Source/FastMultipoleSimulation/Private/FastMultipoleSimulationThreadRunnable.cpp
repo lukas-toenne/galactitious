@@ -2,21 +2,65 @@
 
 #include "FastMultipoleSimulationThreadRunnable.h"
 
-#include "FastMultipoleSimulation.h"
+#include "FastMultipoleSimulationCache.h"
 
 #include "Async/Async.h"
 
-FFastMultipoleSimulationThreadRunnable::FFastMultipoleSimulationThreadRunnable() : bIsRunning(false), bStopRequested(false)
+DEFINE_LOG_CATEGORY_STATIC(LogFastMultipoleThread, Log, All);
+
+FFastMultipoleSimulationThreadRunnable::FFastMultipoleSimulationThreadRunnable()
+	: Simulation(nullptr)
+	, MaxCompletedSteps(3)
+	, bIsRunning(false)
+	, bStopRequested(false)
 {
+	WorkEvent = FPlatformProcess::GetSynchEventFromPool();
+	check(WorkEvent != nullptr);
 }
 
 FFastMultipoleSimulationThreadRunnable::~FFastMultipoleSimulationThreadRunnable()
 {
+	FPlatformProcess::ReturnSynchEventToPool(WorkEvent);
+	WorkEvent = nullptr;
+}
+
+void FFastMultipoleSimulationThreadRunnable::SetMaxCompletedSteps(int32 InMaxCompletedSteps)
+{
+	check(!bIsRunning);
+	MaxCompletedSteps = InMaxCompletedSteps;
+
+	int32 Count = CompletedStepsCount.GetValue();
+	if (Count < MaxCompletedSteps)
+	{
+		WorkEvent->Trigger();
+	}
+	else if (Count > MaxCompletedSteps)
+	{
+		UE_LOG(LogFastMultipoleThread, Warning, TEXT("Completed steps count %d exceeds new max. count %d"), Count, MaxCompletedSteps);
+	}
+}
+
+bool FFastMultipoleSimulationThreadRunnable::PopCompletedStep(FFastMultipoleSimulationStepResult& Result)
+{
+	if (CompletedSteps.Dequeue(Result))
+	{
+		int32 Count = CompletedStepsCount.Decrement();
+
+		if (Count < MaxCompletedSteps)
+		{
+			WorkEvent->Trigger();
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 void FFastMultipoleSimulationThreadRunnable::Stop()
 {
 	bStopRequested = true;
+	WorkEvent->Trigger();
 }
 
 bool FFastMultipoleSimulationThreadRunnable::Init()
@@ -42,11 +86,15 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FFastMultipoleSimulationThreadRunnable::Run)
 
+	while (!Simulation)
+	{
+		WorkEvent->Wait();
+	}
+
+	LoopStart:
 	while (!bStopRequested)
 	{
-		//// LIFO build order, since meshes actually visible in a map are typically loaded last
-		//FAsyncDistanceFieldTask* Task = AsyncQueue.TaskQueue.Pop();
-
+#if 0
 		FQueuedThreadPool* ThreadPool = nullptr;
 
 #if WITH_EDITOR
@@ -67,14 +115,28 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 
 			//AsyncQueue.Build(Task, *ThreadPool);
 		}
+#endif
+
+		if (CompletedStepsCount.GetValue() >= MaxCompletedSteps)
+		{
+			WorkEvent->Wait();
+			goto LoopStart;
+		}
+
+		FFastMultipoleSimulationStepResult Result;
+		if (Simulation->Step(bStopRequested, Result))
+		{
+			CompletedSteps.Enqueue(Result);
+			CompletedStepsCount.Increment();
+		}
 	}
 
-	WorkerThreadPool = nullptr;
+	// WorkerThreadPool = nullptr;
 
 	return 0;
 }
 
-void FFastMultipoleSimulationThreadRunnable::Launch()
+void FFastMultipoleSimulationThreadRunnable::LaunchThread()
 {
 	check(!bIsRunning);
 
@@ -88,4 +150,24 @@ void FFastMultipoleSimulationThreadRunnable::Launch()
 
 	// Set this now before exiting so that IsRunning() returns true without having to wait on the thread to be completely started.
 	bIsRunning = true;
+}
+
+void FFastMultipoleSimulationThreadRunnable::StopThread()
+{
+	if (bIsRunning)
+	{
+		// Calling Reset will call Kill which in turn will call Stop and set bStopRequested to true.
+		Thread.Reset();
+	}
+
+	Simulation.Reset();
+}
+
+void FFastMultipoleSimulationThreadRunnable::StartSimulation(
+	UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities, float DeltaTime)
+{
+	Simulation = MakeUnique<FFastMultipoleSimulation>(SimulationCache, DeltaTime);
+	Simulation->Reset(InitialPositions, InitialVelocities);
+
+	WorkEvent->Trigger();
 }
