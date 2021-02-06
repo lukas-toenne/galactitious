@@ -39,7 +39,8 @@ void UGalaxySimulationDebugSliceComponent::BeginPlay()
 		if (UFastMultipoleSimulationCache* SimulationCache = SimActor->GetSimulationCache())
 		{
 			UpdateSliceTexture(SimulationCache);
-			SimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnSimulationReset);
+			SimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnCacheReset);
+			SimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationDebugSliceComponent::OnCacheFrameAdded);
 		}
 
 		TransformUpdated.AddUObject(this, &UGalaxySimulationDebugSliceComponent::OnTransformUpdated);
@@ -118,12 +119,12 @@ void UGalaxySimulationDebugSliceComponent::UpdateSliceTexture(const class UFastM
 	UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(PendingTextureData, MeshToWorld, SimulationCache);
 }
 
-void UGalaxySimulationDebugSliceComponent::OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache)
+void UGalaxySimulationDebugSliceComponent::OnCacheReset(UFastMultipoleSimulationCache* SimulationCache)
 {
 	UpdateSliceTexture(SimulationCache);
 }
 
-void UGalaxySimulationDebugSliceComponent::OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache)
+void UGalaxySimulationDebugSliceComponent::OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache)
 {
 	UpdateSliceTexture(SimulationCache);
 }

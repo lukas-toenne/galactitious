@@ -28,9 +28,9 @@ public:
 
 protected:
 	UFUNCTION()
-	void OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache);
+	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
 	UFUNCTION()
-	void OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache);
+	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
 
 	void LogPoints(const UFastMultipoleSimulationCache* SimulationCache) const;
 };

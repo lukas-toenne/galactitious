@@ -30,8 +30,8 @@ public:
 
 private:
 #if WITH_EDITOR
-	void OnSimulationReset(UFastMultipoleSimulationCache* InSimulation);
-	void OnSimulationStep(UFastMultipoleSimulationCache* InSimulation);
+	void OnCacheReset(UFastMultipoleSimulationCache* InSimulation);
+	void OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulation);
 	void RegisterOnUpdateSimulation(UFastMultipoleSimulationCache* InSimulation, bool bRegister);
 #endif // WITH_EDITOR
 

@@ -77,6 +77,8 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float Delta
 	ComputeForces();
 	IntegratePositions(DeltaTime);
 
+	FPlatformProcess::Sleep(2.0f);
+
 	CurrentFrame = NextFrame;
 	NextFrame.Reset();
 	++StepIndex;
@@ -97,6 +99,20 @@ void FFastMultipoleSimulation::IntegratePositions(float DeltaTime)
 	check(NextFrame);
 
 	NextFrame->DeltaTime = DeltaTime;
+
+	const TArray<FVector>& Positions = CurrentFrame->Positions;
+	const TArray<FVector>& Velocities = CurrentFrame->Velocities;
+	TArray<FVector>& NewPositions = NextFrame->Positions;
+	TArray<FVector>& NewVelocities = NextFrame->Velocities;
+
+	const int32 NumPoints = Positions.Num();
+	check(NextFrame->Positions.Num() == NumPoints);
+
+	for (int32 i = 0; i < NumPoints; ++i)
+	{
+		NewPositions[i] = Positions[i] + Velocities[i] * DeltaTime;
+		NewVelocities[i] = Velocities[i];
+	}
 }
 
 void FFastMultipoleSimulation::ComputeForcesDirect()

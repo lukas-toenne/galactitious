@@ -32,9 +32,9 @@ protected:
 	void UpdateSliceTexture(const UFastMultipoleSimulationCache* SimulationCache);
 
 	UFUNCTION()
-	void OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache);
+	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
 	UFUNCTION()
-	void OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache);
+	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
 	void OnTransformUpdated(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
 private:

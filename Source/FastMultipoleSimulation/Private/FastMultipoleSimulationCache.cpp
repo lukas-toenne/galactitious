@@ -47,7 +47,7 @@ void UFastMultipoleSimulationCache::Reset()
 	}
 
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[&]() { OnSimulationReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+		[&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
 }
 
 bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFramePtr& InFrame)
@@ -58,7 +58,7 @@ bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFrame
 	}
 
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[&]() { OnSimulationStep.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+		[&]() { OnFrameAdded.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
 
 	return true;
 }

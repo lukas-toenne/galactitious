@@ -84,13 +84,13 @@ void UGalaxySimulationAsset::PostEditChangeProperty(FPropertyChangedEvent& Prope
 	OnUpdateSimulationAssetData.Broadcast(this, PropertyChangedEvent.ChangeType);
 }
 
-void UGalaxySimulationAsset::OnSimulationReset(UFastMultipoleSimulationCache* InSimulationCache)
+void UGalaxySimulationAsset::OnCacheReset(UFastMultipoleSimulationCache* InSimulationCache)
 {
 	// There was a data change on our internal data, just forward the event :
 	OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::Unspecified);
 }
 
-void UGalaxySimulationAsset::OnSimulationStep(UFastMultipoleSimulationCache* InSimulationCache)
+void UGalaxySimulationAsset::OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulationCache)
 {
 	// There was a data change on our internal data, just forward the event :
 	OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::Unspecified);
@@ -102,13 +102,13 @@ void UGalaxySimulationAsset::RegisterOnUpdateSimulation(UFastMultipoleSimulation
 	{
 		if (bRegister)
 		{
-			InSimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationReset);
-			InSimulationCache->OnSimulationStep.AddDynamic(this, &UGalaxySimulationAsset::OnSimulationStep);
+			InSimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationAsset::OnCacheReset);
+			InSimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationAsset::OnCacheFrameAdded);
 		}
 		else
 		{
-			InSimulationCache->OnSimulationReset.RemoveAll(this);
-			InSimulationCache->OnSimulationStep.RemoveAll(this);
+			InSimulationCache->OnReset.RemoveAll(this);
+			InSimulationCache->OnFrameAdded.RemoveAll(this);
 		}
 	}
 }

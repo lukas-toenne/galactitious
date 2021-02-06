@@ -7,6 +7,7 @@
 
 #include "VisualLogger/VisualLogger.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationDebug, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationDebug_Points, Log, All);
 
 UGalaxySimulationDebugComponent::UGalaxySimulationDebugComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -24,8 +25,8 @@ void UGalaxySimulationDebugComponent::BeginPlay()
 	{
 		if (UFastMultipoleSimulationCache* SimulationCache = SimActor->GetSimulationCache())
 		{
-			LogPoints(SimulationCache);
-			SimulationCache->OnSimulationReset.AddDynamic(this, &UGalaxySimulationDebugComponent::OnSimulationReset);
+			SimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationDebugComponent::OnCacheReset);
+			SimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationDebugComponent::OnCacheFrameAdded);
 		}
 	}
 }
@@ -34,13 +35,14 @@ void UGalaxySimulationDebugComponent::TickComponent(float DeltaTime, enum ELevel
 {
 }
 
-void UGalaxySimulationDebugComponent::OnSimulationReset(UFastMultipoleSimulationCache* SimulationCache)
+void UGalaxySimulationDebugComponent::OnCacheReset(UFastMultipoleSimulationCache* SimulationCache)
 {
-	LogPoints(SimulationCache);
+	UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Cache Reset"));
 }
 
-void UGalaxySimulationDebugComponent::OnSimulationStep(UFastMultipoleSimulationCache* SimulationCache)
+void UGalaxySimulationDebugComponent::OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache)
 {
+	UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Cache Frame Added"));
 	LogPoints(SimulationCache);
 }
 

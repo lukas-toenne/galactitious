@@ -9,18 +9,17 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame()
 {
 }
 
-FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities)
+FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& InPositions, TArray<FVector>& InVelocities)
+	: Positions(MoveTemp(InPositions))
+	, Velocities(MoveTemp(InVelocities))
 {
-	if (Positions.Num() != Velocities.Num())
+	if (InPositions.Num() != InVelocities.Num())
 	{
 		UE_LOG(
 			LogFastMultipoleSimulationFrame, Error, TEXT("Input arrays must have same size (positions: %d, velocities: %d)"),
-			Positions.Num(), Velocities.Num());
+			InPositions.Num(), InVelocities.Num());
 		return;
 	}
-
-	Positions = MoveTemp(Positions);
-	Velocities = MoveTemp(Velocities);
 }
 
 #undef LOCTEXT_NAMESPACE

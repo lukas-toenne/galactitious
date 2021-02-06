@@ -3,20 +3,21 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleOpenVDBGuardEnter.h"
+#include "FastMultipoleOpenVDBGuardLeave.h"
 #include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleTypes.h"
 
-#include "FastMultipoleOpenVDBGuardEnter.h"
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
-#include "FastMultipoleOpenVDBGuardLeave.h"
 
 #include "FastMultipoleSimulationCache.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipoleSimulationCache, Log, All);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationCacheResetDelegate, UFastMultipoleSimulationCache*, SimulationCache);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationCacheStepDelegate, UFastMultipoleSimulationCache*, SimulationCache);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FFastMultipoleSimulationCacheFrameAddedDelegate, UFastMultipoleSimulationCache*, SimulationCache);
 
 UCLASS(BlueprintType)
 class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulationCache : public UObject
@@ -37,10 +38,10 @@ public:
 
 public:
 	UPROPERTY(BlueprintAssignable)
-	FFastMultipoleSimulationCacheResetDelegate OnSimulationReset;
+	FFastMultipoleSimulationCacheResetDelegate OnReset;
 
 	UPROPERTY(BlueprintAssignable)
-	FFastMultipoleSimulationCacheStepDelegate OnSimulationStep;
+	FFastMultipoleSimulationCacheFrameAddedDelegate OnFrameAdded;
 
 private:
 	TArray<FFastMultipoleSimulationFramePtr> Frames;
