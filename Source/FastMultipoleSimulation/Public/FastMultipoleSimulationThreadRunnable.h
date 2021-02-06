@@ -36,6 +36,7 @@ protected:
 
 private:
 	TUniquePtr<class FFastMultipoleSimulation> Simulation;
+	float DeltaTime;
 
 	// Maximum number of steps that can be computed in advance.
 	int32 MaxCompletedSteps;

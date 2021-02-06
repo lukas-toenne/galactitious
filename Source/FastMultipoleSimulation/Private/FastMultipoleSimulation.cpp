@@ -41,9 +41,8 @@ void FFastMultipoleSimulation::Shutdown()
 {
 }
 
-FFastMultipoleSimulation::FFastMultipoleSimulation(UFastMultipoleSimulationCache* InSimulationCache, float InDeltaTime)
-	: DeltaTime(InDeltaTime)
-	, StepIndex(-1)
+FFastMultipoleSimulation::FFastMultipoleSimulation(UFastMultipoleSimulationCache* InSimulationCache)
+	: StepIndex(-1)
 	, SimulationCache(InSimulationCache)
 {
 	check(SimulationCache);
@@ -80,7 +79,7 @@ void FFastMultipoleSimulation::ResetToCache()
 	NextFrame.Reset();
 }
 
-bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, FFastMultipoleSimulationStepResult& Result)
+bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result)
 {
 	Result.StepIndex = StepIndex;
 
@@ -96,10 +95,10 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, FFastMultip
 		return false;
 	}
 
-	NextFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
+	NextFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(*CurrentFrame);
 
 	ComputeForces();
-	IntegratePositions();
+	IntegratePositions(DeltaTime);
 
 	SimulationCache->AddFrame(NextFrame);
 
@@ -117,7 +116,7 @@ void FFastMultipoleSimulation::ComputeForces()
 	check(NextFrame);
 }
 
-void FFastMultipoleSimulation::IntegratePositions()
+void FFastMultipoleSimulation::IntegratePositions(float DeltaTime)
 {
 	check(CurrentFrame);
 	check(NextFrame);

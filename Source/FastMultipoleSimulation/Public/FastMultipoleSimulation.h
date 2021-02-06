@@ -30,17 +30,17 @@ public:
 	static void Init();
 	static void Shutdown();
 
-	FFastMultipoleSimulation(UFastMultipoleSimulationCache* SimulationCache, float DeltaTime);
+	FFastMultipoleSimulation(UFastMultipoleSimulationCache* SimulationCache);
 	~FFastMultipoleSimulation();
 
 	void Reset(TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities);
 	void ResetToCache();
-	bool Step(FThreadSafeBool& bStopRequested, FFastMultipoleSimulationStepResult& Result);
+	bool Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result);
 
 protected:
 
 	void ComputeForces();
-	void IntegratePositions();
+	void IntegratePositions(float DeltaTime);
 
 	void BuildPointGrid(const TArray<FVector>& Positions, PointDataGridType::Ptr& PointDataGrid);
 	void ClearPointGrid();
@@ -51,7 +51,6 @@ protected:
 	void ComputeForcesDirect();
 
 private:
-	float DeltaTime;
 	int32 StepIndex;
 	UFastMultipoleSimulationCache* SimulationCache;
 

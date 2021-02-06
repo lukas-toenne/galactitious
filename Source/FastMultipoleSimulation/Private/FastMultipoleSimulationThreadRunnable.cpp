@@ -10,6 +10,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogFastMultipoleThread, Log, All);
 
 FFastMultipoleSimulationThreadRunnable::FFastMultipoleSimulationThreadRunnable()
 	: Simulation(nullptr)
+	, DeltaTime(0.0f)
 	, MaxCompletedSteps(3)
 	, bIsRunning(false)
 	, bStopRequested(false)
@@ -124,7 +125,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		}
 
 		FFastMultipoleSimulationStepResult Result;
-		if (Simulation->Step(bStopRequested, Result))
+		if (Simulation->Step(bStopRequested, DeltaTime, Result))
 		{
 			CompletedSteps.Enqueue(Result);
 			CompletedStepsCount.Increment();
@@ -164,10 +165,12 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 }
 
 void FFastMultipoleSimulationThreadRunnable::StartSimulation(
-	UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities, float DeltaTime)
+	UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities, float InDeltaTime)
 {
-	Simulation = MakeUnique<FFastMultipoleSimulation>(SimulationCache, DeltaTime);
+	Simulation = MakeUnique<FFastMultipoleSimulation>(SimulationCache);
 	Simulation->Reset(InitialPositions, InitialVelocities);
+
+	DeltaTime = InDeltaTime;
 
 	WorkEvent->Trigger();
 }
