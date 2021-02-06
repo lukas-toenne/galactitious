@@ -5,24 +5,6 @@
 #define LOCTEXT_NAMESPACE "FastMultipole"
 DEFINE_LOG_CATEGORY(LogFastMultipoleSimulationCache)
 
-FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame()
-{
-}
-
-FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities)
-{
-	if (Positions.Num() != Velocities.Num())
-	{
-		UE_LOG(
-			LogFastMultipoleSimulationCache, Error, TEXT("Input arrays must have same size (positions: %d, velocities: %d)"),
-			Positions.Num(), Velocities.Num());
-		return;
-	}
-
-	Positions = MoveTemp(Positions);
-	Velocities = MoveTemp(Velocities);
-}
-
 UFastMultipoleSimulationCache::UFastMultipoleSimulationCache()
 {
 }

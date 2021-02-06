@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FastMultipoleTypes.h"
-#include "FastMultipoleSimulationCache.h"
+#include "FastMultipoleSimulationFrame.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipole, Log, All);
 
@@ -30,12 +30,13 @@ public:
 	static void Init();
 	static void Shutdown();
 
-	FFastMultipoleSimulation(UFastMultipoleSimulationCache* SimulationCache);
+	FFastMultipoleSimulation();
 	~FFastMultipoleSimulation();
 
-	void Reset(TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities);
-	void ResetToCache();
+	void Reset(FFastMultipoleSimulationFramePtr Frame, int32 StepIndex);
 	bool Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result);
+
+	FFastMultipoleSimulationFramePtr GetCurrentFrame() const { return CurrentFrame; }
 
 protected:
 
@@ -51,9 +52,8 @@ protected:
 	void ComputeForcesDirect();
 
 private:
-	int32 StepIndex;
-	UFastMultipoleSimulationCache* SimulationCache;
-
 	FFastMultipoleSimulationFramePtr CurrentFrame;
 	FFastMultipoleSimulationFramePtr NextFrame;
+
+	int32 StepIndex;
 };

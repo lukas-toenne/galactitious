@@ -23,8 +23,7 @@ public:
 	inline bool IsRunning() { return bIsRunning; }
 
 	void StartSimulation(
-		UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities,
-		float DeltaTime);
+		UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFramePtr StartFrame, int32 StepIndex, float DeltaTime);
 	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
@@ -37,6 +36,8 @@ protected:
 private:
 	TUniquePtr<class FFastMultipoleSimulation> Simulation;
 	float DeltaTime;
+
+	UFastMultipoleSimulationCache* SimulationCache;
 
 	// Maximum number of steps that can be computed in advance.
 	int32 MaxCompletedSteps;

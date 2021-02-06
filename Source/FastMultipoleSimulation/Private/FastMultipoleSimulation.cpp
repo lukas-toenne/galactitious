@@ -41,42 +41,19 @@ void FFastMultipoleSimulation::Shutdown()
 {
 }
 
-FFastMultipoleSimulation::FFastMultipoleSimulation(UFastMultipoleSimulationCache* InSimulationCache)
-	: StepIndex(-1)
-	, SimulationCache(InSimulationCache)
+FFastMultipoleSimulation::FFastMultipoleSimulation() : StepIndex(-1)
 {
-	check(SimulationCache);
 }
 
 FFastMultipoleSimulation::~FFastMultipoleSimulation()
 {
 }
 
-void FFastMultipoleSimulation::Reset(TArray<FVector>& InInitialPositions, TArray<FVector>& InInitialVelocities)
+void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFramePtr InFrame, int32 InStepIndex)
 {
-	CurrentFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(InInitialPositions, InInitialVelocities);
-
-	SimulationCache->Reset();
-	SimulationCache->AddFrame(CurrentFrame);
-	StepIndex = 0;
+	CurrentFrame = InFrame;
 	NextFrame.Reset();
-}
-
-void FFastMultipoleSimulation::ResetToCache()
-{
-	if (SimulationCache->GetNumFrames() > 0)
-	{
-		CurrentFrame = SimulationCache->GetLastFrame();
-		StepIndex = SimulationCache->GetNumFrames() - 1;
-	}
-	else
-	{
-		UE_LOG(LogFastMultipole, Warning, TEXT("Simulation cache empty, initialization failed"));
-		CurrentFrame.Reset();
-		StepIndex = -1;
-	}
-
-	NextFrame.Reset();
+	StepIndex = InStepIndex;
 }
 
 bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result)
@@ -99,8 +76,6 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float Delta
 
 	ComputeForces();
 	IntegratePositions(DeltaTime);
-
-	SimulationCache->AddFrame(NextFrame);
 
 	CurrentFrame = NextFrame;
 	NextFrame.Reset();

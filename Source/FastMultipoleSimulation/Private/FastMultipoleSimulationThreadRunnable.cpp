@@ -92,7 +92,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		WorkEvent->Wait();
 	}
 
-	LoopStart:
+LoopStart:
 	while (!bStopRequested)
 	{
 #if 0
@@ -129,6 +129,8 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		{
 			CompletedSteps.Enqueue(Result);
 			CompletedStepsCount.Increment();
+
+			SimulationCache->AddFrame(Simulation->GetCurrentFrame());
 		}
 	}
 
@@ -164,13 +166,17 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 	Simulation.Reset();
 }
 
-void FFastMultipoleSimulationThreadRunnable::StartSimulation(
-	UFastMultipoleSimulationCache* SimulationCache, TArray<FVector>& InitialPositions, TArray<FVector>& InitialVelocities, float InDeltaTime)
+void FFastMultipoleSimulationThreadRunnable::StartSimulation(UFastMultipoleSimulationCache* InSimulationCache, FFastMultipoleSimulationFramePtr InStartFrame, int32 InStepIndex,
+	float InDeltaTime)
 {
-	Simulation = MakeUnique<FFastMultipoleSimulation>(SimulationCache);
-	Simulation->Reset(InitialPositions, InitialVelocities);
-
+	SimulationCache = InSimulationCache;
 	DeltaTime = InDeltaTime;
+
+	SimulationCache->Reset();
+	SimulationCache->AddFrame(InStartFrame);
+
+	Simulation = MakeUnique<FFastMultipoleSimulation>();
+	Simulation->Reset(InStartFrame, 0);
 
 	WorkEvent->Trigger();
 }

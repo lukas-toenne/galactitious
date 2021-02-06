@@ -7,6 +7,8 @@
 #include "Async/Async.h"
 #include "Components/SceneComponent.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationActor, Log, All);
+
 AGalaxySimulationActor::AGalaxySimulationActor()
 {
 	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
@@ -30,7 +32,7 @@ void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	ThreadRunnable.Reset();
 }
 
-void AGalaxySimulationActor::StartSimulation()
+void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMode)
 {
 	if (ThreadRunnable->IsRunning())
 	{
@@ -39,10 +41,37 @@ void AGalaxySimulationActor::StartSimulation()
 
 	ThreadRunnable->LaunchThread();
 
-	TArray<FVector> Positions;
-	TArray<FVector> Velocities;
-	DistributePoints(NumStars, Positions, Velocities);
-	ThreadRunnable->StartSimulation(SimulationCache, Positions, Velocities, 1.0f);
+	FFastMultipoleSimulationFramePtr StartFrame = nullptr;
+	int32 StepIndex = -1;
+	switch (StartMode)
+	{
+	case EGalaxySimulationStartMode::DistributeStars:
+	{
+		TArray<FVector> Positions;
+		TArray<FVector> Velocities;
+		DistributePoints(NumStars, Positions, Velocities);
+		StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(Positions, Velocities);
+		StepIndex = 0;
+		break;
+	}
+
+	case EGalaxySimulationStartMode::ContinueCache:
+		if (SimulationCache->GetNumFrames() > 0)
+		{
+			StartFrame = SimulationCache->GetLastFrame();
+			StepIndex = SimulationCache->GetNumFrames() - 1;
+		}
+		else
+		{
+			UE_LOG(LogGalaxySimulationActor, Warning, TEXT("Simulation cache empty, initialization failed"));
+		}
+		break;
+	}
+
+	if (StartFrame)
+	{
+		ThreadRunnable->StartSimulation(SimulationCache, StartFrame, 0, 1.0f);
+	}
 }
 
 void AGalaxySimulationActor::StopSimulation()

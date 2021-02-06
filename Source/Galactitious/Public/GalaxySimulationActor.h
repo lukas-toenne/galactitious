@@ -12,6 +12,13 @@
 
 class UFastMultipoleSimulationCache;
 
+UENUM(BlueprintType)
+enum EGalaxySimulationStartMode
+{
+	DistributeStars,
+	ContinueCache,
+};
+
 UCLASS(BlueprintType)
 class GALACTITIOUS_API AGalaxySimulationActor : public AActor
 {
@@ -27,7 +34,7 @@ public:
 	UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
 
 	UFUNCTION(BlueprintCallable)
-	void StartSimulation();
+	void StartSimulation(EGalaxySimulationStartMode StartMode);
 
 	UFUNCTION(BlueprintCallable)
 	void StopSimulation();
