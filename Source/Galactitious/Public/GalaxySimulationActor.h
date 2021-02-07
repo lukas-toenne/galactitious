@@ -19,6 +19,9 @@ enum EGalaxySimulationStartMode
 	ContinueCache,
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FGalaxySimulationStartedDelegate, AGalaxySimulationActor*, SimulationActor);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FGalaxySimulationStoppedDelegate, AGalaxySimulationActor*, SimulationActor);
+
 UCLASS(BlueprintType)
 class GALACTITIOUS_API AGalaxySimulationActor : public AActor
 {
@@ -45,6 +48,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Scale = 100.0f;
+
+	UPROPERTY(BlueprintAssignable)
+	FGalaxySimulationStartedDelegate OnSimulationStarted;
+
+	UPROPERTY(BlueprintAssignable)
+	FGalaxySimulationStoppedDelegate OnSimulationStopped;
 
 protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;

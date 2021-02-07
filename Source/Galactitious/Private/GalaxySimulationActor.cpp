@@ -41,6 +41,8 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 	ThreadRunnable->LaunchThread();
 
+	OnSimulationStarted.Broadcast(this);
+
 	FFastMultipoleSimulationFramePtr StartFrame = nullptr;
 	int32 StepIndex = -1;
 	switch (StartMode)
@@ -76,6 +78,8 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 void AGalaxySimulationActor::StopSimulation()
 {
+	OnSimulationStopped.Broadcast(this);
+
 	ThreadRunnable->StopThread();
 }
 
