@@ -294,7 +294,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointPosition(FVectorVMContext& C
 		return;
 	}
 
-	const TArray<FVector>& Positions = Frame->Positions;
+	const TArray<FVector>& Positions = Frame->GetPositions();
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		int32 Index = InIndex.GetAndAdvance();

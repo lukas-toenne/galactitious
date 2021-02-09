@@ -22,9 +22,48 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& In
 	}
 }
 
+void FFastMultipoleSimulationFrame::SetDeltaTime(float InDeltaTime)
+{
+	DeltaTime = InDeltaTime;
+}
+
 int32 FFastMultipoleSimulationFrame::GetNumPoints() const
 {
 	return Positions.Num();
+}
+
+void FFastMultipoleSimulationFrame::SetNumPoints(int32 NumPoints)
+{
+	Positions.SetNumUninitialized(NumPoints);
+	Velocities.SetNumUninitialized(NumPoints);
+	Forces.SetNumUninitialized(NumPoints);
+}
+
+void FFastMultipoleSimulationFrame::Empty()
+{
+	Positions.Empty();
+	Velocities.Empty();
+	Forces.Empty();
+}
+
+void FFastMultipoleSimulationFrame::SetPoint(int32 Index, const FVector& InPosition, const FVector& InVelocity, const FVector& InForce)
+{
+	check(Index < Positions.Num());
+	Positions[Index] = InPosition;
+	Velocities[Index] = InVelocity;
+	Forces[Index] = InForce;
+}
+
+void FFastMultipoleSimulationFrame::SetForce(int32 Index, const FVector& InForce)
+{
+	check(Index < Positions.Num());
+	Forces[Index] = InForce;
+}
+
+void FFastMultipoleSimulationFrame::AddForce(int32 Index, const FVector& InForce)
+{
+	check(Index < Positions.Num());
+	Forces[Index] += InForce;
 }
 
 #undef LOCTEXT_NAMESPACE

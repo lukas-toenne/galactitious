@@ -26,7 +26,22 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 	FFastMultipoleSimulationFrame& operator=(const FFastMultipoleSimulationFrame& Other) = default;
 
 	int32 GetNumPoints() const;
+	void SetNumPoints(int32 NumPoints);
+	void Empty();
 
+	float GetDeltaTime() const { return DeltaTime; }
+	void SetDeltaTime(float InDeltaTime);
+
+	TArray<FVector> GetPositions() const { return Positions; }
+	TArray<FVector> GetVelocities() const { return Velocities; }
+	TArray<FVector> GetForces() const { return Forces; }
+	FastMultipole::PointDataGridType::Ptr GetPointDataGrid() const { return PointDataGrid; }
+
+	void SetPoint(int32 Index, const FVector& InPosition, const FVector& InVelocity, const FVector& InForce = FVector::ZeroVector);
+	void SetForce(int32 Index, const FVector& InForce);
+	void AddForce(int32 Index, const FVector& InForce);
+
+private:
 	float DeltaTime;
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;

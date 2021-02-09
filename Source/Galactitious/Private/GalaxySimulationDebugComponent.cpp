@@ -90,9 +90,7 @@ void FGalaxySimulationSequencer::UpdateResultFrame(const UFastMultipoleSimulatio
 {
 	if (!SimulationCache)
 	{
-		ResultFrame.Positions.Empty();
-		ResultFrame.Velocities.Empty();
-		ResultFrame.Forces.Empty();
+		ResultFrame.Empty();
 		return;
 	}
 
@@ -100,46 +98,38 @@ void FGalaxySimulationSequencer::UpdateResultFrame(const UFastMultipoleSimulatio
 	GetFrameInterval(SimulationCache, StartFrame, EndFrame);
 	if (StartFrame)
 	{
-		const TArray<FVector>& PosBegin = StartFrame->Positions;
-		const TArray<FVector>& VelBegin = StartFrame->Velocities;
-		const TArray<FVector>& ForceBegin = StartFrame->Forces;
+		const TArray<FVector>& PosBegin = StartFrame->GetPositions();
+		const TArray<FVector>& VelBegin = StartFrame->GetVelocities();
+		const TArray<FVector>& ForceBegin = StartFrame->GetForces();
 
 		if (EndFrame)
 		{
-			const TArray<FVector>& PosEnd = EndFrame->Positions;
-			const TArray<FVector>& VelEnd = EndFrame->Velocities;
-			const TArray<FVector>& ForceEnd = EndFrame->Forces;
+			const TArray<FVector>& PosEnd = EndFrame->GetPositions();
+			const TArray<FVector>& VelEnd = EndFrame->GetVelocities();
+			const TArray<FVector>& ForceEnd = EndFrame->GetForces();
 
 			int32 NumPoints = FMath::Min(StartFrame->GetNumPoints(), EndFrame->GetNumPoints());
-			ResultFrame.Positions.SetNumUninitialized(NumPoints);
-			ResultFrame.Velocities.SetNumUninitialized(NumPoints);
-			ResultFrame.Forces.SetNumUninitialized(NumPoints);
+			ResultFrame.SetNumPoints(NumPoints);
 			for (int32 i = 0; i < NumPoints; ++i)
 			{
-				ResultFrame.Positions[i] = FMath::Lerp(PosBegin[i], PosEnd[i], AnimationTime);
-				ResultFrame.Velocities[i] = FMath::Lerp(VelBegin[i], VelEnd[i], AnimationTime);
-				ResultFrame.Forces[i] = FMath::Lerp(ForceBegin[i], ForceEnd[i], AnimationTime);
+				ResultFrame.SetPoint(
+					i, FMath::Lerp(PosBegin[i], PosEnd[i], AnimationTime), FMath::Lerp(VelBegin[i], VelEnd[i], AnimationTime),
+					FMath::Lerp(ForceBegin[i], ForceEnd[i], AnimationTime));
 			}
 		}
 		else
 		{
 			int32 NumPoints = StartFrame->GetNumPoints();
-			ResultFrame.Positions.SetNumUninitialized(NumPoints);
-			ResultFrame.Velocities.SetNumUninitialized(NumPoints);
-			ResultFrame.Forces.SetNumUninitialized(NumPoints);
+			ResultFrame.SetNumPoints(NumPoints);
 			for (int32 i = 0; i < NumPoints; ++i)
 			{
-				ResultFrame.Positions[i] = PosBegin[i];
-				ResultFrame.Velocities[i] = VelBegin[i];
-				ResultFrame.Forces[i] = ForceBegin[i];
+				ResultFrame.SetPoint(i, PosBegin[i], VelBegin[i], ForceBegin[i]);
 			}
 		}
 	}
 	else
 	{
-		ResultFrame.Positions.Empty();
-		ResultFrame.Velocities.Empty();
-		ResultFrame.Forces.Empty();
+		ResultFrame.Empty();
 	}
 }
 
@@ -235,7 +225,7 @@ void UGalaxySimulationDebugComponent::LogPoints(const UFastMultipoleSimulationCa
 #if ENABLE_VISUAL_LOG
 	if (FFastMultipoleSimulationFramePtr Frame = SimulationCache->GetLastFrame())
 	{
-		const TArray<FVector>& Positions = Frame->Positions;
+		const TArray<FVector>& Positions = Frame->GetPositions();
 		for (int32 i = 0; i < Positions.Num(); ++i)
 		{
 			const FVector& Point = Positions[i];
@@ -253,6 +243,6 @@ void UGalaxySimulationDebugComponent::ShowAnimatedPoints() const
 	const int32 NumPoints = Frame.GetNumPoints();
 	for (int32 i = 0; i < NumPoints; ++i)
 	{
-		DrawDebugPoint(World, Frame.Positions[i], 3.0f, PointColor);
+		DrawDebugPoint(World, Frame.GetPositions()[i], 3.0f, PointColor);
 	}
 }
