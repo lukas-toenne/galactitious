@@ -2,8 +2,6 @@
 
 #include "FastMultipoleSimulationThreadRunnable.h"
 
-#include "FastMultipoleSimulationCache.h"
-
 #include "Async/Async.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFastMultipoleThread, Log, All);
