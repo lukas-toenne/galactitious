@@ -31,8 +31,8 @@ public:
 
 private:
 	void GetFrameInterval(
-		const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFramePtr& OutStartFrame,
-		FFastMultipoleSimulationFramePtr& OutEndFrame) const;
+		const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFrame::ConstPtr& OutStartFrame,
+		FFastMultipoleSimulationFrame::ConstPtr& OutEndFrame) const;
 	void UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache);
 
 private:

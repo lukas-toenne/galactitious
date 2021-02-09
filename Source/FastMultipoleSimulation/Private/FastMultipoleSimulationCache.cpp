@@ -19,7 +19,7 @@ int32 UFastMultipoleSimulationCache::GetNumFrames() const
 	return Frames.Num();
 }
 
-FFastMultipoleSimulationFramePtr UFastMultipoleSimulationCache::GetFrame(int32 Step) const
+FFastMultipoleSimulationFrame::ConstPtr UFastMultipoleSimulationCache::GetFrame(int32 Step) const
 {
 	FRWScopeLock Lock(FramesMutex, SLT_ReadOnly);
 	if (Frames.IsValidIndex(Step))
@@ -29,7 +29,7 @@ FFastMultipoleSimulationFramePtr UFastMultipoleSimulationCache::GetFrame(int32 S
 	return nullptr;
 }
 
-FFastMultipoleSimulationFramePtr UFastMultipoleSimulationCache::GetLastFrame() const
+FFastMultipoleSimulationFrame::ConstPtr UFastMultipoleSimulationCache::GetLastFrame() const
 {
 	FRWScopeLock Lock(FramesMutex, SLT_ReadOnly);
 	if (Frames.Num() > 0)
@@ -50,7 +50,7 @@ void UFastMultipoleSimulationCache::Reset()
 		[&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
 }
 
-bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFramePtr& InFrame)
+bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFrame::ConstPtr& InFrame)
 {
 	{
 		FRWScopeLock Lock(FramesMutex, SLT_Write);

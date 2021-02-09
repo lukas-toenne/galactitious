@@ -58,8 +58,8 @@ void FGalaxySimulationSequencer::StepAnimation(const UFastMultipoleSimulationCac
 }
 
 void FGalaxySimulationSequencer::GetFrameInterval(
-	const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFramePtr& OutStartFrame,
-	FFastMultipoleSimulationFramePtr& OutEndFrame) const
+	const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFrame::ConstPtr& OutStartFrame,
+	FFastMultipoleSimulationFrame::ConstPtr& OutEndFrame) const
 {
 	check(SimulationCache);
 
@@ -94,7 +94,7 @@ void FGalaxySimulationSequencer::UpdateResultFrame(const UFastMultipoleSimulatio
 		return;
 	}
 
-	FFastMultipoleSimulationFramePtr StartFrame, EndFrame;
+	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
 	GetFrameInterval(SimulationCache, StartFrame, EndFrame);
 	if (StartFrame)
 	{
@@ -184,7 +184,8 @@ void UGalaxySimulationDebugComponent::TickComponent(float DeltaTime, enum ELevel
 		SimulationCache = SimActor->GetSimulationCache();
 	}
 
-	//UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Anim: %d | %.3f, %010x..%010x"), AnimCacheStep, AnimationTime, AnimFrameBegin.Get(), AnimFrameEnd.Get());
+	// UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Anim: %d | %.3f, %010x..%010x"), AnimCacheStep, AnimationTime, AnimFrameBegin.Get(),
+	// AnimFrameEnd.Get());
 	if (SimulationCache)
 	{
 		StepAnimation(SimulationCache, DeltaTime * AnimationSpeed);
@@ -223,7 +224,7 @@ void UGalaxySimulationDebugComponent::LogPoints(const UFastMultipoleSimulationCa
 	check(SimulationCache);
 
 #if ENABLE_VISUAL_LOG
-	if (FFastMultipoleSimulationFramePtr Frame = SimulationCache->GetLastFrame())
+	if (FFastMultipoleSimulationFrame::ConstPtr Frame = SimulationCache->GetLastFrame())
 	{
 		const TArray<FVector>& Positions = Frame->GetPositions();
 		for (int32 i = 0; i < Positions.Num(); ++i)

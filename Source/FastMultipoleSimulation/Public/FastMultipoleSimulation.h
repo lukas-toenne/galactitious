@@ -19,6 +19,7 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationStepResult
 {
 	EFastMultipoleSimulationStatus Status;
 	int32 StepIndex;
+	FFastMultipoleSimulationFrame::Ptr Frame;
 };
 
 class FASTMULTIPOLESIMULATION_API FFastMultipoleSimulation
@@ -33,10 +34,10 @@ public:
 	FFastMultipoleSimulation();
 	~FFastMultipoleSimulation();
 
-	void Reset(FFastMultipoleSimulationFramePtr Frame, int32 StepIndex);
+	void Reset(FFastMultipoleSimulationFrame::ConstPtr Frame, int32 StepIndex);
 	bool Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result);
 
-	FFastMultipoleSimulationFramePtr GetCurrentFrame() const { return CurrentFrame; }
+	FFastMultipoleSimulationFrame::ConstPtr GetCurrentFrame() const { return CurrentFrame; }
 
 protected:
 
@@ -52,8 +53,8 @@ protected:
 	void ComputeForcesDirect();
 
 private:
-	FFastMultipoleSimulationFramePtr CurrentFrame;
-	FFastMultipoleSimulationFramePtr NextFrame;
+	FFastMultipoleSimulationFrame::ConstPtr CurrentFrame;
+	FFastMultipoleSimulationFrame::Ptr NextFrame;
 
 	int32 StepIndex;
 };

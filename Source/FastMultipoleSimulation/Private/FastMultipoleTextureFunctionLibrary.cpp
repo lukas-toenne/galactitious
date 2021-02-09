@@ -124,7 +124,7 @@ void UFastMultipoleTextureFunctionLibrary::BakeSliceTextureAsync(
 		return;
 	}
 
-	if (FFastMultipoleSimulationFramePtr Frame = SimulationCache->GetLastFrame())
+	if (FFastMultipoleSimulationFrame::ConstPtr Frame = SimulationCache->GetLastFrame())
 	{
 		GridType::Ptr Grid = Frame->GetPointDataGrid();
 		if (!Grid)

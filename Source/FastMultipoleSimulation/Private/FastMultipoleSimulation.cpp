@@ -49,7 +49,7 @@ FFastMultipoleSimulation::~FFastMultipoleSimulation()
 {
 }
 
-void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFramePtr InFrame, int32 InStepIndex)
+void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFrame::ConstPtr InFrame, int32 InStepIndex)
 {
 	CurrentFrame = InFrame;
 	NextFrame.Reset();
@@ -59,6 +59,7 @@ void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFramePtr InFrame, i
 bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result)
 {
 	Result.StepIndex = StepIndex;
+	Result.Frame.Reset();
 
 	if (!CurrentFrame.IsValid())
 	{
@@ -77,8 +78,7 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float Delta
 	ComputeForces();
 	IntegratePositions(DeltaTime);
 
-	FPlatformProcess::Sleep(2.0f);
-
+	Result.Frame = NextFrame;
 	CurrentFrame = NextFrame;
 	NextFrame.Reset();
 	++StepIndex;

@@ -19,6 +19,9 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 {
 	GENERATED_BODY()
 
+	using Ptr = TSharedPtr<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>;
+	using ConstPtr = TSharedPtr<FFastMultipoleSimulationFrame const, ESPMode::ThreadSafe>;
+
 	FFastMultipoleSimulationFrame();
 	FFastMultipoleSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities);
 	FFastMultipoleSimulationFrame(const FFastMultipoleSimulationFrame& Other) = default;
@@ -49,5 +52,3 @@ private:
 
 	FastMultipole::PointDataGridType::Ptr PointDataGrid;
 };
-
-using FFastMultipoleSimulationFramePtr = TSharedPtr<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>;

@@ -260,7 +260,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 	FNDIOutputParam<int32> OutNumPoints(Context);
 
 	UFastMultipoleSimulationCache* SimulationCache = InstData->SimulationCache.Get();
-	FFastMultipoleSimulationFramePtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
+	FFastMultipoleSimulationFrame::ConstPtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
 	if (!Frame)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
@@ -284,7 +284,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointPosition(FVectorVMContext& C
 	FNDIOutputParam<FVector> OutPosition(Context);
 
 	UFastMultipoleSimulationCache* SimulationCache = InstData->SimulationCache.Get();
-	FFastMultipoleSimulationFramePtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
+	FFastMultipoleSimulationFrame::ConstPtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
 	if (!Frame)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)

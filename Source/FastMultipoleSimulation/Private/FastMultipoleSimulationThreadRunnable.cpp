@@ -129,8 +129,6 @@ LoopStart:
 		{
 			CompletedSteps.Enqueue(Result);
 			CompletedStepsCount.Increment();
-
-			SimulationCache->AddFrame(Simulation->GetCurrentFrame());
 		}
 	}
 
@@ -166,14 +164,10 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 	Simulation.Reset();
 }
 
-void FFastMultipoleSimulationThreadRunnable::StartSimulation(UFastMultipoleSimulationCache* InSimulationCache, FFastMultipoleSimulationFramePtr InStartFrame, int32 InStepIndex,
+void FFastMultipoleSimulationThreadRunnable::StartSimulation(FFastMultipoleSimulationFrame::ConstPtr InStartFrame, int32 InStepIndex,
 	float InDeltaTime)
 {
-	SimulationCache = InSimulationCache;
 	DeltaTime = InDeltaTime;
-
-	SimulationCache->Reset();
-	SimulationCache->AddFrame(InStartFrame);
 
 	Simulation = MakeUnique<FFastMultipoleSimulation>();
 	Simulation->Reset(InStartFrame, 0);

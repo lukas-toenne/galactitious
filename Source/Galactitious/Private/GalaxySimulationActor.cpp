@@ -11,6 +11,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationActor, Log, All);
 
 AGalaxySimulationActor::AGalaxySimulationActor()
 {
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
+
 	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
 
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -32,6 +35,15 @@ void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	ThreadRunnable.Reset();
 }
 
+void AGalaxySimulationActor::Tick(float DeltaSeconds)
+{
+	FFastMultipoleSimulationStepResult StepResult;
+	while (ThreadRunnable->PopCompletedStep(StepResult))
+	{
+		SimulationCache->AddFrame(StepResult.Frame);
+	}
+}
+
 void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMode)
 {
 	if (ThreadRunnable->IsRunning())
@@ -43,7 +55,9 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 	OnSimulationStarted.Broadcast(this);
 
-	FFastMultipoleSimulationFramePtr StartFrame = nullptr;
+	SimulationCache->Reset();
+
+	FFastMultipoleSimulationFrame::ConstPtr StartFrame = nullptr;
 	int32 StepIndex = -1;
 	switch (StartMode)
 	{
@@ -53,6 +67,7 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 		TArray<FVector> Velocities;
 		DistributePoints(NumStars, Positions, Velocities);
 		StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(Positions, Velocities);
+		SimulationCache->AddFrame(StartFrame);
 		StepIndex = 0;
 		break;
 	}
@@ -72,8 +87,11 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 	if (StartFrame)
 	{
-		ThreadRunnable->StartSimulation(SimulationCache, StartFrame, 0, 1.0f);
+		ThreadRunnable->StartSimulation(StartFrame, 0, 1.0f);
 	}
+
+	// Tick stores result frames in the cache
+	SetActorTickEnabled(true);
 }
 
 void AGalaxySimulationActor::StopSimulation()
@@ -81,6 +99,8 @@ void AGalaxySimulationActor::StopSimulation()
 	OnSimulationStopped.Broadcast(this);
 
 	ThreadRunnable->StopThread();
+
+	SetActorTickEnabled(false);
 }
 
 void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const

@@ -30,11 +30,11 @@ public:
 
 	int32 GetNumFrames() const;
 
-	FFastMultipoleSimulationFramePtr GetFrame(int32 Step) const;
-	FFastMultipoleSimulationFramePtr GetLastFrame() const;
+	FFastMultipoleSimulationFrame::ConstPtr GetFrame(int32 Step) const;
+	FFastMultipoleSimulationFrame::ConstPtr GetLastFrame() const;
 
 	void Reset();
-	bool AddFrame(const FFastMultipoleSimulationFramePtr& InFrame);
+	bool AddFrame(const FFastMultipoleSimulationFrame::ConstPtr& InFrame);
 
 public:
 	UPROPERTY(BlueprintAssignable)
@@ -44,7 +44,7 @@ public:
 	FFastMultipoleSimulationCacheFrameAddedDelegate OnFrameAdded;
 
 private:
-	TArray<FFastMultipoleSimulationFramePtr> Frames;
+	TArray<FFastMultipoleSimulationFrame::ConstPtr> Frames;
 
 	mutable FRWLock FramesMutex;
 };
