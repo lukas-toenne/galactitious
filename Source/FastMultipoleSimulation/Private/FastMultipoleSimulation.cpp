@@ -105,8 +105,8 @@ void FFastMultipoleSimulation::IntegratePositions(float DeltaTime)
 	TArray<FVector>& NewPositions = NextFrame->Positions;
 	TArray<FVector>& NewVelocities = NextFrame->Velocities;
 
-	const int32 NumPoints = Positions.Num();
-	check(NextFrame->Positions.Num() == NumPoints);
+	const int32 NumPoints = CurrentFrame->GetNumPoints();
+	check(NextFrame->GetNumPoints() == NumPoints);
 
 	for (int32 i = 0; i < NumPoints; ++i)
 	{

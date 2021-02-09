@@ -20,26 +20,25 @@ struct GALACTITIOUS_API FGalaxySimulationSequencer
 public:
 	FGalaxySimulationSequencer();
 
-	void ResetAnimation();
+	void ResetAnimation(const UFastMultipoleSimulationCache* SimulationCache);
 	void StepAnimation(const UFastMultipoleSimulationCache* SimulationCache, float DeltaTime);
 
-	void GetIntervalFrames(FFastMultipoleSimulationFramePtr& OutStartFrame, FFastMultipoleSimulationFramePtr& OutEndFrame) const;
-
-	int32 GetNumPoints() const;
-
-	bool GetLerped(int32 Index, FVector& OutPosition, FVector& OutVelocity, FVector& OutForce) const;
-
-	void UpdateAnimationFrames(const UFastMultipoleSimulationCache* SimulationCache);
+	const FFastMultipoleSimulationFrame& GetResultFrame() const { return ResultFrame; }
 
 public:
 	UPROPERTY(EditAnywhere)
 	float AnimationSpeed = 1.0f;
 
 private:
+	void GetFrameInterval(
+		const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFramePtr& OutStartFrame,
+		FFastMultipoleSimulationFramePtr& OutEndFrame) const;
+	void UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache);
+
+private:
 	int32 AnimCacheStep;
 	float AnimationTime;
-	FFastMultipoleSimulationFramePtr AnimFrameBegin;
-	FFastMultipoleSimulationFramePtr AnimFrameEnd;
+	FFastMultipoleSimulationFrame ResultFrame;
 };
 
 UCLASS(meta = (BlueprintSpawnableComponent))

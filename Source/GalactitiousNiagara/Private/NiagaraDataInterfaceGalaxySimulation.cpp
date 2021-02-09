@@ -270,7 +270,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 		return;
 	}
 
-	int32 NumPoints = Frame->Positions.Num();
+	int32 NumPoints = Frame->GetNumPoints();
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		OutNumPoints.SetAndAdvance(NumPoints);

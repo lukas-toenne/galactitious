@@ -22,4 +22,9 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& In
 	}
 }
 
+int32 FFastMultipoleSimulationFrame::GetNumPoints() const
+{
+	return Positions.Num();
+}
+
 #undef LOCTEXT_NAMESPACE

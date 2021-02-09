@@ -25,6 +25,8 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 
 	FFastMultipoleSimulationFrame& operator=(const FFastMultipoleSimulationFrame& Other) = default;
 
+	int32 GetNumPoints() const;
+
 	float DeltaTime;
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
