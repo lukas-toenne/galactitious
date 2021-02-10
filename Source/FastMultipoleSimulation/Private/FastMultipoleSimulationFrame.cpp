@@ -10,8 +10,6 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame()
 }
 
 FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& InPositions, TArray<FVector>& InVelocities)
-	: Positions(MoveTemp(InPositions))
-	, Velocities(MoveTemp(InVelocities))
 {
 	if (InPositions.Num() != InVelocities.Num())
 	{
@@ -20,6 +18,10 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& In
 			InPositions.Num(), InVelocities.Num());
 		return;
 	}
+
+	Positions = MoveTemp(InPositions);
+	Velocities = MoveTemp(InVelocities);
+	Forces.SetNumZeroed(Positions.Num());
 }
 
 void FFastMultipoleSimulationFrame::SetDeltaTime(float InDeltaTime)

@@ -15,6 +15,7 @@ AGalaxySimulationActor::AGalaxySimulationActor()
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
+	SimulationCache->SetCapacity(100, EFastMultipoleCacheResizeMode::PruneStart);
 	SimulationCache->OnReset.AddDynamic(this, &AGalaxySimulationActor::OnCacheReset);
 	SimulationCache->OnFrameAdded.AddDynamic(this, &AGalaxySimulationActor::OnCacheFrameAdded);
 

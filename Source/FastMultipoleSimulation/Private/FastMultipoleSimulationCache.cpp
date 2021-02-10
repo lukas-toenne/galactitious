@@ -13,6 +13,40 @@ UFastMultipoleSimulationCache::~UFastMultipoleSimulationCache()
 {
 }
 
+int32 UFastMultipoleSimulationCache::GetCapacity() const
+{
+	return Capacity;
+}
+
+void UFastMultipoleSimulationCache::SetCapacity(int32 InCapacity, EFastMultipoleCacheResizeMode ResizeMode)
+{
+	using FrameArray = TArray<FFastMultipoleSimulationFrame::ConstPtr>;
+
+	FRWScopeLock Lock(FramesMutex, SLT_Write);
+
+	Capacity = InCapacity;
+	if (Frames.Num() > Capacity)
+	{
+		switch (ResizeMode)
+		{
+		case EFastMultipoleCacheResizeMode::None:
+			break;
+		case EFastMultipoleCacheResizeMode::PruneStart:
+			Frames = FrameArray(Frames.GetData() + (Frames.Num() - Capacity), Capacity);
+			break;
+		case EFastMultipoleCacheResizeMode::PruneEnd:
+			Frames = FrameArray(Frames.GetData(), Capacity);
+			break;
+		case EFastMultipoleCacheResizeMode::Empty:
+			Frames.Empty();
+			break;
+		}
+
+		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
+			[&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+	}
+}
+
 int32 UFastMultipoleSimulationCache::GetNumFrames() const
 {
 	FRWScopeLock Lock(FramesMutex, SLT_ReadOnly);
@@ -46,16 +80,20 @@ void UFastMultipoleSimulationCache::Reset()
 		Frames.Empty();
 	}
 
-	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
-		[&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
+	FGraphEventRef Task =
+		FFunctionGraphTask::CreateAndDispatchWhenReady([&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
 }
 
 bool UFastMultipoleSimulationCache::AddFrame(const FFastMultipoleSimulationFrame::ConstPtr& InFrame)
 {
+	FRWScopeLock Lock(FramesMutex, SLT_Write);
+
+	if (Frames.Num() >= Capacity)
 	{
-		FRWScopeLock Lock(FramesMutex, SLT_Write);
-		Frames.Add(InFrame);
+		return false;
 	}
+
+	Frames.Add(InFrame);
 
 	FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(
 		[&]() { OnFrameAdded.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);

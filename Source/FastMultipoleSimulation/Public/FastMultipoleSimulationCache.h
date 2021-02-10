@@ -19,6 +19,19 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationCacheResetDe
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
 	FFastMultipoleSimulationCacheFrameAddedDelegate, UFastMultipoleSimulationCache*, SimulationCache);
 
+UENUM()
+enum EFastMultipoleCacheResizeMode
+{
+	/** Don't remove any frames. */
+	None,
+	/** Remove frames from the beginning of the cache. */
+	PruneStart,
+	/** Remove frames from the end of the cache. */
+	PruneEnd,
+	/** Remove all frames. */
+	Empty,
+};
+
 UCLASS(BlueprintType)
 class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulationCache : public UObject
 {
@@ -27,6 +40,9 @@ class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulationCache : public UObject
 public:
 	UFastMultipoleSimulationCache();
 	virtual ~UFastMultipoleSimulationCache();
+
+	int32 GetCapacity() const;
+	void SetCapacity(int32 Capacity, EFastMultipoleCacheResizeMode ResizeMode);
 
 	int32 GetNumFrames() const;
 
@@ -44,6 +60,8 @@ public:
 	FFastMultipoleSimulationCacheFrameAddedDelegate OnFrameAdded;
 
 private:
+	int32 Capacity = 32;
+
 	TArray<FFastMultipoleSimulationFrame::ConstPtr> Frames;
 
 	mutable FRWLock FramesMutex;
