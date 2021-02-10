@@ -15,6 +15,8 @@ AGalaxySimulationActor::AGalaxySimulationActor()
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
 	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
+	SimulationCache->OnReset.AddDynamic(this, &AGalaxySimulationActor::OnCacheReset);
+	SimulationCache->OnFrameAdded.AddDynamic(this, &AGalaxySimulationActor::OnCacheFrameAdded);
 
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	AddOwnedComponent(SceneRootComponent);
@@ -31,17 +33,20 @@ void AGalaxySimulationActor::BeginPlay()
 
 void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	CachePlayer.ResetAnimation(nullptr);
 	StopSimulation();
 	ThreadRunnable.Reset();
 }
 
 void AGalaxySimulationActor::Tick(float DeltaSeconds)
 {
-	FFastMultipoleSimulationStepResult StepResult;
-	while (ThreadRunnable->PopCompletedStep(StepResult))
-	{
-		SimulationCache->AddFrame(StepResult.Frame);
-	}
+	CachePlayer.StepAnimation(SimulationCache, DeltaSeconds);
+
+	//FFastMultipoleSimulationStepResult StepResult;
+	//while (ThreadRunnable->PopCompletedStep(StepResult))
+	//{
+	//	SimulationCache->AddFrame(StepResult.Frame);
+	//}
 }
 
 void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMode)
@@ -127,4 +132,13 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 		const FVector Omega = FVector::UpVector * 1.0f;
 		const FVector V = OutVelocities[i] = FVector::CrossProduct(Omega, P);
 	}
+}
+
+void AGalaxySimulationActor::OnCacheReset(UFastMultipoleSimulationCache* InSimulationCache)
+{
+	CachePlayer.ResetAnimation(InSimulationCache);
+}
+
+void AGalaxySimulationActor::OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulationCache)
+{
 }

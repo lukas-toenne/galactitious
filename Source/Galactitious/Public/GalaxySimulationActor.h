@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FastMultipoleSimulationThreadRunnable.h"
+#include "GalaxySimulationCachePlayer.h"
 
 #include "Containers/Queue.h"
 #include "GameFramework/Actor.h"
@@ -37,6 +38,8 @@ public:
 	UFUNCTION(BlueprintGetter)
 	UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
 
+	FGalaxySimulationCachePlayer& GetCachePlayer() { return CachePlayer; }
+
 	UFUNCTION(BlueprintCallable)
 	void StartSimulation(EGalaxySimulationStartMode StartMode);
 
@@ -59,9 +62,17 @@ public:
 protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
 
+	UFUNCTION()
+	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
+	UFUNCTION()
+	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
+
 private:
 	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache)
 	UFastMultipoleSimulationCache* SimulationCache;
+
+	UPROPERTY(EditAnywhere)
+	FGalaxySimulationCachePlayer CachePlayer;
 
 	/** Thread that runs the simulation. */
 	class TUniquePtr<struct FFastMultipoleSimulationThreadRunnable> ThreadRunnable;

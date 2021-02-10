@@ -12,39 +12,9 @@
 class AGalaxySimulationActor;
 class UFastMultipoleSimulationCache;
 
-USTRUCT()
-struct GALACTITIOUS_API FGalaxySimulationSequencer
-{
-	GENERATED_BODY()
-
-public:
-	FGalaxySimulationSequencer();
-
-	void ResetAnimation(const UFastMultipoleSimulationCache* SimulationCache);
-	void StepAnimation(const UFastMultipoleSimulationCache* SimulationCache, float DeltaTime);
-
-	const FFastMultipoleSimulationFrame& GetResultFrame() const { return ResultFrame; }
-
-public:
-	UPROPERTY(EditAnywhere)
-	float AnimationSpeed = 1.0f;
-
-private:
-	void GetFrameInterval(
-		const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFrame::ConstPtr& OutStartFrame,
-		FFastMultipoleSimulationFrame::ConstPtr& OutEndFrame) const;
-	void UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache);
-
-private:
-	int32 AnimCacheStep;
-	float AnimationTime;
-	FFastMultipoleSimulationFrame ResultFrame;
-};
-
 UCLASS(meta = (BlueprintSpawnableComponent))
 class GALACTITIOUS_API UGalaxySimulationDebugComponent
 	: public UActorComponent
-	, public FGalaxySimulationSequencer
 {
 	GENERATED_BODY()
 

@@ -5,133 +5,12 @@
 #include "DrawDebugHelpers.h"
 #include "FastMultipoleSimulationCache.h"
 #include "GalaxySimulationActor.h"
+#include "GalaxySimulationCachePlayer.h"
 
 #include "VisualLogger/VisualLogger.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationDebug, Log, All);
 DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationDebug_Points, Log, All);
-
-FGalaxySimulationSequencer::FGalaxySimulationSequencer()
-{
-	ResetAnimation(nullptr);
-}
-
-void FGalaxySimulationSequencer::ResetAnimation(const UFastMultipoleSimulationCache* SimulationCache)
-{
-	AnimCacheStep = 0;
-	AnimationTime = 0.0f;
-
-	UpdateResultFrame(SimulationCache);
-}
-
-void FGalaxySimulationSequencer::StepAnimation(const UFastMultipoleSimulationCache* SimulationCache, float DeltaTime)
-{
-	if (!SimulationCache)
-	{
-		ResetAnimation(nullptr);
-		return;
-	}
-
-	const int32 NumFrames = SimulationCache->GetNumFrames();
-	const int32 OldAnimCacheStep = AnimCacheStep;
-
-	if (AnimCacheStep >= 0 && AnimCacheStep < NumFrames - 1)
-	{
-		AnimationTime += DeltaTime;
-		if (AnimationTime >= 1.0f)
-		{
-			AnimCacheStep += (int32)AnimationTime;
-			if (AnimCacheStep < NumFrames)
-			{
-				AnimationTime = FMath::Fmod(AnimationTime, 1.0f);
-			}
-			else
-			{
-				// Animation will stop until more frames are added
-				AnimCacheStep = NumFrames - 1;
-				AnimationTime = 1.0f;
-			}
-		}
-
-		UpdateResultFrame(SimulationCache);
-	}
-}
-
-void FGalaxySimulationSequencer::GetFrameInterval(
-	const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFrame::ConstPtr& OutStartFrame,
-	FFastMultipoleSimulationFrame::ConstPtr& OutEndFrame) const
-{
-	check(SimulationCache);
-
-	int32 NumFrames = SimulationCache->GetNumFrames();
-	if (AnimCacheStep < 0)
-	{
-		OutStartFrame.Reset();
-		OutEndFrame.Reset();
-	}
-	else if (AnimCacheStep < NumFrames - 1)
-	{
-		OutStartFrame = SimulationCache->GetFrame(AnimCacheStep);
-		OutEndFrame = SimulationCache->GetFrame(AnimCacheStep + 1);
-	}
-	else if (AnimCacheStep < NumFrames)
-	{
-		OutStartFrame = SimulationCache->GetFrame(AnimCacheStep);
-		OutEndFrame.Reset();
-	}
-	else
-	{
-		OutStartFrame.Reset();
-		OutEndFrame.Reset();
-	}
-}
-
-void FGalaxySimulationSequencer::UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache)
-{
-	if (!SimulationCache)
-	{
-		ResultFrame.Empty();
-		return;
-	}
-
-	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
-	GetFrameInterval(SimulationCache, StartFrame, EndFrame);
-	if (StartFrame)
-	{
-		const TArray<FVector>& PosBegin = StartFrame->GetPositions();
-		const TArray<FVector>& VelBegin = StartFrame->GetVelocities();
-		const TArray<FVector>& ForceBegin = StartFrame->GetForces();
-
-		if (EndFrame)
-		{
-			const TArray<FVector>& PosEnd = EndFrame->GetPositions();
-			const TArray<FVector>& VelEnd = EndFrame->GetVelocities();
-			const TArray<FVector>& ForceEnd = EndFrame->GetForces();
-
-			int32 NumPoints = FMath::Min(StartFrame->GetNumPoints(), EndFrame->GetNumPoints());
-			ResultFrame.SetNumPoints(NumPoints);
-			for (int32 i = 0; i < NumPoints; ++i)
-			{
-				ResultFrame.SetPoint(
-					i, FMath::Lerp(PosBegin[i], PosEnd[i], AnimationTime), FMath::Lerp(VelBegin[i], VelEnd[i], AnimationTime),
-					FMath::Lerp(ForceBegin[i], ForceEnd[i], AnimationTime));
-			}
-		}
-		else
-		{
-			int32 NumPoints = StartFrame->GetNumPoints();
-			ResultFrame.SetNumPoints(NumPoints);
-			for (int32 i = 0; i < NumPoints; ++i)
-			{
-				ResultFrame.SetPoint(i, PosBegin[i], VelBegin[i], ForceBegin[i]);
-			}
-		}
-	}
-	else
-	{
-		ResultFrame.Empty();
-	}
-}
 
 UGalaxySimulationDebugComponent::UGalaxySimulationDebugComponent(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
@@ -177,25 +56,7 @@ void UGalaxySimulationDebugComponent::EndPlay(EEndPlayReason::Type EndPlayReason
 
 void UGalaxySimulationDebugComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	UFastMultipoleSimulationCache* SimulationCache = nullptr;
-	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
-	if (SimActor)
-	{
-		SimulationCache = SimActor->GetSimulationCache();
-	}
-
-	// UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Anim: %d | %.3f, %010x..%010x"), AnimCacheStep, AnimationTime, AnimFrameBegin.Get(),
-	// AnimFrameEnd.Get());
-	if (SimulationCache)
-	{
-		StepAnimation(SimulationCache, DeltaTime * AnimationSpeed);
-
-		ShowAnimatedPoints();
-	}
-	else
-	{
-		ResetAnimation(nullptr);
-	}
+	ShowAnimatedPoints();
 }
 
 void UGalaxySimulationDebugComponent::OnSimulationStarted(AGalaxySimulationActor* SimulationActor)
@@ -209,8 +70,6 @@ void UGalaxySimulationDebugComponent::OnSimulationStopped(AGalaxySimulationActor
 void UGalaxySimulationDebugComponent::OnCacheReset(UFastMultipoleSimulationCache* SimulationCache)
 {
 	UE_LOG(LogGalaxySimulationDebug, Display, TEXT("Cache Reset"));
-
-	ResetAnimation(SimulationCache);
 }
 
 void UGalaxySimulationDebugComponent::OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache)
@@ -238,12 +97,16 @@ void UGalaxySimulationDebugComponent::LogPoints(const UFastMultipoleSimulationCa
 
 void UGalaxySimulationDebugComponent::ShowAnimatedPoints() const
 {
-	UWorld* World = GetWorld();
-
-	const FFastMultipoleSimulationFrame& Frame = GetResultFrame();
-	const int32 NumPoints = Frame.GetNumPoints();
-	for (int32 i = 0; i < NumPoints; ++i)
+	AGalaxySimulationActor* SimActor = GetOwner<AGalaxySimulationActor>();
+	if (SimActor)
 	{
-		DrawDebugPoint(World, Frame.GetPositions()[i], 3.0f, PointColor);
+		UWorld* World = GetWorld();
+
+		const FFastMultipoleSimulationFrame& Frame = SimActor->GetCachePlayer().GetResultFrame();
+		const int32 NumPoints = Frame.GetNumPoints();
+		for (int32 i = 0; i < NumPoints; ++i)
+		{
+			DrawDebugPoint(World, Frame.GetPositions()[i], 3.0f, PointColor);
+		}
 	}
 }
