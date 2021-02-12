@@ -41,13 +41,18 @@ void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void AGalaxySimulationActor::Tick(float DeltaSeconds)
 {
+	// Store finished simulation frames in the cache
+	FFastMultipoleSimulationStepResult StepResult;
+	while (ThreadRunnable->PopCompletedStep(StepResult))
+	{
+		SimulationCache->AddFrame(StepResult.Frame);
+	}
+
+	// Advance the animation player
 	CachePlayer.StepAnimation(SimulationCache, DeltaSeconds);
 
-	//FFastMultipoleSimulationStepResult StepResult;
-	//while (ThreadRunnable->PopCompletedStep(StepResult))
-	//{
-	//	SimulationCache->AddFrame(StepResult.Frame);
-	//}
+	// Schedule new simulation steps if the player reaches the end of the cache
+	SchedulePrecomputeSteps();
 }
 
 void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMode)
@@ -56,25 +61,20 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 	{
 		ThreadRunnable->StopThread();
 	}
-
 	ThreadRunnable->LaunchThread();
 
-	OnSimulationStarted.Broadcast(this);
-
-	SimulationCache->Reset();
-
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame = nullptr;
-	int32 StepIndex = -1;
 	switch (StartMode)
 	{
 	case EGalaxySimulationStartMode::DistributeStars:
 	{
+		SimulationCache->Reset();
+
 		TArray<FVector> Positions;
 		TArray<FVector> Velocities;
 		DistributePoints(NumStars, Positions, Velocities);
 		StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(Positions, Velocities);
 		SimulationCache->AddFrame(StartFrame);
-		StepIndex = 0;
 		break;
 	}
 
@@ -82,7 +82,6 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 		if (SimulationCache->GetNumFrames() > 0)
 		{
 			StartFrame = SimulationCache->GetLastFrame();
-			StepIndex = SimulationCache->GetNumFrames() - 1;
 		}
 		else
 		{
@@ -93,11 +92,15 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 	if (StartFrame)
 	{
-		ThreadRunnable->StartSimulation(StartFrame, 0, 1.0f);
+		ThreadRunnable->StartSimulation(StartFrame);
+
+		SchedulePrecomputeSteps();
 	}
 
 	// Tick stores result frames in the cache
 	SetActorTickEnabled(true);
+
+	OnSimulationStarted.Broadcast(this);
 }
 
 void AGalaxySimulationActor::StopSimulation()
@@ -133,6 +136,22 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 		const FVector Omega = FVector::UpVector * 1.0f;
 		const FVector V = OutVelocities[i] = FVector::CrossProduct(Omega, P);
 	}
+}
+
+int32 AGalaxySimulationActor::SchedulePrecomputeSteps()
+{
+	// Check remaining number of cache frames.
+	const int32 RemainingCacheFrames = SimulationCache->GetNumFrames() - CachePlayer.GetCacheStep() - 1;
+	check(RemainingCacheFrames >= 0);
+
+	// Schedule more steps if needed.
+	// Player interpolates between current cache step and the next, so have to add one more frame.
+	const int32 NumStepsToSchedule = FMath::Max(NumStepsPrecompute - RemainingCacheFrames + 1, 0);
+	for (int i = 0; i < NumStepsToSchedule; ++i)
+	{
+		ThreadRunnable->ScheduleStep(SimulationStepSize);
+	}
+	return NumStepsToSchedule;
 }
 
 void AGalaxySimulationActor::OnCacheReset(UFastMultipoleSimulationCache* InSimulationCache)

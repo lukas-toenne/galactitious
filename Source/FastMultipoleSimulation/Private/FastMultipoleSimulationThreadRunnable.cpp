@@ -8,8 +8,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogFastMultipoleThread, Log, All);
 
 FFastMultipoleSimulationThreadRunnable::FFastMultipoleSimulationThreadRunnable()
 	: Simulation(nullptr)
-	, DeltaTime(0.0f)
-	, MaxCompletedSteps(3)
+	, NumScheduledSteps(0)
 	, bIsRunning(false)
 	, bStopRequested(false)
 {
@@ -23,42 +22,41 @@ FFastMultipoleSimulationThreadRunnable::~FFastMultipoleSimulationThreadRunnable(
 	WorkEvent = nullptr;
 }
 
-void FFastMultipoleSimulationThreadRunnable::SetMaxCompletedSteps(int32 InMaxCompletedSteps)
+void FFastMultipoleSimulationThreadRunnable::ScheduleStep(float DeltaTime)
 {
-	check(!bIsRunning);
-	MaxCompletedSteps = InMaxCompletedSteps;
+	FFastMultipoleSimulationStepRequest Request;
+	Request.DeltaTime = DeltaTime;
+	ScheduledSteps.Enqueue(MoveTemp(Request));
+	NumScheduledSteps.Increment();
 
-	int32 Count = CompletedStepsCount.GetValue();
-	if (Count < MaxCompletedSteps)
+	WorkEvent->Trigger();
+}
+
+void FFastMultipoleSimulationThreadRunnable::CancelScheduledSteps()
+{
+	if (!ScheduledSteps.IsEmpty())
 	{
+		ScheduledSteps.Empty();
+		NumScheduledSteps.Reset();
+
 		WorkEvent->Trigger();
 	}
-	else if (Count > MaxCompletedSteps)
-	{
-		UE_LOG(LogFastMultipoleThread, Warning, TEXT("Completed steps count %d exceeds new max. count %d"), Count, MaxCompletedSteps);
-	}
+}
+
+int32 FFastMultipoleSimulationThreadRunnable::GetNumScheduledSteps() const
+{
+	return NumScheduledSteps.GetValue();
 }
 
 bool FFastMultipoleSimulationThreadRunnable::PopCompletedStep(FFastMultipoleSimulationStepResult& Result)
 {
-	if (CompletedSteps.Dequeue(Result))
-	{
-		int32 Count = CompletedStepsCount.Decrement();
-
-		if (Count < MaxCompletedSteps)
-		{
-			WorkEvent->Trigger();
-		}
-
-		return true;
-	}
-
-	return false;
+	return CompletedSteps.Dequeue(Result);
 }
 
 void FFastMultipoleSimulationThreadRunnable::Stop()
 {
 	bStopRequested = true;
+	CancelScheduledSteps();
 	WorkEvent->Trigger();
 }
 
@@ -90,7 +88,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		WorkEvent->Wait();
 	}
 
-LoopStart:
+//LoopStart:
 	while (!bStopRequested)
 	{
 #if 0
@@ -116,17 +114,21 @@ LoopStart:
 		}
 #endif
 
-		if (CompletedStepsCount.GetValue() >= MaxCompletedSteps)
+		FFastMultipoleSimulationStepRequest Request;
+		if (ScheduledSteps.Dequeue(Request))
+		{
+			NumScheduledSteps.Decrement();
+
+			FFastMultipoleSimulationStepResult Result;
+			if (Simulation->Step(bStopRequested, Request.DeltaTime, Result))
+			{
+				CompletedSteps.Enqueue(Result);
+			}
+		}
+		else
 		{
 			WorkEvent->Wait();
-			goto LoopStart;
-		}
-
-		FFastMultipoleSimulationStepResult Result;
-		if (Simulation->Step(bStopRequested, DeltaTime, Result))
-		{
-			CompletedSteps.Enqueue(Result);
-			CompletedStepsCount.Increment();
+			//goto LoopStart;
 		}
 	}
 
@@ -162,13 +164,10 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 	Simulation.Reset();
 }
 
-void FFastMultipoleSimulationThreadRunnable::StartSimulation(FFastMultipoleSimulationFrame::ConstPtr InStartFrame, int32 InStepIndex,
-	float InDeltaTime)
+void FFastMultipoleSimulationThreadRunnable::StartSimulation(FFastMultipoleSimulationFrame::ConstPtr InStartFrame)
 {
-	DeltaTime = InDeltaTime;
-
 	Simulation = MakeUnique<FFastMultipoleSimulation>();
-	Simulation->Reset(InStartFrame, 0);
+	Simulation->Reset(InStartFrame);
 
 	WorkEvent->Trigger();
 }

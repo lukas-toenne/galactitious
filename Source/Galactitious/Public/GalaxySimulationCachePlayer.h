@@ -17,10 +17,12 @@ struct GALACTITIOUS_API FGalaxySimulationCachePlayer
 public:
 	FGalaxySimulationCachePlayer();
 
+	int32 GetCacheStep() const { return AnimCacheStep; }
+	float GetAnimationTime() const { return AnimationTime; }
+	const FFastMultipoleSimulationFrame& GetResultFrame() const { return ResultFrame; }
+
 	void ResetAnimation(const UFastMultipoleSimulationCache* SimulationCache);
 	void StepAnimation(const UFastMultipoleSimulationCache* SimulationCache, float DeltaTime);
-
-	const FFastMultipoleSimulationFrame& GetResultFrame() const { return ResultFrame; }
 
 public:
 	UPROPERTY(EditAnywhere)

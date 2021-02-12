@@ -15,10 +15,14 @@ enum class FASTMULTIPOLESIMULATION_API EFastMultipoleSimulationStatus : uint8
 	Success,
 };
 
+struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationStepRequest
+{
+	float DeltaTime;
+};
+
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationStepResult
 {
 	EFastMultipoleSimulationStatus Status;
-	int32 StepIndex;
 	FFastMultipoleSimulationFrame::Ptr Frame;
 };
 
@@ -34,7 +38,7 @@ public:
 	FFastMultipoleSimulation();
 	~FFastMultipoleSimulation();
 
-	void Reset(FFastMultipoleSimulationFrame::ConstPtr Frame, int32 StepIndex);
+	void Reset(FFastMultipoleSimulationFrame::ConstPtr Frame);
 	bool Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result);
 
 	FFastMultipoleSimulationFrame::ConstPtr GetCurrentFrame() const { return CurrentFrame; }
@@ -55,6 +59,4 @@ protected:
 private:
 	FFastMultipoleSimulationFrame::ConstPtr CurrentFrame;
 	FFastMultipoleSimulationFrame::Ptr NextFrame;
-
-	int32 StepIndex;
 };

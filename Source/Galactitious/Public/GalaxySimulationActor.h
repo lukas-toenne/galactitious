@@ -53,6 +53,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Scale = 100.0f;
 
+	// Size of the simulation time step
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float SimulationStepSize = 1.0f;
+
+	// Number of steps to precompute in advance of the cache player.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 NumStepsPrecompute = 3;
+
 	UPROPERTY(BlueprintAssignable)
 	FGalaxySimulationStartedDelegate OnSimulationStarted;
 
@@ -61,6 +69,11 @@ public:
 
 protected:
 	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
+
+	/** Schedule frames if the player reaches the end of the cache.
+	 * @return Number of frames that have been scheduled.
+	 */
+	int32 SchedulePrecomputeSteps();
 
 	UFUNCTION()
 	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);

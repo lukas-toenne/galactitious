@@ -13,14 +13,15 @@ public:
 	FFastMultipoleSimulationThreadRunnable();
 	virtual ~FFastMultipoleSimulationThreadRunnable();
 
-	int32 GetMaxCompletedSteps() const { return MaxCompletedSteps; }
-	void SetMaxCompletedSteps(int32 MaxCompletedSteps);
+	void ScheduleStep(float DeltaTime);
+	void CancelScheduledSteps();
+	int32 GetNumScheduledSteps() const;
 
 	void LaunchThread();
 	void StopThread();
 	inline bool IsRunning() { return bIsRunning; }
 
-	void StartSimulation(FFastMultipoleSimulationFrame::ConstPtr StartFrame, int32 StepIndex, float DeltaTime);
+	void StartSimulation(FFastMultipoleSimulationFrame::ConstPtr StartFrame);
 	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
@@ -32,15 +33,12 @@ protected:
 
 private:
 	TUniquePtr<class FFastMultipoleSimulation> Simulation;
-	float DeltaTime;
 
-	// Maximum number of steps that can be computed in advance.
-	int32 MaxCompletedSteps;
+	// Steps to compute
+	TQueue<FFastMultipoleSimulationStepRequest, EQueueMode::Spsc> ScheduledSteps;
+	FThreadSafeCounter NumScheduledSteps;
 	// Queue of completed simulation steps.
-	// When capacity is reached completed steps need to be consumed by calling PopCompletedStep
-	// for the simulation to continue.
-	TQueue<FFastMultipoleSimulationStepResult> CompletedSteps;
-	FThreadSafeCounter CompletedStepsCount;
+	TQueue<FFastMultipoleSimulationStepResult, EQueueMode::Spsc> CompletedSteps;
 
 	TUniquePtr<FRunnableThread> Thread;
 	// TUniquePtr<FQueuedThreadPool> WorkerThreadPool;
