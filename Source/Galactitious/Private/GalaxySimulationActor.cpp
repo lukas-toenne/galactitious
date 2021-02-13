@@ -14,10 +14,11 @@ AGalaxySimulationActor::AGalaxySimulationActor()
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false;
 
-	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"));
+	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("FMM Simulation Cache"), true);
 	SimulationCache->SetCapacity(100, EFastMultipoleCacheResizeMode::PruneStart);
-	SimulationCache->OnReset.AddDynamic(this, &AGalaxySimulationActor::OnCacheReset);
-	SimulationCache->OnFrameAdded.AddDynamic(this, &AGalaxySimulationActor::OnCacheFrameAdded);
+
+	CachePlayer = CreateDefaultSubobject<UGalaxySimulationCachePlayer>(TEXT("Cache Player"), true);
+	CachePlayer->SetSimulationCache(SimulationCache);
 
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	AddOwnedComponent(SceneRootComponent);
@@ -34,7 +35,6 @@ void AGalaxySimulationActor::BeginPlay()
 
 void AGalaxySimulationActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	CachePlayer.ResetAnimation(nullptr);
 	StopSimulation();
 	ThreadRunnable.Reset();
 }
@@ -47,9 +47,6 @@ void AGalaxySimulationActor::Tick(float DeltaSeconds)
 	{
 		SimulationCache->AddFrame(StepResult.Frame);
 	}
-
-	// Advance the animation player
-	CachePlayer.StepAnimation(SimulationCache, DeltaSeconds);
 
 	// Schedule new simulation steps if the player reaches the end of the cache
 	SchedulePrecomputeSteps();
@@ -141,7 +138,7 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 int32 AGalaxySimulationActor::SchedulePrecomputeSteps()
 {
 	// Check remaining number of cache frames.
-	const int32 RemainingCacheFrames = SimulationCache->GetNumFrames() - CachePlayer.GetCacheStep() - 1;
+	const int32 RemainingCacheFrames = SimulationCache->GetNumFrames() - CachePlayer->GetCacheStep() - 1;
 	check(RemainingCacheFrames >= 0);
 
 	// Schedule more steps if needed.
@@ -152,13 +149,4 @@ int32 AGalaxySimulationActor::SchedulePrecomputeSteps()
 		ThreadRunnable->ScheduleStep(SimulationStepSize);
 	}
 	return NumStepsToSchedule;
-}
-
-void AGalaxySimulationActor::OnCacheReset(UFastMultipoleSimulationCache* InSimulationCache)
-{
-	CachePlayer.ResetAnimation(InSimulationCache);
-}
-
-void AGalaxySimulationActor::OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulationCache)
-{
 }

@@ -41,7 +41,7 @@ public:
 	UFastMultipoleSimulationCache();
 	virtual ~UFastMultipoleSimulationCache();
 
-	UFUNCTION(BlueprintGetter, Category = "Fast Multipole Simulation")
+	UFUNCTION(BlueprintGetter)
 	int32 GetCapacity() const;
 	UFUNCTION(BlueprintCallable, Category = "Fast Multipole Simulation")
 	void SetCapacity(int32 Capacity, EFastMultipoleCacheResizeMode ResizeMode);

@@ -102,7 +102,7 @@ void UGalaxySimulationDebugComponent::ShowAnimatedPoints() const
 	{
 		UWorld* World = GetWorld();
 
-		const FFastMultipoleSimulationFrame& Frame = SimActor->GetCachePlayer().GetResultFrame();
+		const FFastMultipoleSimulationFrame& Frame = SimActor->GetCachePlayer()->GetResultFrame();
 		const int32 NumPoints = Frame.GetNumPoints();
 		for (int32 i = 0; i < NumPoints; ++i)
 		{

@@ -4,55 +4,186 @@
 
 #include "FastMultipoleSimulationCache.h"
 
+#include "Engine/World.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogGalaxySimulationCacheController, Log, All);
 
-FGalaxySimulationCachePlayer::FGalaxySimulationCachePlayer()
+UGalaxySimulationCachePlayer::UGalaxySimulationCachePlayer() : AnimCacheStep(0), AnimationTime(0.0f)
 {
-	ResetAnimation(nullptr);
 }
 
-void FGalaxySimulationCachePlayer::ResetAnimation(const UFastMultipoleSimulationCache* SimulationCache)
+UGalaxySimulationCachePlayer::~UGalaxySimulationCachePlayer()
 {
+	FWorldDelegates::OnWorldTickStart.RemoveAll(this);
+	PlayDelegateHandle.Reset();
+}
+
+void UGalaxySimulationCachePlayer::SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache)
+{
+	if (UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get())
+	{
+		SimulationCache->OnReset.RemoveDynamic(this, &UGalaxySimulationCachePlayer::OnCacheReset);
+		SimulationCache->OnFrameAdded.RemoveDynamic(this, &UGalaxySimulationCachePlayer::OnCacheFrameAdded);
+	}
+
+	SimulationCacheWeak = InSimulationCache;
+	if (InSimulationCache)
+	{
+		InSimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationCachePlayer::OnCacheReset);
+		InSimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationCachePlayer::OnCacheFrameAdded);
+	}
+
+	SetToFront();
+}
+
+void UGalaxySimulationCachePlayer::Play()
+{
+	PlayDelegateHandle = FWorldDelegates::OnWorldTickStart.AddUObject(this, &UGalaxySimulationCachePlayer::OnWorldTick_StepForward);
+}
+
+void UGalaxySimulationCachePlayer::Pause()
+{
+	FWorldDelegates::OnWorldTickStart.Remove(PlayDelegateHandle);
+	PlayDelegateHandle.Reset();
+}
+
+bool UGalaxySimulationCachePlayer::IsPlaying() const
+{
+	return PlayDelegateHandle.IsValid();
+}
+
+void UGalaxySimulationCachePlayer::StepForward(float DeltaTime)
+{
+	UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get();
+	if (!SimulationCache)
+	{
+		return;
+	}
+
+	const int32 NumFrames = SimulationCache->GetNumFrames();
+	const int32 OldAnimCacheStep = AnimCacheStep;
+	const float OldAnimationTime = AnimationTime;
+
+	if (AnimCacheStep < NumFrames - 1)
+	{
+		AnimationTime += DeltaTime * AnimationSpeed;
+		if (AnimationTime >= 1.0f)
+		{
+			AnimCacheStep += FMath::FloorToInt(AnimationTime);
+			if (AnimCacheStep < NumFrames - 1)
+			{
+				AnimationTime = FMath::Frac(AnimationTime);
+			}
+			else
+			{
+				// Animation will stop until more frames are added
+				AnimCacheStep = NumFrames - 1;
+				AnimationTime = 0.0f;
+			}
+		}
+	}
+	else
+	{
+		AnimCacheStep = NumFrames - 1;
+		AnimationTime = 0.0f;
+	}
+
+	if (AnimCacheStep != OldAnimCacheStep || AnimationTime != OldAnimationTime)
+	{
+		UpdateResultFrame(SimulationCache);
+	}
+}
+
+void UGalaxySimulationCachePlayer::StepBack(float DeltaTime)
+{
+	UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get();
+	if (!SimulationCache)
+	{
+		return;
+	}
+
+	const int32 NumFrames = SimulationCache->GetNumFrames();
+	const int32 OldAnimCacheStep = AnimCacheStep;
+	const float OldAnimationTime = AnimationTime;
+
+	if (AnimCacheStep >= 0)
+	{
+		AnimationTime -= DeltaTime * AnimationSpeed;
+		if (AnimationTime < 0.0f)
+		{
+			AnimCacheStep += FMath::FloorToInt(AnimationTime);
+			if (AnimCacheStep >= 0)
+			{
+				AnimationTime = FMath::Frac(AnimationTime);
+			}
+			else
+			{
+				// Animation stop at front
+				AnimCacheStep = 0;
+				AnimationTime = 0.0f;
+			}
+		}
+	}
+	else
+	{
+		AnimCacheStep = 0;
+		AnimationTime = 0.0f;
+	}
+
+	if (AnimCacheStep != OldAnimCacheStep || AnimationTime != OldAnimationTime)
+	{
+		UpdateResultFrame(SimulationCache);
+	}
+}
+
+float UGalaxySimulationCachePlayer::GetTime() const
+{
+	return (float)AnimCacheStep + AnimationTime;
+}
+
+void UGalaxySimulationCachePlayer::SetTime(float Time)
+{
+	UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get();
+	if (!SimulationCache)
+	{
+		return;
+	}
+
+	AnimCacheStep = FMath::FloorToInt(Time);
+	AnimationTime = FMath::Frac(Time);
+
+	UpdateResultFrame(SimulationCache);
+}
+
+void UGalaxySimulationCachePlayer::SetToFront()
+{
+	UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get();
+	if (!SimulationCache)
+	{
+		return;
+	}
+
 	AnimCacheStep = 0;
 	AnimationTime = 0.0f;
 
 	UpdateResultFrame(SimulationCache);
 }
 
-void FGalaxySimulationCachePlayer::StepAnimation(const UFastMultipoleSimulationCache* SimulationCache, float DeltaTime)
+void UGalaxySimulationCachePlayer::SetToBack()
 {
+	UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get();
 	if (!SimulationCache)
 	{
-		ResetAnimation(nullptr);
 		return;
 	}
 
-	const int32 NumFrames = SimulationCache->GetNumFrames();
-	const int32 OldAnimCacheStep = AnimCacheStep;
+	AnimCacheStep = SimulationCache->GetNumFrames() - 1;
+	AnimationTime = 0.0f;
 
-	if (AnimCacheStep >= 0 && AnimCacheStep < NumFrames - 1)
-	{
-		AnimationTime += DeltaTime * AnimationSpeed;
-		if (AnimationTime >= 1.0f)
-		{
-			AnimCacheStep += (int32)AnimationTime;
-			if (AnimCacheStep < NumFrames)
-			{
-				AnimationTime = FMath::Fmod(AnimationTime, 1.0f);
-			}
-			else
-			{
-				// Animation will stop until more frames are added
-				AnimCacheStep = NumFrames - 1;
-				AnimationTime = 1.0f;
-			}
-		}
-
-		UpdateResultFrame(SimulationCache);
-	}
+	UpdateResultFrame(SimulationCache);
 }
 
-void FGalaxySimulationCachePlayer::GetFrameInterval(
+void UGalaxySimulationCachePlayer::GetFrameInterval(
 	const UFastMultipoleSimulationCache* SimulationCache, FFastMultipoleSimulationFrame::ConstPtr& OutStartFrame,
 	FFastMultipoleSimulationFrame::ConstPtr& OutEndFrame) const
 {
@@ -81,13 +212,9 @@ void FGalaxySimulationCachePlayer::GetFrameInterval(
 	}
 }
 
-void FGalaxySimulationCachePlayer::UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache)
+void UGalaxySimulationCachePlayer::UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache)
 {
-	if (!SimulationCache)
-	{
-		ResultFrame.Empty();
-		return;
-	}
+	check(SimulationCache);
 
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
 	GetFrameInterval(SimulationCache, StartFrame, EndFrame);
@@ -126,4 +253,18 @@ void FGalaxySimulationCachePlayer::UpdateResultFrame(const UFastMultipoleSimulat
 	{
 		ResultFrame.Empty();
 	}
+}
+
+void UGalaxySimulationCachePlayer::OnWorldTick_StepForward(UWorld* World, ELevelTick TickType, float DeltaTime)
+{
+	StepForward(DeltaTime);
+}
+
+void UGalaxySimulationCachePlayer::OnCacheReset(UFastMultipoleSimulationCache* InSimulationCache)
+{
+	SetToFront();
+}
+
+void UGalaxySimulationCachePlayer::OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulationCache)
+{
 }

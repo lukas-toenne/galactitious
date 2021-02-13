@@ -38,7 +38,8 @@ public:
 	UFUNCTION(BlueprintGetter)
 	UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
 
-	FGalaxySimulationCachePlayer& GetCachePlayer() { return CachePlayer; }
+	UFUNCTION(BlueprintGetter)
+	UGalaxySimulationCachePlayer* GetCachePlayer() { return CachePlayer; }
 
 	UFUNCTION(BlueprintCallable)
 	void StartSimulation(EGalaxySimulationStartMode StartMode);
@@ -75,17 +76,12 @@ protected:
 	 */
 	int32 SchedulePrecomputeSteps();
 
-	UFUNCTION()
-	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
-	UFUNCTION()
-	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
-
 private:
 	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache)
 	UFastMultipoleSimulationCache* SimulationCache;
 
-	UPROPERTY(EditAnywhere)
-	FGalaxySimulationCachePlayer CachePlayer;
+	UPROPERTY(Transient, BlueprintGetter = GetCachePlayer)
+	UGalaxySimulationCachePlayer* CachePlayer;
 
 	/** Thread that runs the simulation. */
 	class TUniquePtr<struct FFastMultipoleSimulationThreadRunnable> ThreadRunnable;
