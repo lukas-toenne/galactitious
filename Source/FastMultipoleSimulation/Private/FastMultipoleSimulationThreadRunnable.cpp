@@ -22,10 +22,9 @@ FFastMultipoleSimulationThreadRunnable::~FFastMultipoleSimulationThreadRunnable(
 	WorkEvent = nullptr;
 }
 
-void FFastMultipoleSimulationThreadRunnable::ScheduleStep(float DeltaTime)
+void FFastMultipoleSimulationThreadRunnable::ScheduleStep()
 {
 	FFastMultipoleSimulationStepRequest Request;
-	Request.DeltaTime = DeltaTime;
 	ScheduledSteps.Enqueue(MoveTemp(Request));
 	NumScheduledSteps.Increment();
 
@@ -120,7 +119,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 			NumScheduledSteps.Decrement();
 
 			FFastMultipoleSimulationStepResult Result;
-			if (Simulation->Step(bStopRequested, Request.DeltaTime, Result))
+			if (Simulation->Step(bStopRequested, Result))
 			{
 				CompletedSteps.Enqueue(Result);
 			}
@@ -164,9 +163,10 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 	Simulation.Reset();
 }
 
-void FFastMultipoleSimulationThreadRunnable::StartSimulation(FFastMultipoleSimulationFrame::ConstPtr InStartFrame)
+void FFastMultipoleSimulationThreadRunnable::StartSimulation(
+	FFastMultipoleSimulationFrame::ConstPtr InStartFrame, float StepSize, EFastMultipoleSimulationIntegrator Integrator)
 {
-	Simulation = MakeUnique<FFastMultipoleSimulation>();
+	Simulation = MakeUnique<FFastMultipoleSimulation>(StepSize, Integrator);
 	Simulation->Reset(InStartFrame);
 
 	WorkEvent->Trigger();

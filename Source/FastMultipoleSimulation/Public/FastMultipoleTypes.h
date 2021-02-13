@@ -18,4 +18,19 @@ namespace FastMultipole
 
 	using PointDataGridType = openvdb::Grid<PointDataTreeType>;
 	using PointIndexGridType = openvdb::Grid<PointIndexTreeType>;
-}
+} // namespace FastMultipole
+
+UENUM()
+enum class EFastMultipoleSimulationIntegrator : uint8
+{
+	Euler,
+	Leapfrog,
+};
+
+UENUM()
+enum class EFastMultipoleSimulationStatus : uint8
+{
+	NotInitialized,
+	Stopped,
+	Success,
+};

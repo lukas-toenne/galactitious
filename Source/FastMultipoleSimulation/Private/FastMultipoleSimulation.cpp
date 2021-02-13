@@ -41,7 +41,9 @@ void FFastMultipoleSimulation::Shutdown()
 {
 }
 
-FFastMultipoleSimulation::FFastMultipoleSimulation()
+FFastMultipoleSimulation::FFastMultipoleSimulation(float InStepSize, EFastMultipoleSimulationIntegrator InIntegrator)
+	: StepSize(InStepSize)
+	, Integrator(InIntegrator)
 {
 }
 
@@ -55,7 +57,7 @@ void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFrame::ConstPtr InF
 	NextFrame.Reset();
 }
 
-bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result)
+bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, FFastMultipoleSimulationStepResult& Result)
 {
 	Result.Frame.Reset();
 
@@ -73,8 +75,7 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float Delta
 
 	NextFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(*CurrentFrame);
 
-	ComputeForces();
-	IntegratePositions(DeltaTime);
+	Integrate();
 
 	Result.Frame = NextFrame;
 	CurrentFrame = NextFrame;
@@ -84,34 +85,56 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, float Delta
 	return true;
 }
 
-void FFastMultipoleSimulation::ComputeForces()
-{
-	check(CurrentFrame);
-	check(NextFrame);
-}
-
-void FFastMultipoleSimulation::IntegratePositions(float DeltaTime)
+void FFastMultipoleSimulation::Integrate()
 {
 	check(CurrentFrame);
 	check(NextFrame);
 
-	NextFrame->SetDeltaTime(DeltaTime);
+	const float dt = StepSize;
+	const float dt2 = 0.5f * StepSize;
+	const float dtt2 = 0.5f * StepSize * StepSize;
+
+	NextFrame->SetDeltaTime(dt);
 
 	const TArray<FVector>& Positions = CurrentFrame->GetPositions();
 	const TArray<FVector>& Velocities = CurrentFrame->GetVelocities();
+	const TArray<FVector>& Forces = CurrentFrame->GetForces();
+	TArray<FVector>& NextPositions = NextFrame->GetPositions();
+	TArray<FVector>& NextVelocities = NextFrame->GetVelocities();
+	TArray<FVector>& NextForces = NextFrame->GetForces();
 
 	const int32 NumPoints = CurrentFrame->GetNumPoints();
 	check(NextFrame->GetNumPoints() == NumPoints);
 
-	for (int32 i = 0; i < NumPoints; ++i)
+	switch (Integrator)
 	{
-		FVector NewPosition = Positions[i] + Velocities[i] * DeltaTime;
-		FVector NewVelocity = Velocities[i];
-		NextFrame->SetPoint(i, NewPosition, NewVelocity);
+	case EFastMultipoleSimulationIntegrator::Euler:
+		for (int32 i = 0; i < NumPoints; ++i)
+		{
+			ComputeForces(Positions, NextForces);
+			NextPositions[i] = Positions[i] + Velocities[i] * dt;
+			NextVelocities[i] = Velocities[i] + NextForces[i] * dt;
+		}
+		break;
+
+	case EFastMultipoleSimulationIntegrator::Leapfrog:
+		for (int32 i = 0; i < NumPoints; ++i)
+		{
+			NextPositions[i] = Positions[i] + Velocities[i] * dt + Forces[i] * dtt2;
+			ComputeForces(Positions, NextForces);
+			NextVelocities[i] = Velocities[i] + (Forces[i] + NextForces[i]) * dt2;
+		}
+		break;
 	}
 }
 
-void FFastMultipoleSimulation::ComputeForcesDirect()
+void FFastMultipoleSimulation::ComputeForces(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
+{
+	check(CurrentFrame);
+	check(NextFrame);
+}
+
+void FFastMultipoleSimulation::ComputeForcesDirect(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
 {
 }
 

@@ -35,12 +35,19 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 	float GetDeltaTime() const { return DeltaTime; }
 	void SetDeltaTime(float InDeltaTime);
 
-	TArray<FVector> GetPositions() const { return Positions; }
-	TArray<FVector> GetVelocities() const { return Velocities; }
-	TArray<FVector> GetForces() const { return Forces; }
+	const TArray<FVector>& GetPositions() const { return Positions; }
+	const TArray<FVector>& GetVelocities() const { return Velocities; }
+	const TArray<FVector>& GetForces() const { return Forces; }
+
+	TArray<FVector>& GetPositions() { return Positions; }
+	TArray<FVector>& GetVelocities() { return Velocities; }
+	TArray<FVector>& GetForces() { return Forces; }
+
 	FastMultipole::PointDataGridType::Ptr GetPointDataGrid() const { return PointDataGrid; }
 
 	void SetPoint(int32 Index, const FVector& InPosition, const FVector& InVelocity, const FVector& InForce = FVector::ZeroVector);
+	void SetPostion(int32 Index, const FVector& InPosition);
+	void SetVelocity(int32 Index, const FVector& InVelocity);
 	void SetForce(int32 Index, const FVector& InForce);
 	void AddForce(int32 Index, const FVector& InForce);
 

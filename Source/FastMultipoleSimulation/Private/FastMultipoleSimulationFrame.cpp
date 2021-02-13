@@ -56,15 +56,23 @@ void FFastMultipoleSimulationFrame::SetPoint(int32 Index, const FVector& InPosit
 	Forces[Index] = InForce;
 }
 
+void FFastMultipoleSimulationFrame::SetPostion(int32 Index, const FVector& InPosition)
+{
+	Positions[Index] = InPosition;
+}
+
+void FFastMultipoleSimulationFrame::SetVelocity(int32 Index, const FVector& InVelocity)
+{
+	Velocities[Index] = InVelocity;
+}
+
 void FFastMultipoleSimulationFrame::SetForce(int32 Index, const FVector& InForce)
 {
-	check(Index < Positions.Num());
 	Forces[Index] = InForce;
 }
 
 void FFastMultipoleSimulationFrame::AddForce(int32 Index, const FVector& InForce)
 {
-	check(Index < Positions.Num());
 	Forces[Index] += InForce;
 }
 

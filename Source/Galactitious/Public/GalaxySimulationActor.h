@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FastMultipoleSimulationThreadRunnable.h"
+#include "FastMultipoleTypes.h"
 #include "GalaxySimulationCachePlayer.h"
 
 #include "Containers/Queue.h"
@@ -57,6 +58,9 @@ public:
 	// Size of the simulation time step
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float SimulationStepSize = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EFastMultipoleSimulationIntegrator SimulationIntegrator = EFastMultipoleSimulationIntegrator::Leapfrog;
 
 	// Number of steps to precompute in advance of the cache player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)

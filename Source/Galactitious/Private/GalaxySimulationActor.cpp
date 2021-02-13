@@ -89,7 +89,7 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 
 	if (StartFrame)
 	{
-		ThreadRunnable->StartSimulation(StartFrame);
+		ThreadRunnable->StartSimulation(StartFrame, SimulationStepSize, SimulationIntegrator);
 
 		SchedulePrecomputeSteps();
 	}
@@ -146,7 +146,7 @@ int32 AGalaxySimulationActor::SchedulePrecomputeSteps()
 	const int32 NumStepsToSchedule = FMath::Max(NumStepsPrecompute - RemainingCacheFrames + 1, 0);
 	for (int i = 0; i < NumStepsToSchedule; ++i)
 	{
-		ThreadRunnable->ScheduleStep(SimulationStepSize);
+		ThreadRunnable->ScheduleStep();
 	}
 	return NumStepsToSchedule;
 }

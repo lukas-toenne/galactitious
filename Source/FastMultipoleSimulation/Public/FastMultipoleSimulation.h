@@ -8,16 +8,9 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipole, Log, All);
 
-enum class FASTMULTIPOLESIMULATION_API EFastMultipoleSimulationStatus : uint8
-{
-	NotInitialized,
-	Stopped,
-	Success,
-};
-
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationStepRequest
 {
-	float DeltaTime;
+	int32 Dummy;
 };
 
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationStepResult
@@ -35,28 +28,32 @@ public:
 	static void Init();
 	static void Shutdown();
 
-	FFastMultipoleSimulation();
+	FFastMultipoleSimulation(float StepSize, EFastMultipoleSimulationIntegrator Integrator);
 	~FFastMultipoleSimulation();
 
 	void Reset(FFastMultipoleSimulationFrame::ConstPtr Frame);
-	bool Step(FThreadSafeBool& bStopRequested, float DeltaTime, FFastMultipoleSimulationStepResult& Result);
+	bool Step(FThreadSafeBool& bStopRequested, FFastMultipoleSimulationStepResult& Result);
 
 	FFastMultipoleSimulationFrame::ConstPtr GetCurrentFrame() const { return CurrentFrame; }
 
 protected:
 
-	void ComputeForces();
-	void IntegratePositions(float DeltaTime);
+	void Integrate();
+
+	void ComputeForces(const TArray<FVector>& InPositions, TArray<FVector>& OutForces);
+
+	/* Inefficient n^2 computation */
+	void ComputeForcesDirect(const TArray<FVector>& InPositions, TArray<FVector>& OutForces);
 
 	void BuildPointGrid(const TArray<FVector>& Positions, PointDataGridType::Ptr& PointDataGrid);
 	void ClearPointGrid();
 
 	// void BuildMomentsGrid();
 
-	/* Inefficient n^2 computation */
-	void ComputeForcesDirect();
-
 private:
 	FFastMultipoleSimulationFrame::ConstPtr CurrentFrame;
 	FFastMultipoleSimulationFrame::Ptr NextFrame;
+
+	float StepSize;
+	EFastMultipoleSimulationIntegrator Integrator;
 };

@@ -13,7 +13,7 @@ public:
 	FFastMultipoleSimulationThreadRunnable();
 	virtual ~FFastMultipoleSimulationThreadRunnable();
 
-	void ScheduleStep(float DeltaTime);
+	void ScheduleStep();
 	void CancelScheduledSteps();
 	int32 GetNumScheduledSteps() const;
 
@@ -21,7 +21,7 @@ public:
 	void StopThread();
 	inline bool IsRunning() { return bIsRunning; }
 
-	void StartSimulation(FFastMultipoleSimulationFrame::ConstPtr StartFrame);
+	void StartSimulation(FFastMultipoleSimulationFrame::ConstPtr StartFrame, float StepSize, EFastMultipoleSimulationIntegrator Integrator);
 	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
