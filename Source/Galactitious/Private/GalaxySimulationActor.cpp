@@ -137,13 +137,13 @@ void AGalaxySimulationActor::DistributePoints(uint32 NumPoints, TArray<FVector>&
 
 int32 AGalaxySimulationActor::SchedulePrecomputeSteps()
 {
-	// Check remaining number of cache frames.
-	const int32 RemainingCacheFrames = SimulationCache->GetNumFrames() - CachePlayer->GetCacheStep() - 1;
+	// Check remaining number of cache frames after the end of the current interval.
+	const int32 RemainingCacheFrames = SimulationCache->GetNumFrames() - (CachePlayer->GetCacheStep() + 1);
 	check(RemainingCacheFrames >= 0);
 
 	// Schedule more steps if needed.
-	// Player interpolates between current cache step and the next, so have to add one more frame.
-	const int32 NumStepsToSchedule = FMath::Max(NumStepsPrecompute - RemainingCacheFrames + 1, 0);
+	// Player interpolates between current cache step and the next, so have to add one frame.
+	const int32 NumStepsToSchedule = FMath::Max(NumStepsPrecompute + 1 - ThreadRunnable->GetNumScheduledSteps() - RemainingCacheFrames, 0);
 	for (int i = 0; i < NumStepsToSchedule; ++i)
 	{
 		ThreadRunnable->ScheduleStep();
