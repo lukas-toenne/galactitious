@@ -41,9 +41,11 @@ void FFastMultipoleSimulation::Shutdown()
 {
 }
 
-FFastMultipoleSimulation::FFastMultipoleSimulation(float InStepSize, EFastMultipoleSimulationIntegrator InIntegrator)
+FFastMultipoleSimulation::FFastMultipoleSimulation(
+	float InStepSize, EFastMultipoleSimulationIntegrator InIntegrator, EFastMultipoleSimulationForceMethod InForceMethod)
 	: StepSize(InStepSize)
 	, Integrator(InIntegrator)
+	, ForceMethod(InForceMethod)
 {
 }
 
@@ -51,10 +53,22 @@ FFastMultipoleSimulation::~FFastMultipoleSimulation()
 {
 }
 
-void FFastMultipoleSimulation::Reset(FFastMultipoleSimulationFrame::ConstPtr InFrame)
+void FFastMultipoleSimulation::SetDebugWorld(UWorld* InDebugWorld)
 {
-	CurrentFrame = InFrame;
+#if UE_BUILD_DEBUG
+	DebugWorld = InDebugWorld;
+#endif
+}
+
+void FFastMultipoleSimulation::Reset(
+	FFastMultipoleSimulationInvariants::ConstPtr InInvariants, FFastMultipoleSimulationFrame::Ptr InStartFrame)
+{
+	Invariants = InInvariants;
+	CurrentFrame = InStartFrame;
 	NextFrame.Reset();
+
+	// Force initialization before first iteration
+	ComputeForces(InStartFrame->GetPositions(), InStartFrame->GetForces());
 }
 
 bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, FFastMultipoleSimulationStepResult& Result)
@@ -73,7 +87,8 @@ bool FFastMultipoleSimulation::Step(FThreadSafeBool& bStopRequested, FFastMultip
 		return false;
 	}
 
-	NextFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>(*CurrentFrame);
+	NextFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
+	NextFrame->ContinueFrom(*CurrentFrame);
 
 	Integrate();
 
@@ -94,7 +109,8 @@ void FFastMultipoleSimulation::Integrate()
 	const float dt2 = 0.5f * StepSize;
 	const float dtt2 = 0.5f * StepSize * StepSize;
 
-	NextFrame->SetDeltaTime(dt);
+	const int32 NumPoints = CurrentFrame->GetNumPoints();
+	check(NextFrame->GetNumPoints() == NumPoints);
 
 	const TArray<FVector>& Positions = CurrentFrame->GetPositions();
 	const TArray<FVector>& Velocities = CurrentFrame->GetVelocities();
@@ -103,25 +119,28 @@ void FFastMultipoleSimulation::Integrate()
 	TArray<FVector>& NextVelocities = NextFrame->GetVelocities();
 	TArray<FVector>& NextForces = NextFrame->GetForces();
 
-	const int32 NumPoints = CurrentFrame->GetNumPoints();
-	check(NextFrame->GetNumPoints() == NumPoints);
-
 	switch (Integrator)
 	{
 	case EFastMultipoleSimulationIntegrator::Euler:
 		for (int32 i = 0; i < NumPoints; ++i)
 		{
-			ComputeForces(Positions, NextForces);
 			NextPositions[i] = Positions[i] + Velocities[i] * dt;
-			NextVelocities[i] = Velocities[i] + NextForces[i] * dt;
+			NextVelocities[i] = Velocities[i] + Forces[i] * dt;
 		}
+
+		ComputeForces(Positions, NextForces);
 		break;
 
 	case EFastMultipoleSimulationIntegrator::Leapfrog:
 		for (int32 i = 0; i < NumPoints; ++i)
 		{
 			NextPositions[i] = Positions[i] + Velocities[i] * dt + Forces[i] * dtt2;
-			ComputeForces(Positions, NextForces);
+		}
+
+		ComputeForces(NextPositions, NextForces);
+
+		for (int32 i = 0; i < NumPoints; ++i)
+		{
 			NextVelocities[i] = Velocities[i] + (Forces[i] + NextForces[i]) * dt2;
 		}
 		break;
@@ -130,11 +149,48 @@ void FFastMultipoleSimulation::Integrate()
 
 void FFastMultipoleSimulation::ComputeForces(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
 {
-	check(CurrentFrame);
-	check(NextFrame);
+	switch (ForceMethod)
+	{
+	case EFastMultipoleSimulationForceMethod::Direct:
+		ComputeForces_Direct(InPositions, OutForces);
+		break;
+	case EFastMultipoleSimulationForceMethod::FastMultipole:
+		ComputeForces_FastMultipole(InPositions, OutForces);
+		break;
+	}
 }
 
-void FFastMultipoleSimulation::ComputeForcesDirect(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
+void FFastMultipoleSimulation::ComputeForces_Direct(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
+{
+	const int32 NumPoints = InPositions.Num();
+	check(OutForces.Num() == NumPoints);
+
+	const float ForceFactor = Invariants->ForceFactor;
+	const float SofteningOffset = Invariants->SofteningRadius * Invariants->SofteningRadius;
+	check(SofteningOffset >= SMALL_NUMBER);
+	const TArray<float>& Masses = Invariants->Masses;
+	check(Masses.Num() == NumPoints);
+
+	for (int32 i = 0; i < NumPoints; ++i)
+	{
+		const float Mass1 = Masses[i];
+		const FVector Pos1 = InPositions[i];
+
+		for (int32 j = i + 1; j < NumPoints; ++j)
+		{
+			const float Mass2 = Masses[j];
+			const FVector Pos2 = InPositions[j];
+			const FVector R = Pos2 - Pos1;
+			const float DD = R.SizeSquared() + SofteningOffset;
+			const float D = FMath::Sqrt(DD);
+			const FVector Force = ForceFactor * R / (DD * D);
+			OutForces[i] += Force * Mass2;
+			OutForces[j] -= Force * Mass1;
+		}
+	}
+}
+
+void FFastMultipoleSimulation::ComputeForces_FastMultipole(const TArray<FVector>& InPositions, TArray<FVector>& OutForces)
 {
 }
 
@@ -157,6 +213,52 @@ void FFastMultipoleSimulation::BuildPointGrid(const TArray<FVector>& Positions, 
 
 void FFastMultipoleSimulation::ClearPointGrid()
 {
+}
+
+void FFastMultipoleSimulationUtils::ComputeStableForceFactor(
+	const TArray<float>& Masses, const TArray<FVector>& Positions, const TArray<FVector>& Velocities, float Softening, float& OutKineticEnergyAverage,
+	float& OutStableForceFactor)
+{
+	int32 NumPoints = Masses.Num();
+	check(Positions.Num() == NumPoints);
+	check(Velocities.Num() == NumPoints);
+	if (NumPoints == 0)
+	{
+		OutKineticEnergyAverage = 0.0f;
+		OutStableForceFactor = 1.0f;
+		return;
+	}
+
+	const float SofteningOffset = Softening * Softening;
+	check(SofteningOffset >= SMALL_NUMBER);
+
+	float PotentialEnergy = 0.0f;
+	float KineticEnergy = 0.0f;
+	for (int32 i = 0; i < NumPoints; ++i)
+	{
+		const float Mass1 = Masses[i];
+		const FVector Pos1 = Positions[i];
+
+		for (int32 j = i + 1; j < NumPoints; ++j)
+		{
+			const float Mass2 = Masses[j];
+			const FVector Pos2 = Positions[j];
+			const FVector R = Pos2 - Pos1;
+			const float DD = R.SizeSquared() + SofteningOffset;
+			const float D = FMath::Sqrt(DD);
+			const float U = - Mass1 * Mass2 / D;
+			// Potential energy for particle pair
+			PotentialEnergy += U;
+		}
+
+		const FVector Vel = Velocities[i];
+		KineticEnergy += 0.5f * Mass1 * Vel.SizeSquared();
+	}
+
+	ensure(PotentialEnergy <= 0.0f);
+	ensure(KineticEnergy >= 0.0f);
+	OutKineticEnergyAverage = KineticEnergy / NumPoints;
+	OutStableForceFactor = FMath::IsNearlyZero(PotentialEnergy) ? 1.0f : -2.0f * KineticEnergy / PotentialEnergy;
 }
 
 #undef LOCTEXT_NAMESPACE

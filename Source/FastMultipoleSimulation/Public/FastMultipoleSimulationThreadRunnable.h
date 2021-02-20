@@ -7,11 +7,15 @@
 
 #include "Containers/CircularQueue.h"
 
+class FFastMultipoleSimulation;
+
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationThreadRunnable : public FRunnable
 {
 public:
 	FFastMultipoleSimulationThreadRunnable();
 	virtual ~FFastMultipoleSimulationThreadRunnable();
+
+	void SetDebugWorld(UWorld* InDebugWorld);
 
 	void ScheduleStep();
 	void CancelScheduledSteps();
@@ -21,7 +25,9 @@ public:
 	void StopThread();
 	inline bool IsRunning() { return bIsRunning; }
 
-	void StartSimulation(FFastMultipoleSimulationFrame::ConstPtr StartFrame, float StepSize, EFastMultipoleSimulationIntegrator Integrator);
+	void StartSimulation(
+		FFastMultipoleSimulationInvariants::ConstPtr Invariants, FFastMultipoleSimulationFrame::Ptr StartFrame, float StepSize,
+		EFastMultipoleSimulationIntegrator Integrator, EFastMultipoleSimulationForceMethod ForceMethod);
 	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
@@ -32,7 +38,7 @@ protected:
 	virtual void Stop() override;
 
 private:
-	TUniquePtr<class FFastMultipoleSimulation> Simulation;
+	TUniquePtr<FFastMultipoleSimulation> Simulation;
 
 	// Steps to compute
 	TQueue<FFastMultipoleSimulationStepRequest, EQueueMode::Spsc> ScheduledSteps;

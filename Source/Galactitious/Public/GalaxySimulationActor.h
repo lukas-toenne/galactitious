@@ -62,9 +62,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EFastMultipoleSimulationIntegrator SimulationIntegrator = EFastMultipoleSimulationIntegrator::Leapfrog;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EFastMultipoleSimulationForceMethod SimulationForceMethod = EFastMultipoleSimulationForceMethod::FastMultipole;
+
 	// Number of steps to precompute in advance of the cache player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 NumStepsPrecompute = 3;
+
+	/** Softening radius of the gravitational potential to avoid instabilities at small distances. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float GravitySofteningRadius = 0.1f;
+
+	UPROPERTY(EditAnywhere, AdvancedDisplay)
+	bool EnableDebugDrawing = false;
 
 	UPROPERTY(BlueprintAssignable)
 	FGalaxySimulationStartedDelegate OnSimulationStarted;
@@ -73,7 +83,13 @@ public:
 	FGalaxySimulationStoppedDelegate OnSimulationStopped;
 
 protected:
-	void DistributePoints(uint32 NumPoints, TArray<FVector>& OutPositions, TArray<FVector>& OutVelocities) const;
+	FFastMultipoleSimulationInvariants::Ptr SetupInvariants(int32 NumPoints);
+
+	void DistributeMasses(int32 NumPoints, TArray<float>& OutMasses) const;
+
+	void DistributePoints(int32 NumPoints, TArray<FVector>& OutPositions) const;
+
+	void ComputeVelocities(const TArray<FVector>& InPositions, TArray<FVector>& OutVelocities);
 
 	/** Schedule frames if the player reaches the end of the cache.
 	 * @return Number of frames that have been scheduled.

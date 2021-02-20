@@ -24,9 +24,13 @@ FFastMultipoleSimulationFrame::FFastMultipoleSimulationFrame(TArray<FVector>& In
 	Forces.SetNumZeroed(Positions.Num());
 }
 
-void FFastMultipoleSimulationFrame::SetDeltaTime(float InDeltaTime)
+void FFastMultipoleSimulationFrame::ContinueFrom(const FFastMultipoleSimulationFrame& Other)
 {
-	DeltaTime = InDeltaTime;
+	const int32 NumPoints = Other.GetNumPoints();
+
+	Positions = Other.Positions;
+	Velocities = Other.Velocities;
+	Forces.SetNumZeroed(NumPoints);
 }
 
 int32 FFastMultipoleSimulationFrame::GetNumPoints() const

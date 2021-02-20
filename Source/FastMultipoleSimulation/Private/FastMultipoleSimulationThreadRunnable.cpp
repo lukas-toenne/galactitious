@@ -22,6 +22,16 @@ FFastMultipoleSimulationThreadRunnable::~FFastMultipoleSimulationThreadRunnable(
 	WorkEvent = nullptr;
 }
 
+void FFastMultipoleSimulationThreadRunnable::SetDebugWorld(UWorld* InDebugWorld)
+{
+	check(!bIsRunning);
+
+	if (Simulation)
+	{
+		Simulation->SetDebugWorld(InDebugWorld);
+	}
+}
+
 void FFastMultipoleSimulationThreadRunnable::ScheduleStep()
 {
 	FFastMultipoleSimulationStepRequest Request;
@@ -87,7 +97,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		WorkEvent->Wait();
 	}
 
-//LoopStart:
+	// LoopStart:
 	while (!bStopRequested)
 	{
 #if 0
@@ -127,7 +137,7 @@ uint32 FFastMultipoleSimulationThreadRunnable::Run()
 		else
 		{
 			WorkEvent->Wait();
-			//goto LoopStart;
+			// goto LoopStart;
 		}
 	}
 
@@ -164,10 +174,11 @@ void FFastMultipoleSimulationThreadRunnable::StopThread()
 }
 
 void FFastMultipoleSimulationThreadRunnable::StartSimulation(
-	FFastMultipoleSimulationFrame::ConstPtr InStartFrame, float StepSize, EFastMultipoleSimulationIntegrator Integrator)
+	FFastMultipoleSimulationInvariants::ConstPtr Invariants, FFastMultipoleSimulationFrame::Ptr StartFrame, float StepSize,
+	EFastMultipoleSimulationIntegrator Integrator, EFastMultipoleSimulationForceMethod ForceMethod)
 {
-	Simulation = MakeUnique<FFastMultipoleSimulation>(StepSize, Integrator);
-	Simulation->Reset(InStartFrame);
+	Simulation = MakeUnique<FFastMultipoleSimulation>(StepSize, Integrator, ForceMethod);
+	Simulation->Reset(Invariants, StartFrame);
 
 	WorkEvent->Trigger();
 }

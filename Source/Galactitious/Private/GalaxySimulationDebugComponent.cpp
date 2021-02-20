@@ -106,7 +106,13 @@ void UGalaxySimulationDebugComponent::ShowAnimatedPoints() const
 		const int32 NumPoints = Frame.GetNumPoints();
 		for (int32 i = 0; i < NumPoints; ++i)
 		{
-			DrawDebugPoint(World, Frame.GetPositions()[i], 3.0f, PointColor);
+			const FVector P = Frame.GetPositions()[i];
+			const FVector V = Frame.GetVelocities()[i];
+			const FVector F = Frame.GetForces()[i];
+
+			DrawDebugPoint(World, P, 5.0f, PointColor);
+			DrawDebugLine(World, P, P + V, FColor::Yellow);
+			DrawDebugLine(World, P, P + F, FColor::Red);
 		}
 	}
 }

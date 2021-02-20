@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "FastMultipoleTypes.h"
 
+#include "Kismet/BlueprintFunctionLibrary.h"
+
 #include "FastMultipoleOpenVDBGuardEnter.h"
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
@@ -28,12 +30,11 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 
 	FFastMultipoleSimulationFrame& operator=(const FFastMultipoleSimulationFrame& Other) = default;
 
+	void ContinueFrom(const FFastMultipoleSimulationFrame& Other);
+
 	int32 GetNumPoints() const;
 	void SetNumPoints(int32 NumPoints);
 	void Empty();
-
-	float GetDeltaTime() const { return DeltaTime; }
-	void SetDeltaTime(float InDeltaTime);
 
 	const TArray<FVector>& GetPositions() const { return Positions; }
 	const TArray<FVector>& GetVelocities() const { return Velocities; }
@@ -52,10 +53,30 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 	void AddForce(int32 Index, const FVector& InForce);
 
 private:
-	float DeltaTime;
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
 	TArray<FVector> Forces;
 
 	FastMultipole::PointDataGridType::Ptr PointDataGrid;
+};
+
+USTRUCT(BlueprintType)
+struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationInvariants
+{
+	GENERATED_BODY()
+
+	using Ptr = TSharedPtr<FFastMultipoleSimulationInvariants, ESPMode::ThreadSafe>;
+	using ConstPtr = TSharedPtr<FFastMultipoleSimulationInvariants const, ESPMode::ThreadSafe>;
+
+	// Proportionality factor A of forces to inverse-square distance:
+	// F = A * m1 * m2 / r^2
+	float ForceFactor;
+
+	// Mass of particles
+	TArray<float> Masses;
+	TArray<float> InvMasses;
+
+	// Softening parameter to avoid singularities when particles come too close:
+	// F = A*m1*m2 / (r^2 + s^2)
+	float SofteningRadius;
 };

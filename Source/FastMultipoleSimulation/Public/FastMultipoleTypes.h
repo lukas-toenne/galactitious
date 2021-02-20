@@ -34,3 +34,10 @@ enum class EFastMultipoleSimulationStatus : uint8
 	Stopped,
 	Success,
 };
+
+UENUM()
+enum class EFastMultipoleSimulationForceMethod : uint8
+{
+	Direct,
+	FastMultipole,
+};
