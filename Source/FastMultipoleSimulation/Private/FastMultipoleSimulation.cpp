@@ -128,7 +128,7 @@ void FFastMultipoleSimulation::Integrate()
 			NextVelocities[i] = Velocities[i] + Forces[i] * dt;
 		}
 
-		ComputeForces(Positions, NextForces);
+		ComputeForces(NextPositions, NextForces);
 		break;
 
 	case EFastMultipoleSimulationIntegrator::Leapfrog:

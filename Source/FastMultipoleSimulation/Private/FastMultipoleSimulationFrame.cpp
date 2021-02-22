@@ -52,6 +52,12 @@ void FFastMultipoleSimulationFrame::Empty()
 	Forces.Empty();
 }
 
+bool FFastMultipoleSimulationFrame::IsValid() const
+{
+	const int32 NumPoints = Positions.Num();
+	return Velocities.Num() == NumPoints && Forces.Num() == NumPoints;
+}
+
 void FFastMultipoleSimulationFrame::SetPoint(int32 Index, const FVector& InPosition, const FVector& InVelocity, const FVector& InForce)
 {
 	check(Index < Positions.Num());

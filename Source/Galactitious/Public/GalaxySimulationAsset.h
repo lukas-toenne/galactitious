@@ -14,9 +14,11 @@ class GALACTITIOUS_API UGalaxySimulationAsset : public UObject
 	GENERATED_BODY()
 
 public:
-	void SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache);
-	const UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
-	UFastMultipoleSimulationCache* GetSimulationCache() { return SimulationCache; }
+	UGalaxySimulationAsset();
+	virtual ~UGalaxySimulationAsset();
+
+	UFUNCTION(BlueprintGetter)
+	UFastMultipoleSimulationCache* GetSimulationCache() const { return SimulationCache; }
 
 	virtual void BeginDestroy() override;
 #if WITH_EDITOR
@@ -30,7 +32,9 @@ public:
 
 private:
 #if WITH_EDITOR
+	UFUNCTION()
 	void OnCacheReset(UFastMultipoleSimulationCache* InSimulation);
+	UFUNCTION()
 	void OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulation);
 	void RegisterOnUpdateSimulation(UFastMultipoleSimulationCache* InSimulation, bool bRegister);
 #endif // WITH_EDITOR
@@ -44,6 +48,6 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 private:
-	UPROPERTY(EditAnywhere, Instanced)
+	UPROPERTY(EditAnywhere, BlueprintGetter = "GetSimulationCache")
 	UFastMultipoleSimulationCache* SimulationCache = nullptr;
 };

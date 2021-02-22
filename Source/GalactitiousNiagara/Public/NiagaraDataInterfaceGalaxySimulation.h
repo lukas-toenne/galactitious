@@ -3,21 +3,45 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FastMultipoleSimulationCache.h"
+#include "FastMultipoleSimulationFrame.h"
+#include "FastMultipoleTypes.h"
 #include "NiagaraDataInterface.h"
+
+#include "Containers/Queue.h"
 
 #include "NiagaraDataInterfaceGalaxySimulation.generated.h"
 
+class UFastMultipoleSimulationCache;
+
+struct FGalaxySimulationParticleExportData
+{
+	TArray<int32> UniqueIDs;
+	TArray<float> Masses;
+	TArray<FVector> Positions;
+	TArray<FVector> Velocities;
+};
+
 /** Data stored per simulation interface instance*/
-struct FNDIGalaxySimulation_InstanceData
+struct FNDIGalaxySimulationInstanceData_GameThread
 {
 	/** Initialize the buffers */
 	bool Init(UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance);
 
 	void Release();
 
+	bool HasExportedParticles() const;
+	void GatherExportedParticles(
+		const FFastMultipoleSimulationInvariants::Ptr& OutInvariants, const FFastMultipoleSimulationFrame::Ptr& OutFrame);
+	void DiscardExportedParticles();
+
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
 	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCache;
+
+	TQueue<FGalaxySimulationParticleExportData, EQueueMode::Mpsc> ExportedParticles;
+};
+
+struct FNDIGalaxySimulationInstanceData_RenderThread
+{
 };
 
 /** Data Interface parameters name */
@@ -53,7 +77,7 @@ private:
 };
 
 /** Data Interface for accessing a point interaction simulation. */
-UCLASS(EditInlineNew, Category = "Physics", meta = (DisplayName = "Multipole Grid"))
+UCLASS(EditInlineNew, Category = "Physics", meta = (DisplayName = "Galaxy Simulation"))
 class GALACTITIOUSNIAGARA_API UNiagaraDataInterfaceGalaxySimulation : public UNiagaraDataInterface
 {
 	GENERATED_UCLASS_BODY()
@@ -68,11 +92,13 @@ public:
 	virtual void GetVMExternalFunction(
 		const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc) override;
 	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return Target == ENiagaraSimTarget::GPUComputeSim; }
-	virtual bool HasPreSimulateTick() const override { return true; }
 	virtual bool InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
 	virtual void DestroyPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance) override;
+	virtual bool HasPreSimulateTick() const override { return true; }
+	virtual bool HasPostSimulateTick() const { return true; }
 	virtual bool PerInstanceTick(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds) override;
-	virtual int32 PerInstanceDataSize() const override { return sizeof(FNDIGalaxySimulation_InstanceData); }
+	virtual bool PerInstanceTickPostSimulate(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance, float DeltaSeconds) override;
+	virtual int32 PerInstanceDataSize() const override { return sizeof(FNDIGalaxySimulationInstanceData_GameThread); }
 	virtual bool Equals(const UNiagaraDataInterface* Other) const override;
 
 	/** GPU simulation functionality */
@@ -90,10 +116,19 @@ public:
 	/** Get current position of a point */
 	void GetPointPosition(FVectorVMContext& Context);
 
+	/** Remove all cache frames. */
+	void ResetCache(FVectorVMContext& Context);
+
+	/** Add a new point to the simulation cache. */
+	void AddPoint(FVectorVMContext& Context);
+
 public:
 	/** Simulation targeted by the data interface */
 	UPROPERTY(EditAnywhere)
 	class UGalaxySimulationAsset* SimulationAsset;
+
+	UPROPERTY(EditAnywhere)
+	bool bInitSimulationCache = true;
 
 protected:
 	/** Copy one niagara DI to this */
@@ -104,7 +139,7 @@ protected:
 struct FNDIGalaxySimulationProxy : public FNiagaraDataInterfaceProxy
 {
 	/** Get the size of the data that will be passed to render*/
-	virtual int32 PerInstanceDataPassedToRenderThreadSize() const override { return sizeof(FNDIGalaxySimulation_InstanceData); }
+	virtual int32 PerInstanceDataPassedToRenderThreadSize() const override { return sizeof(FNDIGalaxySimulationInstanceData_GameThread); }
 
 	/** Get the data that will be passed to render*/
 	virtual void ConsumePerInstanceDataFromGameThread(void* PerInstanceData, const FNiagaraSystemInstanceID& Instance) override;
@@ -119,5 +154,5 @@ struct FNDIGalaxySimulationProxy : public FNiagaraDataInterfaceProxy
 	virtual void ResetData(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceArgs& Context) override;
 
 	/** List of proxy data for each system instances*/
-	TMap<FNiagaraSystemInstanceID, FNDIGalaxySimulation_InstanceData> SystemInstancesToProxyData;
+	TMap<FNiagaraSystemInstanceID, FNDIGalaxySimulationInstanceData_RenderThread> SystemInstancesToProxyData;
 };

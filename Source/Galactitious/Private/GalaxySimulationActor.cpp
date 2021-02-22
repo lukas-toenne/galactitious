@@ -157,7 +157,7 @@ void AGalaxySimulationActor::DistributeMasses(int32 NumPoints, TArray<float>& Ou
 
 void AGalaxySimulationActor::DistributePoints(int32 NumPoints, TArray<FVector>& OutPositions) const
 {
-#if 0
+#if 1
 	FRandomStream RadiusRng(98342);
 	FRandomStream PhiRng(8349292);
 	FRandomStream ThetaRng(285713);

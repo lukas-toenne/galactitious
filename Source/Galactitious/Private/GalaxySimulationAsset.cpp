@@ -4,21 +4,30 @@
 
 #include "FastMultipoleSimulationCache.h"
 
-void UGalaxySimulationAsset::SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache)
+//void UGalaxySimulationAsset::SetSimulationCache(UFastMultipoleSimulationCache* InSimulationCache)
+//{
+//	if (InSimulationCache != SimulationCache)
+//	{
+//#if WITH_EDITOR
+//		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
+//#endif // WITH_EDITOR
+//
+//		SimulationCache = InSimulationCache;
+//
+//#if WITH_EDITOR
+//		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
+//		OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::ValueSet);
+//#endif // WITH_EDITOR
+//	}
+//}
+
+UGalaxySimulationAsset::UGalaxySimulationAsset()
 {
-	if (InSimulationCache != SimulationCache)
-	{
-#if WITH_EDITOR
-		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ false);
-#endif // WITH_EDITOR
+	SimulationCache = CreateDefaultSubobject<UFastMultipoleSimulationCache>(TEXT("SimulationCache"));
+}
 
-		SimulationCache = InSimulationCache;
-
-#if WITH_EDITOR
-		RegisterOnUpdateSimulation(SimulationCache, /*bRegister = */ true);
-		OnUpdateSimulationAssetData.Broadcast(this, EPropertyChangeType::ValueSet);
-#endif // WITH_EDITOR
-	}
+UGalaxySimulationAsset::~UGalaxySimulationAsset()
+{
 }
 
 void UGalaxySimulationAsset::BeginDestroy()

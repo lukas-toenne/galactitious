@@ -36,6 +36,8 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationFrame
 	void SetNumPoints(int32 NumPoints);
 	void Empty();
 
+	bool IsValid() const;
+
 	const TArray<FVector>& GetPositions() const { return Positions; }
 	const TArray<FVector>& GetVelocities() const { return Velocities; }
 	const TArray<FVector>& GetForces() const { return Forces; }
