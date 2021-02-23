@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleCachePlayer.h"
 #include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleTypes.h"
 #include "NiagaraDataInterface.h"
@@ -24,19 +25,25 @@ struct FGalaxySimulationParticleExportData
 /** Data stored per simulation interface instance*/
 struct FNDIGalaxySimulationInstanceData_GameThread
 {
+public:
 	/** Initialize the buffers */
 	bool Init(UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance);
 
 	void Release();
 
 	bool HasExportedParticles() const;
+	void AddExportedParticles(FGalaxySimulationParticleExportData& ExportData);
 	void GatherExportedParticles(
 		const FFastMultipoleSimulationInvariants::Ptr& OutInvariants, const FFastMultipoleSimulationFrame::Ptr& OutFrame);
 	void DiscardExportedParticles();
 
+public:
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
 	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCache;
 
+	FFastMultipoleCachePlayer CachePlayer;
+
+private:
 	TQueue<FGalaxySimulationParticleExportData, EQueueMode::Mpsc> ExportedParticles;
 };
 

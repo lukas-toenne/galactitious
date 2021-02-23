@@ -45,6 +45,11 @@ bool FNDIGalaxySimulationInstanceData_GameThread::HasExportedParticles() const
 	return !ExportedParticles.IsEmpty();
 }
 
+void FNDIGalaxySimulationInstanceData_GameThread::AddExportedParticles(FGalaxySimulationParticleExportData& ExportData)
+{
+	ExportedParticles.Enqueue(ExportData);
+}
+
 void FNDIGalaxySimulationInstanceData_GameThread::GatherExportedParticles(
 	const FFastMultipoleSimulationInvariants::Ptr& OutInvariants, const FFastMultipoleSimulationFrame::Ptr& OutFrame)
 {
@@ -452,7 +457,7 @@ void UNiagaraDataInterfaceGalaxySimulation::AddPoint(FVectorVMContext& Context)
 			ExportData.Velocities[i] = InVelocity.GetAndAdvance();
 		}
 
-		InstanceData->ExportedParticles.Enqueue(ExportData);
+		InstanceData->AddExportedParticles(ExportData);
 	}
 }
 
