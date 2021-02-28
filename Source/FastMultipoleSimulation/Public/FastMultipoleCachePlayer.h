@@ -6,7 +6,37 @@
 #include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleTypes.h"
 
+#include "FastMultipoleCachePlayer.generated.h"
+
 class UFastMultipoleSimulationCache;
+
+USTRUCT()
+struct FFastMultipoleCacheTime
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Fast Multipole Cache Time")
+	int32 CacheStep;
+
+	UPROPERTY(EditAnywhere, Category = "Fast Multipole Cache Time")
+	float AnimationTime;
+
+	FFastMultipoleCacheTime() : CacheStep(0), AnimationTime(0.0f) {}
+
+	FFastMultipoleCacheTime(int32 InCacheStep, float InAnimationTime) : CacheStep(InCacheStep), AnimationTime(InAnimationTime) {}
+
+	inline bool operator==(const FFastMultipoleCacheTime& Other) const
+	{
+		if ((Other.CacheStep != CacheStep) || (Other.AnimationTime != AnimationTime))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	inline bool operator!=(const FFastMultipoleCacheTime& Other) const { return !(*this == Other); }
+};
 
 struct FASTMULTIPOLESIMULATION_API FFastMultipoleCachePlayer
 {

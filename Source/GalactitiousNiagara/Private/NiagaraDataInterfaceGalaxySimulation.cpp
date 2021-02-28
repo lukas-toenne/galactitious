@@ -378,6 +378,7 @@ void UNiagaraDataInterfaceGalaxySimulation::PostInitProperties()
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(GetClass()), true, false, false);
+		FNiagaraTypeRegistry::Register(FFastMultipoleCacheTime::StaticStruct(), true, false, false);
 	}
 }
 
@@ -397,6 +398,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsCPU = true;
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Value")));
 	}
 
@@ -412,6 +414,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsCPU = true;
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
@@ -464,12 +467,12 @@ void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 {
 	if (BindingInfo.Name == GetNumPointsName)
 	{
-		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
+		check(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetNumPoints)::Bind(this, OutFunc);
 	}
 	else if (BindingInfo.Name == GetPointStateName)
 	{
-		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 6);
+		check(BindingInfo.GetNumInputs() == 4 && BindingInfo.GetNumOutputs() == 6);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetPointState)::Bind(this, OutFunc);
 	}
 	else if (BindingInfo.Name == ResetCacheName)
@@ -487,7 +490,14 @@ void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Context)
 {
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	// FFastMultipoleCacheTime
+	FNDIInputParam<int32> InCacheStep(Context);
+	FNDIInputParam<float> InAnimationTime(Context);
 	FNDIOutputParam<int32> OutNumPoints(Context);
+
+	check(InCacheStep.Data.IsConstant());
+	check(InAnimationTime.Data.IsConstant());
+	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
 
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame = InstanceData->CachePlayer.GetStartFrame();
 	FFastMultipoleSimulationFrame::ConstPtr EndFrame = InstanceData->CachePlayer.GetEndFrame();
@@ -518,9 +528,16 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 void UNiagaraDataInterfaceGalaxySimulation::GetPointState(FVectorVMContext& Context)
 {
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	// FFastMultipoleCacheTime
+	FNDIInputParam<int32> InCacheStep(Context);
+	FNDIInputParam<float> InAnimationTime(Context);
 	FNDIInputParam<int32> InIndex(Context);
 	FNDIOutputParam<FVector> OutPosition(Context);
 	FNDIOutputParam<FVector> OutVelocity(Context);
+
+	check(InCacheStep.Data.IsConstant());
+	check(InAnimationTime.Data.IsConstant());
+	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
 
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame = InstanceData->CachePlayer.GetStartFrame();
 	FFastMultipoleSimulationFrame::ConstPtr EndFrame = InstanceData->CachePlayer.GetEndFrame();
