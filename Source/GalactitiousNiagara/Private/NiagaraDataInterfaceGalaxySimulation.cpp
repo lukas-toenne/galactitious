@@ -17,44 +17,20 @@ static const FName GetNumPointsName(TEXT("GetNumPoints"));
 static const FName GetPointStateName(TEXT("GetPointState"));
 static const FName ResetCacheName(TEXT("ResetCache"));
 static const FName AddPointName(TEXT("AddPoint"));
+static const FName ScheduleSimulationStepsName(TEXT("ScheduleSimulationSteps"));
+static const FName StartSimulationName(TEXT("StartSimulation"));
+static const FName StopSimulationName(TEXT("StopSimulation"));
 
 //------------------------------------------------------------------------------------------------------------
 
 bool FNDIGalaxySimulationInstanceData_GameThread::Init(
 	UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance)
 {
-	SimulationCacheWeak = nullptr;
-
-	if (!Interface->SimulationAsset)
-	{
-		UE_LOG(
-			LogGalaxySimulation, Log, TEXT("GalaxySimulation data interface has no valid simulation asset - %s"),
-			*Interface->GetFullName());
-		return false;
-	}
-
-	if (UFastMultipoleSimulationCache* SimulationCache = Interface->SimulationAsset->GetSimulationCache())
-	{
-		SimulationCacheWeak = SimulationCache;
-		CachePlayer.SetSimulationCache(SimulationCache);
-		CacheResetHandle = SimulationCache->OnReset.AddRaw(this, &FNDIGalaxySimulationInstanceData_GameThread::OnCacheReset);
-		CacheFrameAddedHandle = SimulationCache->OnFrameAdded.AddRaw(this, &FNDIGalaxySimulationInstanceData_GameThread::OnCacheFrameAdded);
-	}
-
-	SimulationSettings = Interface->SimulationAsset->SimulationSettings;
-
 	return true;
 }
 
 void FNDIGalaxySimulationInstanceData_GameThread::Release()
 {
-	StopSimulation();
-
-	if (UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get())
-	{
-		SimulationCache->OnReset.Remove(CacheResetHandle);
-		SimulationCache->OnFrameAdded.Remove(CacheFrameAddedHandle);
-	}
 }
 
 bool FNDIGalaxySimulationInstanceData_GameThread::HasExportedParticles() const
@@ -113,68 +89,6 @@ void FNDIGalaxySimulationInstanceData_GameThread::GatherExportedParticles(
 void FNDIGalaxySimulationInstanceData_GameThread::DiscardExportedParticles()
 {
 	ExportedParticles.Empty();
-}
-
-bool FNDIGalaxySimulationInstanceData_GameThread::StartSimulation(UWorld* DebugWorld)
-{
-	UFastMultipoleSimulationCache* SimCache = SimulationCacheWeak.Get();
-	if (!SimCache || !HasExportedParticles())
-	{
-		return false;
-	}
-
-	// TODO implement variable-size cache frames and allow adding/removing particles over time
-	if (SimulationCacheWeak->GetNumFrames() == 0)
-	{
-		FFastMultipoleSimulationInvariants::Ptr Invariants = MakeShared<FFastMultipoleSimulationInvariants, ESPMode::ThreadSafe>();
-		FFastMultipoleSimulationFrame::Ptr StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
-		GatherExportedParticles(Invariants, StartFrame);
-
-		float KineticEnergyAverage;
-		FFastMultipoleSimulationUtils::ComputeStableForceFactor(
-			SimulationSettings, Invariants, StartFrame, KineticEnergyAverage, Invariants->ForceFactor);
-
-		SimulationCacheWeak->AddFrame(StartFrame);
-
-		FFastMultipoleSimulationModule::Get().StartSimulation(SimulationSettings, Invariants, StartFrame, DebugWorld);
-
-		return true;
-	}
-
-	return false;
-}
-
-void FNDIGalaxySimulationInstanceData_GameThread::StopSimulation()
-{
-	FFastMultipoleSimulationModule::Get().StopSimulation();
-}
-
-void FNDIGalaxySimulationInstanceData_GameThread::SchedulePrecomputeSteps(int32 NumStepsPrecompute)
-{
-	if (UFastMultipoleSimulationCache* SimCache = SimulationCacheWeak.Get())
-	{
-		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
-
-		const int32 LastValidStep = FMath::Max(SimulationCacheWeak->GetNumFrames() - 1, 0);
-		// Player interpolates between current cache step and the next, so have to add one frame
-		const int32 LastStepUsed = CachePlayer.GetCacheStep() + 1;
-		check(LastStepUsed >= 1 && LastStepUsed <= LastValidStep + 1);
-		const int32 RemainingCacheFrames = LastValidStep - LastStepUsed;
-		// -1 means the cache player stopped on the last valid step, waiting for more cache frames
-		check(RemainingCacheFrames >= -1);
-		const int32 MaxStepsSchedule = NumStepsPrecompute - RemainingCacheFrames;
-		SimulationModule.ScheduleSteps(MaxStepsSchedule);
-	}
-}
-
-void FNDIGalaxySimulationInstanceData_GameThread::OnCacheReset(UFastMultipoleSimulationCache* SimulationCache)
-{
-	CachePlayer.SetToFront();
-}
-
-void FNDIGalaxySimulationInstanceData_GameThread::OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache)
-{
-	CachePlayer.UpdateCacheFrames();
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -257,6 +171,11 @@ UNiagaraDataInterfaceGalaxySimulation::UNiagaraDataInterfaceGalaxySimulation(FOb
 	Proxy.Reset(new FNDIGalaxySimulationProxy());
 }
 
+UFastMultipoleSimulationCache* UNiagaraDataInterfaceGalaxySimulation::GetSimulationCache() const
+{
+	return SimulationAsset ? SimulationAsset->GetSimulationCache() : nullptr;
+}
+
 bool UNiagaraDataInterfaceGalaxySimulation::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
 	// const FIntVector ClampedSize =
@@ -273,10 +192,12 @@ bool UNiagaraDataInterfaceGalaxySimulation::InitPerInstanceData(void* PerInstanc
 
 	if (InstanceData->Init(this, SystemInstance))
 	{
-		if (bInitSimulationCache && SimulationAsset && SimulationAsset->GetSimulationCache())
+		if (!SimulationAsset)
 		{
-			SimulationAsset->GetSimulationCache()->Reset();
+			UE_LOG(LogGalaxySimulation, Log, TEXT("GalaxySimulation data interface has no valid simulation asset - %s"), *GetFullName());
+			return false;
 		}
+
 		return true;
 	}
 	return false;
@@ -320,28 +241,13 @@ bool UNiagaraDataInterfaceGalaxySimulation::PerInstanceTickPostSimulate(
 	FNDIGalaxySimulationInstanceData_GameThread* InstanceData = static_cast<FNDIGalaxySimulationInstanceData_GameThread*>(PerInstanceData);
 	if (InstanceData)
 	{
-		// Initialize the cache with spawned particles
-		if (bInitSimulationCache)
-		{
-			if (InstanceData->StartSimulation())
-			{
-				InstanceData->SchedulePrecomputeSteps(NumStepsPrecompute);
-			}
-		}
-		else
-		{
-			InstanceData->DiscardExportedParticles();
-		}
+		InstanceData->DiscardExportedParticles();
 
 		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
-		UFastMultipoleSimulationCache* SimulationCache = InstanceData->SimulationCacheWeak.Get();
-		if (SimulationCache)
+		if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
 		{
 			// Store finished simulation frames in the cache
-			SimulationModule.CacheCompletedSteps(SimulationCache);
-
-			// Schedule new simulation steps if the player reaches the end of the cache
-			InstanceData->SchedulePrecomputeSteps(NumStepsPrecompute);
+			SimulationModule.CacheCompletedSteps(SimCache);
 		}
 	}
 	return false;
@@ -455,12 +361,66 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
 	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = StartSimulationName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("AddPoint", "Start remote simulation.");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = true;
+		Sig.bWriteFunction = true;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
+		Sig.Outputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
+	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = StopSimulationName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("AddPoint", "Stop remote simulation.");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = true;
+		Sig.bWriteFunction = true;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = ScheduleSimulationStepsName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("AddPoint", "Schedule steps for simulation if the cache time reaches the end.");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = true;
+		Sig.bWriteFunction = true;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
+	}
 }
 
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetNumPoints);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetPointState);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ResetCache);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, AddPoint);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StartSimulation);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StopSimulation);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ScheduleSimulationSteps);
 
 void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 	const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
@@ -485,6 +445,21 @@ void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 		check(BindingInfo.GetNumInputs() == 9 && BindingInfo.GetNumOutputs() == 0);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, AddPoint)::Bind(this, OutFunc);
 	}
+	else if (BindingInfo.Name == StartSimulationName)
+	{
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 3);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StartSimulation)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == StopSimulationName)
+	{
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 0);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StopSimulation)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == ScheduleSimulationStepsName)
+	{
+		check(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 0);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ScheduleSimulationSteps)::Bind(this, OutFunc);
+	}
 }
 
 void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Context)
@@ -499,9 +474,13 @@ void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Conte
 	check(InAnimationTime.Data.IsConstant());
 	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
 
-	FFastMultipoleSimulationFrame::ConstPtr StartFrame = InstanceData->CachePlayer.GetStartFrame();
-	FFastMultipoleSimulationFrame::ConstPtr EndFrame = InstanceData->CachePlayer.GetEndFrame();
 	int32 NumPoints;
+	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
+	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
+	{
+		CacheTime.GetCacheFrames(SimCache, StartFrame, EndFrame);
+	}
+
 	if (StartFrame)
 	{
 		if (EndFrame)
@@ -539,9 +518,13 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointState(FVectorVMContext& Cont
 	check(InAnimationTime.Data.IsConstant());
 	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
 
-	FFastMultipoleSimulationFrame::ConstPtr StartFrame = InstanceData->CachePlayer.GetStartFrame();
-	FFastMultipoleSimulationFrame::ConstPtr EndFrame = InstanceData->CachePlayer.GetEndFrame();
-	float Alpha = InstanceData->CachePlayer.GetAnimationTime();
+	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
+	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
+	{
+		CacheTime.GetCacheFrames(SimCache, StartFrame, EndFrame);
+	}
+	const float Alpha = CacheTime.AnimationTime;
+
 	if (StartFrame)
 	{
 		const TArray<FVector>& StartPositions = StartFrame->GetPositions();
@@ -617,22 +600,101 @@ void UNiagaraDataInterfaceGalaxySimulation::AddPoint(FVectorVMContext& Context)
 	FNDIInputParam<FVector> InPosition(Context);
 	FNDIInputParam<FVector> InVelocity(Context);
 
-	if (bInitSimulationCache)
+	FGalaxySimulationParticleExportData ExportData;
+	ExportData.UniqueIDs.SetNumUninitialized(Context.NumInstances);
+	ExportData.Masses.SetNumUninitialized(Context.NumInstances);
+	ExportData.Positions.SetNumUninitialized(Context.NumInstances);
+	ExportData.Velocities.SetNumUninitialized(Context.NumInstances);
+	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
-		FGalaxySimulationParticleExportData ExportData;
-		ExportData.UniqueIDs.SetNumUninitialized(Context.NumInstances);
-		ExportData.Masses.SetNumUninitialized(Context.NumInstances);
-		ExportData.Positions.SetNumUninitialized(Context.NumInstances);
-		ExportData.Velocities.SetNumUninitialized(Context.NumInstances);
+		ExportData.UniqueIDs[i] = InPointID.GetAndAdvance();
+		ExportData.Masses[i] = InMass.GetAndAdvance();
+		ExportData.Positions[i] = InPosition.GetAndAdvance();
+		ExportData.Velocities[i] = InVelocity.GetAndAdvance();
+	}
+
+	InstanceData->AddExportedParticles(ExportData);
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::StartSimulation(FVectorVMContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	FNDIOutputParam<bool> OutSuccess(Context);
+	// FFastMultipoleCacheTime
+	FNDIOutputParam<int32> OutCacheStep(Context);
+	FNDIOutputParam<float> OutAnimationTime(Context);
+
+	UFastMultipoleSimulationCache* SimCache = GetSimulationCache();
+	if (!SimCache || !InstanceData->HasExportedParticles())
+	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
 		{
-			ExportData.UniqueIDs[i] = InPointID.GetAndAdvance();
-			ExportData.Masses[i] = InMass.GetAndAdvance();
-			ExportData.Positions[i] = InPosition.GetAndAdvance();
-			ExportData.Velocities[i] = InVelocity.GetAndAdvance();
+			OutSuccess.SetAndAdvance(false);
 		}
+		return;
+	}
 
-		InstanceData->AddExportedParticles(ExportData);
+	// TODO implement variable-size cache frames and allow adding/removing particles over time
+	SimCache->Reset();
+
+	// Construct initial data and start simulating
+	{
+		FFastMultipoleSimulationInvariants::Ptr Invariants = MakeShared<FFastMultipoleSimulationInvariants, ESPMode::ThreadSafe>();
+		FFastMultipoleSimulationFrame::Ptr StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
+		InstanceData->GatherExportedParticles(Invariants, StartFrame);
+
+		float KineticEnergyAverage;
+		FFastMultipoleSimulationUtils::ComputeStableForceFactor(
+			SimulationAsset->SimulationSettings, Invariants, StartFrame, KineticEnergyAverage, Invariants->ForceFactor);
+
+		SimCache->AddFrame(StartFrame);
+
+		UWorld* DebugWorld = EnableDebugDrawing ? GetWorld() : nullptr;
+		FFastMultipoleSimulationModule::Get().StartSimulation(SimulationAsset->SimulationSettings, Invariants, StartFrame, DebugWorld);
+	}
+
+	// Schedule additional frames for simulation
+	FFastMultipoleSimulationModule::Get().ScheduleSteps(NumStepsPrecompute + 1);
+
+	FFastMultipoleCacheTime CacheTime;
+	CacheTime.SetToFront();
+	for (int32 i = 0; i < Context.NumInstances; ++i)
+	{
+		OutSuccess.SetAndAdvance(true);
+		OutCacheStep.SetAndAdvance(CacheTime.CacheStep);
+		OutAnimationTime.SetAndAdvance(CacheTime.AnimationTime);
+	}
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::StopSimulation(FVectorVMContext& Context)
+{
+	FFastMultipoleSimulationModule::Get().StopSimulation();
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::ScheduleSimulationSteps(FVectorVMContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	// FFastMultipoleCacheTime
+	FNDIInputParam<int32> InCacheStep(Context);
+	FNDIInputParam<float> InAnimationTime(Context);
+
+	check(InCacheStep.Data.IsConstant());
+	check(InAnimationTime.Data.IsConstant());
+	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
+
+	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
+	{
+		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
+
+		const int32 LastValidStep = FMath::Max(SimCache->GetNumFrames() - 1, 0);
+		// Player interpolates between current cache step and the next, so have to add one frame
+		const int32 LastStepUsed = FMath::Clamp(CacheTime.CacheStep, 0, LastValidStep) + 1;
+		// RemainingCacheFrames is between -1 (i.e. stopped on last frame) and NumFrames-2 (i.e. start of the cache)
+		const int32 RemainingCacheFrames = LastValidStep - LastStepUsed;
+		const int32 MaxStepsSchedule = NumStepsPrecompute - RemainingCacheFrames;
+		// At most one frame more shall be precomputed, when reaching the end of the cache
+		check(MaxStepsSchedule <= NumStepsPrecompute + 1);
+		SimulationModule.ScheduleSteps(MaxStepsSchedule);
 	}
 }
 

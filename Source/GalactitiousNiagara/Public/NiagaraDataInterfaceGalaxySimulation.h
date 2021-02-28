@@ -37,29 +37,8 @@ public:
 		const FFastMultipoleSimulationInvariants::Ptr& OutInvariants, const FFastMultipoleSimulationFrame::Ptr& OutFrame);
 	void DiscardExportedParticles();
 
-	bool StartSimulation(UWorld* DebugWorld = nullptr);
-	void StopSimulation();
-
-	/** Schedule steps for simulation if the cache player reaches the end. */
-	void SchedulePrecomputeSteps(int32 NumStepsPrecompute);
-
-public:
-	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
-	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCacheWeak;
-
-	FFastMultipoleCachePlayer CachePlayer;
-
-	FFastMultipoleSimulationSettings SimulationSettings;
-
-private:
-	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
-	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
-
 private:
 	TQueue<FGalaxySimulationParticleExportData, EQueueMode::Mpsc> ExportedParticles;
-
-	FDelegateHandle CacheResetHandle;
-	FDelegateHandle CacheFrameAddedHandle;
 };
 
 struct FNDIGalaxySimulationInstanceData_RenderThread
@@ -144,14 +123,19 @@ public:
 	/** Add a new point to the simulation cache. */
 	void AddPoint(FVectorVMContext& Context);
 
+	/** Start remote simulation. */
+	void StartSimulation(FVectorVMContext& Context);
+
+	/** Stop remote simulation. */
+	void StopSimulation(FVectorVMContext& Context);
+
+	/** Schedule steps for simulation if the cache time reaches the end. */
+	void ScheduleSimulationSteps(FVectorVMContext& Context);
+
 public:
 	/** Simulation targeted by the data interface. */
 	UPROPERTY(EditAnywhere)
 	class UGalaxySimulationAsset* SimulationAsset;
-
-	/** Use Niagara particle spawning to initialize the simulation cache. */
-	UPROPERTY(EditAnywhere)
-	bool bInitSimulationCache = true;
 
 	/** Number of simulation steps to compute in advance of the cache player. */
 	UPROPERTY(EditAnywhere)
@@ -159,6 +143,9 @@ public:
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay)
 	bool EnableDebugDrawing = false;
+
+private:
+	UFastMultipoleSimulationCache* GetSimulationCache() const;
 
 protected:
 	/** Copy one niagara DI to this */

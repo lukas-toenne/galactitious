@@ -28,6 +28,7 @@ public:
 	/**
 	 * Store finished simulation frames in the cache.
 	 * @return Number of completed frames that have been added to the cache.
+	 * TODO this should probably be done with a delegate running on the game thread
 	 */
 	int32 CacheCompletedSteps(UFastMultipoleSimulationCache* SimulationCache);
 

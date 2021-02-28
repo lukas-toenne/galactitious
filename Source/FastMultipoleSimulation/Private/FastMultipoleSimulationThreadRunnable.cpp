@@ -18,6 +18,7 @@ FFastMultipoleSimulationThreadRunnable::FFastMultipoleSimulationThreadRunnable()
 
 FFastMultipoleSimulationThreadRunnable::~FFastMultipoleSimulationThreadRunnable()
 {
+	Thread.Reset();
 	FPlatformProcess::ReturnSynchEventToPool(WorkEvent);
 	WorkEvent = nullptr;
 }
