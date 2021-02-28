@@ -31,9 +31,7 @@ protected:
 		int32 Width, int32 Height, EPixelFormat PixelFormat, ETextureSourceFormat SourceFormat, TextureMipGenSettings MipGenSettings);
 	void UpdateSliceTexture(const UFastMultipoleSimulationCache* SimulationCache);
 
-	UFUNCTION()
 	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
-	UFUNCTION()
 	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
 	void OnTransformUpdated(USceneComponent* UpdatedComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 
@@ -45,4 +43,7 @@ private:
 	UTexture2D* SliceTexture;
 
 	FAsyncTextureDataPtr PendingTextureData;
+
+	FDelegateHandle CacheResetHandle;
+	FDelegateHandle CacheFrameAddedHandle;
 };

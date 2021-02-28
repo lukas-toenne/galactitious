@@ -68,9 +68,7 @@ private:
 	void UpdateResultFrame(const UFastMultipoleSimulationCache* SimulationCache);
 
 	void OnWorldTick_StepForward(UWorld* World, ELevelTick TickType, float DeltaTime);
-	UFUNCTION()
 	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
-	UFUNCTION()
 	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
 
 private:
@@ -85,4 +83,6 @@ private:
 	FFastMultipoleSimulationFrame ResultFrame;
 
 	FDelegateHandle PlayDelegateHandle;
+	FDelegateHandle CacheResetHandle;
+	FDelegateHandle CacheFrameAddedHandle;
 };

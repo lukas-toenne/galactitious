@@ -23,7 +23,7 @@ static const FName AddPointName(TEXT("AddPoint"));
 bool FNDIGalaxySimulationInstanceData_GameThread::Init(
 	UNiagaraDataInterfaceGalaxySimulation* Interface, FNiagaraSystemInstance* SystemInstance)
 {
-	SimulationCache = nullptr;
+	SimulationCacheWeak = nullptr;
 
 	if (!Interface->SimulationAsset)
 	{
@@ -33,7 +33,14 @@ bool FNDIGalaxySimulationInstanceData_GameThread::Init(
 		return false;
 	}
 
-	SimulationCache = Interface->SimulationAsset->GetSimulationCache();
+	if (UFastMultipoleSimulationCache* SimulationCache = Interface->SimulationAsset->GetSimulationCache())
+	{
+		SimulationCacheWeak = SimulationCache;
+		CachePlayer.SetSimulationCache(SimulationCache);
+		CacheResetHandle = SimulationCache->OnReset.AddRaw(this, &FNDIGalaxySimulationInstanceData_GameThread::OnCacheReset);
+		CacheFrameAddedHandle = SimulationCache->OnFrameAdded.AddRaw(this, &FNDIGalaxySimulationInstanceData_GameThread::OnCacheFrameAdded);
+	}
+
 	SimulationSettings = Interface->SimulationAsset->SimulationSettings;
 
 	return true;
@@ -42,6 +49,12 @@ bool FNDIGalaxySimulationInstanceData_GameThread::Init(
 void FNDIGalaxySimulationInstanceData_GameThread::Release()
 {
 	StopSimulation();
+
+	if (UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get())
+	{
+		SimulationCache->OnReset.Remove(CacheResetHandle);
+		SimulationCache->OnFrameAdded.Remove(CacheFrameAddedHandle);
+	}
 }
 
 bool FNDIGalaxySimulationInstanceData_GameThread::HasExportedParticles() const
@@ -104,14 +117,14 @@ void FNDIGalaxySimulationInstanceData_GameThread::DiscardExportedParticles()
 
 bool FNDIGalaxySimulationInstanceData_GameThread::StartSimulation(UWorld* DebugWorld)
 {
-	UFastMultipoleSimulationCache* SimCache = SimulationCache.Get();
+	UFastMultipoleSimulationCache* SimCache = SimulationCacheWeak.Get();
 	if (!SimCache || !HasExportedParticles())
 	{
 		return false;
 	}
 
 	// TODO implement variable-size cache frames and allow adding/removing particles over time
-	if (SimulationCache->GetNumFrames() == 0)
+	if (SimulationCacheWeak->GetNumFrames() == 0)
 	{
 		FFastMultipoleSimulationInvariants::Ptr Invariants = MakeShared<FFastMultipoleSimulationInvariants, ESPMode::ThreadSafe>();
 		FFastMultipoleSimulationFrame::Ptr StartFrame = MakeShared<FFastMultipoleSimulationFrame, ESPMode::ThreadSafe>();
@@ -121,7 +134,7 @@ bool FNDIGalaxySimulationInstanceData_GameThread::StartSimulation(UWorld* DebugW
 		FFastMultipoleSimulationUtils::ComputeStableForceFactor(
 			SimulationSettings, Invariants, StartFrame, KineticEnergyAverage, Invariants->ForceFactor);
 
-		SimulationCache->AddFrame(StartFrame);
+		SimulationCacheWeak->AddFrame(StartFrame);
 
 		FFastMultipoleSimulationModule::Get().StartSimulation(SimulationSettings, Invariants, StartFrame, DebugWorld);
 
@@ -138,11 +151,11 @@ void FNDIGalaxySimulationInstanceData_GameThread::StopSimulation()
 
 void FNDIGalaxySimulationInstanceData_GameThread::SchedulePrecomputeSteps(int32 NumStepsPrecompute)
 {
-	if (UFastMultipoleSimulationCache* SimCache = SimulationCache.Get())
+	if (UFastMultipoleSimulationCache* SimCache = SimulationCacheWeak.Get())
 	{
 		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
 
-		const int32 LastValidStep = FMath::Max(SimulationCache->GetNumFrames() - 1, 0);
+		const int32 LastValidStep = FMath::Max(SimulationCacheWeak->GetNumFrames() - 1, 0);
 		// Player interpolates between current cache step and the next, so have to add one frame
 		const int32 LastStepUsed = CachePlayer.GetCacheStep() + 1;
 		check(LastStepUsed >= 1 && LastStepUsed <= LastValidStep + 1);
@@ -152,6 +165,16 @@ void FNDIGalaxySimulationInstanceData_GameThread::SchedulePrecomputeSteps(int32 
 		const int32 MaxStepsSchedule = NumStepsPrecompute - RemainingCacheFrames;
 		SimulationModule.ScheduleSteps(MaxStepsSchedule);
 	}
+}
+
+void FNDIGalaxySimulationInstanceData_GameThread::OnCacheReset(UFastMultipoleSimulationCache* SimulationCache)
+{
+	CachePlayer.SetToFront();
+}
+
+void FNDIGalaxySimulationInstanceData_GameThread::OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache)
+{
+	CachePlayer.UpdateCacheFrames();
 }
 
 //------------------------------------------------------------------------------------------------------------
@@ -311,7 +334,7 @@ bool UNiagaraDataInterfaceGalaxySimulation::PerInstanceTickPostSimulate(
 		}
 
 		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
-		UFastMultipoleSimulationCache* SimulationCache = InstanceData->SimulationCache.Get();
+		UFastMultipoleSimulationCache* SimulationCache = InstanceData->SimulationCacheWeak.Get();
 		if (SimulationCache)
 		{
 			// Store finished simulation frames in the cache

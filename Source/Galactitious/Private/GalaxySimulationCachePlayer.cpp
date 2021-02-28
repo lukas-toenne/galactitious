@@ -22,15 +22,15 @@ void UGalaxySimulationCachePlayer::SetSimulationCache(UFastMultipoleSimulationCa
 {
 	if (UFastMultipoleSimulationCache* SimulationCache = SimulationCacheWeak.Get())
 	{
-		SimulationCache->OnReset.RemoveDynamic(this, &UGalaxySimulationCachePlayer::OnCacheReset);
-		SimulationCache->OnFrameAdded.RemoveDynamic(this, &UGalaxySimulationCachePlayer::OnCacheFrameAdded);
+		SimulationCache->OnReset.Remove(CacheResetHandle);
+		SimulationCache->OnFrameAdded.Remove(CacheFrameAddedHandle);
 	}
 
 	SimulationCacheWeak = InSimulationCache;
 	if (InSimulationCache)
 	{
-		InSimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationCachePlayer::OnCacheReset);
-		InSimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationCachePlayer::OnCacheFrameAdded);
+		CacheResetHandle = InSimulationCache->OnReset.AddUObject(this, &UGalaxySimulationCachePlayer::OnCacheReset);
+		CacheFrameAddedHandle = InSimulationCache->OnFrameAdded.AddUObject(this, &UGalaxySimulationCachePlayer::OnCacheFrameAdded);
 	}
 
 	SetToFront();

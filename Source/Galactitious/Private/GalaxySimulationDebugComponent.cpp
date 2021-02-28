@@ -30,8 +30,8 @@ void UGalaxySimulationDebugComponent::BeginPlay()
 
 		if (UFastMultipoleSimulationCache* SimulationCache = SimActor->GetSimulationCache())
 		{
-			SimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationDebugComponent::OnCacheReset);
-			SimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationDebugComponent::OnCacheFrameAdded);
+			CacheResetHandle = SimulationCache->OnReset.AddUObject(this, &UGalaxySimulationDebugComponent::OnCacheReset);
+			CacheFrameAddedHandle = SimulationCache->OnFrameAdded.AddUObject(this, &UGalaxySimulationDebugComponent::OnCacheFrameAdded);
 		}
 	}
 }

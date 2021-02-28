@@ -35,11 +35,14 @@ protected:
 	void OnSimulationStarted(AGalaxySimulationActor* SimulationActor);
 	UFUNCTION()
 	void OnSimulationStopped(AGalaxySimulationActor* SimulationActor);
-	UFUNCTION()
+
 	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
-	UFUNCTION()
 	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
 
 	void LogPoints(const UFastMultipoleSimulationCache* SimulationCache) const;
 	void ShowAnimatedPoints() const;
+
+private:
+	FDelegateHandle CacheResetHandle;
+	FDelegateHandle CacheFrameAddedHandle;
 };

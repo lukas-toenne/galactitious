@@ -111,13 +111,13 @@ void UGalaxySimulationAsset::RegisterOnUpdateSimulation(UFastMultipoleSimulation
 	{
 		if (bRegister)
 		{
-			InSimulationCache->OnReset.AddDynamic(this, &UGalaxySimulationAsset::OnCacheReset);
-			InSimulationCache->OnFrameAdded.AddDynamic(this, &UGalaxySimulationAsset::OnCacheFrameAdded);
+			CacheResetHandle = InSimulationCache->OnReset.AddUObject(this, &UGalaxySimulationAsset::OnCacheReset);
+			CacheFrameAddedHandle = InSimulationCache->OnFrameAdded.AddUObject(this, &UGalaxySimulationAsset::OnCacheFrameAdded);
 		}
 		else
 		{
-			InSimulationCache->OnReset.RemoveAll(this);
-			InSimulationCache->OnFrameAdded.RemoveAll(this);
+			InSimulationCache->OnReset.Remove(CacheResetHandle);
+			InSimulationCache->OnFrameAdded.Remove(CacheFrameAddedHandle);
 		}
 	}
 }

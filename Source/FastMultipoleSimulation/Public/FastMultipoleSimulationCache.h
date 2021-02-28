@@ -7,17 +7,13 @@
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
 #include "FastMultipoleOpenVDBGuardLeave.h"
-#include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleOpenVDBTypes.h"
+#include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleTypes.h"
 
 #include "FastMultipoleSimulationCache.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipoleSimulationCache, Log, All);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FFastMultipoleSimulationCacheResetDelegate, UFastMultipoleSimulationCache*, SimulationCache);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-	FFastMultipoleSimulationCacheFrameAddedDelegate, UFastMultipoleSimulationCache*, SimulationCache);
 
 UENUM()
 enum EFastMultipoleCacheResizeMode
@@ -38,6 +34,9 @@ class FASTMULTIPOLESIMULATION_API UFastMultipoleSimulationCache : public UObject
 	GENERATED_BODY()
 
 public:
+	DECLARE_MULTICAST_DELEGATE_OneParam(FResetDelegate, UFastMultipoleSimulationCache*);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FFrameAddedDelegate, UFastMultipoleSimulationCache*);
+
 	UFastMultipoleSimulationCache();
 	virtual ~UFastMultipoleSimulationCache();
 
@@ -58,11 +57,8 @@ public:
 	bool AddFrame(const FFastMultipoleSimulationFrame::ConstPtr& InFrame);
 
 public:
-	UPROPERTY(BlueprintAssignable)
-	FFastMultipoleSimulationCacheResetDelegate OnReset;
-
-	UPROPERTY(BlueprintAssignable)
-	FFastMultipoleSimulationCacheFrameAddedDelegate OnFrameAdded;
+	FResetDelegate OnReset;
+	FFrameAddedDelegate OnFrameAdded;
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintGetter = GetCapacity)

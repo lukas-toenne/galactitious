@@ -38,9 +38,7 @@ public:
 
 private:
 #if WITH_EDITOR
-	UFUNCTION()
 	void OnCacheReset(UFastMultipoleSimulationCache* InSimulation);
-	UFUNCTION()
 	void OnCacheFrameAdded(UFastMultipoleSimulationCache* InSimulation);
 	void RegisterOnUpdateSimulation(UFastMultipoleSimulationCache* InSimulation, bool bRegister);
 #endif // WITH_EDITOR
@@ -56,4 +54,7 @@ public:
 private:
 	UPROPERTY(EditAnywhere, BlueprintGetter = "GetSimulationCache")
 	UFastMultipoleSimulationCache* SimulationCache = nullptr;
+
+	FDelegateHandle CacheResetHandle;
+	FDelegateHandle CacheFrameAddedHandle;
 };

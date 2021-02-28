@@ -45,14 +45,21 @@ public:
 
 public:
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
-	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCache;
+	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCacheWeak;
 
 	FFastMultipoleCachePlayer CachePlayer;
 
 	FFastMultipoleSimulationSettings SimulationSettings;
 
 private:
+	void OnCacheReset(UFastMultipoleSimulationCache* SimulationCache);
+	void OnCacheFrameAdded(UFastMultipoleSimulationCache* SimulationCache);
+
+private:
 	TQueue<FGalaxySimulationParticleExportData, EQueueMode::Mpsc> ExportedParticles;
+
+	FDelegateHandle CacheResetHandle;
+	FDelegateHandle CacheFrameAddedHandle;
 };
 
 struct FNDIGalaxySimulationInstanceData_RenderThread
