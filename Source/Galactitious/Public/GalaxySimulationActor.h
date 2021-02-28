@@ -55,23 +55,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Scale = 100.0f;
 
-	// Size of the simulation time step
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float SimulationStepSize = 1.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EFastMultipoleSimulationIntegrator SimulationIntegrator = EFastMultipoleSimulationIntegrator::Leapfrog;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EFastMultipoleSimulationForceMethod SimulationForceMethod = EFastMultipoleSimulationForceMethod::FastMultipole;
+	FFastMultipoleSimulationSettings SimulationSettings;
 
 	// Number of steps to precompute in advance of the cache player.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int32 NumStepsPrecompute = 3;
-
-	/** Softening radius of the gravitational potential to avoid instabilities at small distances. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float GravitySofteningRadius = 0.1f;
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay)
 	bool EnableDebugDrawing = false;

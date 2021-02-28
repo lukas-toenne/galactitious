@@ -4,21 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "FastMultipoleOpenVDBGuardEnter.h"
-#include <openvdb/openvdb.h>
-#include <openvdb/points/PointDataGrid.h>
-#include "FastMultipoleOpenVDBGuardLeave.h"
-
-namespace FastMultipole
-{
-	using PointDataTreeType = openvdb::tree::Tree<openvdb::tree::RootNode<
-		openvdb::tree::InternalNode<openvdb::tree::InternalNode<openvdb::points::PointDataLeafNode<openvdb::PointDataIndex32, 3>, 4>, 5>>>;
-	using PointIndexTreeType = openvdb::tree::Tree<openvdb::tree::RootNode<
-		openvdb::tree::InternalNode<openvdb::tree::InternalNode<openvdb::tools::PointIndexLeafNode<openvdb::PointIndex32, 3>, 4>, 5>>>;
-
-	using PointDataGridType = openvdb::Grid<PointDataTreeType>;
-	using PointIndexGridType = openvdb::Grid<PointIndexTreeType>;
-} // namespace FastMultipole
+#include "FastMultipoleTypes.generated.h"
 
 UENUM()
 enum class EFastMultipoleSimulationIntegrator : uint8
@@ -40,4 +26,29 @@ enum class EFastMultipoleSimulationForceMethod : uint8
 {
 	Direct,
 	FastMultipole,
+};
+
+USTRUCT(BlueprintType)
+struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationSettings
+{
+	GENERATED_BODY()
+
+	/** Size of the simulation time step. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float StepSize = 1.0f;
+
+	/** Integrator method for advancing points. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EFastMultipoleSimulationIntegrator Integrator = EFastMultipoleSimulationIntegrator::Leapfrog;
+
+	/** Force computation method. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EFastMultipoleSimulationForceMethod ForceMethod = EFastMultipoleSimulationForceMethod::FastMultipole;
+
+	/** Softening radius of the gravitational potential to avoid instabilities at small distances.
+	 * This avoids singularities when particles come too close:
+	 * F = A*m1*m2 / (r^2 + s^2)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float GravitySofteningRadius = 0.1f;
 };

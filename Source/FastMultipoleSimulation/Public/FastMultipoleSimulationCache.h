@@ -4,12 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "FastMultipoleOpenVDBGuardEnter.h"
-#include "FastMultipoleOpenVDBGuardLeave.h"
-#include "FastMultipoleSimulationFrame.h"
-#include "FastMultipoleTypes.h"
-
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
+#include "FastMultipoleOpenVDBGuardLeave.h"
+#include "FastMultipoleSimulationFrame.h"
+#include "FastMultipoleOpenVDBTypes.h"
+#include "FastMultipoleTypes.h"
 
 #include "FastMultipoleSimulationCache.generated.h"
 

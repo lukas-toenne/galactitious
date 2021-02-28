@@ -37,11 +37,19 @@ public:
 		const FFastMultipoleSimulationInvariants::Ptr& OutInvariants, const FFastMultipoleSimulationFrame::Ptr& OutFrame);
 	void DiscardExportedParticles();
 
+	bool StartSimulation(UWorld* DebugWorld = nullptr);
+	void StopSimulation();
+
+	/** Schedule steps for simulation if the cache player reaches the end. */
+	void SchedulePrecomputeSteps(int32 NumStepsPrecompute);
+
 public:
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */
 	TWeakObjectPtr<UFastMultipoleSimulationCache> SimulationCache;
 
 	FFastMultipoleCachePlayer CachePlayer;
+
+	FFastMultipoleSimulationSettings SimulationSettings;
 
 private:
 	TQueue<FGalaxySimulationParticleExportData, EQueueMode::Mpsc> ExportedParticles;
@@ -120,8 +128,8 @@ public:
 	/** Get total number of simulated points */
 	void GetNumPoints(FVectorVMContext& Context);
 
-	/** Get current position of a point */
-	void GetPointPosition(FVectorVMContext& Context);
+	/** Get current state of a point */
+	void GetPointState(FVectorVMContext& Context);
 
 	/** Remove all cache frames. */
 	void ResetCache(FVectorVMContext& Context);
@@ -130,12 +138,20 @@ public:
 	void AddPoint(FVectorVMContext& Context);
 
 public:
-	/** Simulation targeted by the data interface */
+	/** Simulation targeted by the data interface. */
 	UPROPERTY(EditAnywhere)
 	class UGalaxySimulationAsset* SimulationAsset;
 
+	/** Use Niagara particle spawning to initialize the simulation cache. */
 	UPROPERTY(EditAnywhere)
 	bool bInitSimulationCache = true;
+
+	/** Number of simulation steps to compute in advance of the cache player. */
+	UPROPERTY(EditAnywhere)
+	int32 NumStepsPrecompute = 3;
+
+	UPROPERTY(EditAnywhere, AdvancedDisplay)
+	bool EnableDebugDrawing = false;
 
 protected:
 	/** Copy one niagara DI to this */

@@ -58,10 +58,6 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 	{
 		ThreadRunnable->StopThread();
 	}
-	if (EnableDebugDrawing)
-	{
-		ThreadRunnable->SetDebugWorld(GetWorld());
-	}
 	ThreadRunnable->LaunchThread();
 
 	FFastMultipoleSimulationInvariants::Ptr SimulationInvariants = nullptr;
@@ -103,11 +99,10 @@ void AGalaxySimulationActor::StartSimulation(EGalaxySimulationStartMode StartMod
 	if (StartFrame)
 	{
 		float KineticEnergyAverage;
-		FFastMultipoleSimulationUtils::ComputeStableForceFactor(
-			SimulationInvariants->Masses, StartFrame->GetPositions(), StartFrame->GetVelocities(), SimulationInvariants->SofteningRadius,
-			KineticEnergyAverage, SimulationInvariants->ForceFactor);
+		FFastMultipoleSimulationUtils::ComputeStableForceFactor(SimulationSettings, SimulationInvariants, StartFrame, KineticEnergyAverage, SimulationInvariants->ForceFactor);
 
-		ThreadRunnable->StartSimulation(SimulationInvariants, StartFrame, SimulationStepSize, SimulationIntegrator, SimulationForceMethod);
+		UWorld* DebugWorld = EnableDebugDrawing ? GetWorld() : nullptr;
+		ThreadRunnable->StartSimulation(SimulationSettings, SimulationInvariants, StartFrame, DebugWorld);
 
 		SchedulePrecomputeSteps();
 	}
@@ -132,7 +127,6 @@ FFastMultipoleSimulationInvariants::Ptr AGalaxySimulationActor::SetupInvariants(
 	// TODO cache this
 	FFastMultipoleSimulationInvariants::Ptr SimulationInvariants = MakeShared<FFastMultipoleSimulationInvariants, ESPMode::ThreadSafe>();
 
-	SimulationInvariants->SofteningRadius = GravitySofteningRadius;
 	SimulationInvariants->ForceFactor = 1.0f; // Computed later based on positions
 
 	DistributeMasses(NumPoints, SimulationInvariants->Masses);

@@ -11,6 +11,7 @@
 #include <openvdb/openvdb.h>
 #include <openvdb/points/PointDataGrid.h>
 #include "FastMultipoleOpenVDBGuardLeave.h"
+#include "FastMultipoleOpenVDBTypes.h"
 
 #include "FastMultipoleSimulationFrame.generated.h"
 
@@ -77,8 +78,4 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationInvariants
 	// Mass of particles
 	TArray<float> Masses;
 	TArray<float> InvMasses;
-
-	// Softening parameter to avoid singularities when particles come too close:
-	// F = A*m1*m2 / (r^2 + s^2)
-	float SofteningRadius;
 };

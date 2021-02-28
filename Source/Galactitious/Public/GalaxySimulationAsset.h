@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "FastMultipoleTypes.h"
 
 #include "GalaxySimulationAsset.generated.h"
 
@@ -29,6 +30,11 @@ public:
 	virtual void PreEditChange(FProperty* PropertyAboutToChange) override;
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
+
+public:
+	/** Softening radius of the gravitational potential to avoid instabilities at small distances. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FFastMultipoleSimulationSettings SimulationSettings;
 
 private:
 #if WITH_EDITOR

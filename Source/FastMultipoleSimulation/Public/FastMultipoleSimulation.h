@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FastMultipoleSimulationFrame.h"
+#include "FastMultipoleOpenVDBTypes.h"
 #include "FastMultipoleTypes.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFastMultipole, Log, All);
@@ -28,7 +29,7 @@ public:
 	static void Init();
 	static void Shutdown();
 
-	FFastMultipoleSimulation(float StepSize, EFastMultipoleSimulationIntegrator Integrator, EFastMultipoleSimulationForceMethod ForceMethod);
+	FFastMultipoleSimulation(const FFastMultipoleSimulationSettings& Settings);
 	~FFastMultipoleSimulation();
 
 	void SetDebugWorld(UWorld* InDebugWorld);
@@ -59,9 +60,7 @@ private:
 	FFastMultipoleSimulationFrame::ConstPtr CurrentFrame;
 	FFastMultipoleSimulationFrame::Ptr NextFrame;
 
-	float StepSize;
-	EFastMultipoleSimulationIntegrator Integrator;
-	EFastMultipoleSimulationForceMethod ForceMethod;
+	FFastMultipoleSimulationSettings Settings;
 
 #if UE_BUILD_DEBUG
 	UWorld* DebugWorld;
@@ -74,7 +73,6 @@ struct FASTMULTIPOLESIMULATION_API FFastMultipoleSimulationUtils
 	 * Uses the Virial theorem to compute a force factor such that the overall system is stable.
 	 */
 	static void ComputeStableForceFactor(
-		const TArray<float>& Masses, const TArray<FVector>& Positions, const TArray<FVector>& Velocities, float Softening,
-		float& OutKineticEnergyAverage,
-		float& OutStableForceFactor);
+		const FFastMultipoleSimulationSettings& Settings, FFastMultipoleSimulationInvariants::ConstPtr Invariants,
+		FFastMultipoleSimulationFrame::ConstPtr StartFrame, float& OutKineticEnergyAverage, float& OutStableForceFactor);
 };

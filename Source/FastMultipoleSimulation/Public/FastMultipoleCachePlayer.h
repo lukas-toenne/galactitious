@@ -29,11 +29,10 @@ public:
 	FFastMultipoleSimulationFrame::ConstPtr GetStartFrame() const { return StartFrame; }
 	FFastMultipoleSimulationFrame::ConstPtr GetEndFrame() const { return EndFrame; }
 
+	void UpdateCacheFrames();
+
 public:
 	float AnimationSpeed = 1.0f;
-
-private:
-	void UpdateCacheFrames();
 
 private:
 	/** Cached ptr to the mesh so that we can make sure that we haven't been deleted. */

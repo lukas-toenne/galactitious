@@ -15,8 +15,6 @@ public:
 	FFastMultipoleSimulationThreadRunnable();
 	virtual ~FFastMultipoleSimulationThreadRunnable();
 
-	void SetDebugWorld(UWorld* InDebugWorld);
-
 	void ScheduleStep();
 	void CancelScheduledSteps();
 	int32 GetNumScheduledSteps() const;
@@ -26,8 +24,8 @@ public:
 	inline bool IsRunning() { return bIsRunning; }
 
 	void StartSimulation(
-		FFastMultipoleSimulationInvariants::ConstPtr Invariants, FFastMultipoleSimulationFrame::Ptr StartFrame, float StepSize,
-		EFastMultipoleSimulationIntegrator Integrator, EFastMultipoleSimulationForceMethod ForceMethod);
+		const FFastMultipoleSimulationSettings& Settings, FFastMultipoleSimulationInvariants::ConstPtr Invariants,
+		FFastMultipoleSimulationFrame::Ptr StartFrame, UWorld* DebugWorld = nullptr);
 	bool PopCompletedStep(FFastMultipoleSimulationStepResult& Result);
 
 protected:
