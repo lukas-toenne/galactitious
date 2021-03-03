@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "FastMultipoleCachePlayer.h"
 #include "FastMultipoleSimulationFrame.h"
 #include "FastMultipoleTypes.h"
 #include "NiagaraDataInterface.h"
@@ -131,6 +130,10 @@ public:
 
 	/** Schedule steps for simulation if the cache time reaches the end. */
 	void ScheduleSimulationSteps(FVectorVMContext& Context);
+
+	void CacheTimeClamp(FVectorVMContext& Context);
+	void CacheTimeSetToFront(FVectorVMContext& Context);
+	void CacheTimeSetToBack(FVectorVMContext& Context);
 
 public:
 	/** Simulation targeted by the data interface. */

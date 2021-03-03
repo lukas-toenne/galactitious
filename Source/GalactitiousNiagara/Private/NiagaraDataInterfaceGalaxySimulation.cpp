@@ -2,6 +2,7 @@
 
 #include "NiagaraDataInterfaceGalaxySimulation.h"
 
+#include "FastMultipoleCachePlayer.h"
 #include "FastMultipoleSimulation.h"
 #include "FastMultipoleSimulationCache.h"
 #include "FastMultipoleSimulationModule.h"
@@ -20,6 +21,9 @@ static const FName AddPointName(TEXT("AddPoint"));
 static const FName ScheduleSimulationStepsName(TEXT("ScheduleSimulationSteps"));
 static const FName StartSimulationName(TEXT("StartSimulation"));
 static const FName StopSimulationName(TEXT("StopSimulation"));
+static const FName CacheTimeClampName(TEXT("CacheTimeClamp"));
+static const FName CacheTimeSetToFrontName(TEXT("CacheTimeSetToFront"));
+static const FName CacheTimeSetToBackName(TEXT("CacheTimeSetToBack"));
 
 //------------------------------------------------------------------------------------------------------------
 
@@ -192,12 +196,11 @@ bool UNiagaraDataInterfaceGalaxySimulation::InitPerInstanceData(void* PerInstanc
 
 	if (InstanceData->Init(this, SystemInstance))
 	{
-		if (!SimulationAsset)
-		{
-			UE_LOG(LogGalaxySimulation, Log, TEXT("GalaxySimulation data interface has no valid simulation asset - %s"), *GetFullName());
-			return false;
-		}
-
+		//if (!SimulationAsset)
+		//{
+		//	UE_LOG(LogGalaxySimulation, Log, TEXT("GalaxySimulation data interface has no valid simulation asset - %s"), *GetFullName());
+		//	return false;
+		//}
 		return true;
 	}
 	return false;
@@ -284,7 +287,6 @@ void UNiagaraDataInterfaceGalaxySimulation::PostInitProperties()
 	if (HasAnyFlags(RF_ClassDefaultObject))
 	{
 		FNiagaraTypeRegistry::Register(FNiagaraTypeDefinition(GetClass()), true, false, false);
-		FNiagaraTypeRegistry::Register(FFastMultipoleCacheTime::StaticStruct(), true, false, false);
 	}
 }
 
@@ -304,7 +306,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsCPU = true;
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
-		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Value")));
 	}
 
@@ -320,8 +322,9 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsCPU = true;
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
-		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Cache Interpolation")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Point Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
 	}
@@ -377,7 +380,6 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
-		Sig.Outputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
 	}
 
 	{
@@ -410,7 +412,64 @@ void UNiagaraDataInterfaceGalaxySimulation::GetFunctions(TArray<FNiagaraFunction
 		Sig.bSupportsCPU = true;
 		Sig.bSupportsGPU = false;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
-		Sig.Inputs.Add(FNiagaraVariable(FFastMultipoleCacheTime::StaticStruct(), TEXT("Cache Time")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = CacheTimeClampName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("ClampCacheTime", "Clamp cache time to cache length");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = false;
+		Sig.bWriteFunction = false;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Cache Interpolation")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Cache Interpolation")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Clamped")));
+	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = CacheTimeSetToFrontName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("SetCacheTimeToFront", "Set cache time to the front of the cache");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = false;
+		Sig.bWriteFunction = false;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Cache Interpolation")));
+	}
+
+	{
+		FNiagaraFunctionSignature& Sig = OutFunctions.AddDefaulted_GetRef();
+		Sig.Name = CacheTimeSetToBackName;
+#if WITH_EDITORONLY_DATA
+		Sig.Description = LOCTEXT("SetCacheTimeToBack", "Set cache time to the back of the cache");
+#endif
+		Sig.bMemberFunction = true;
+		Sig.bRequiresContext = false;
+		Sig.bExperimental = false;
+		Sig.bRequiresExecPin = false;
+		Sig.bWriteFunction = false;
+		Sig.bSupportsCPU = true;
+		Sig.bSupportsGPU = false;
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("Simulation interface")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Cache Index")));
+		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Cache Interpolation")));
 	}
 }
 
@@ -421,13 +480,16 @@ DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, AddPoint);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StartSimulation);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StopSimulation);
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ScheduleSimulationSteps);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeClamp);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeSetToFront);
+DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeSetToBack);
 
 void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 	const FVMExternalFunctionBindingInfo& BindingInfo, void* InstanceData, FVMExternalFunction& OutFunc)
 {
 	if (BindingInfo.Name == GetNumPointsName)
 	{
-		check(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 1);
+		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, GetNumPoints)::Bind(this, OutFunc);
 	}
 	else if (BindingInfo.Name == GetPointStateName)
@@ -447,7 +509,7 @@ void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 	}
 	else if (BindingInfo.Name == StartSimulationName)
 	{
-		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 3);
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, StartSimulation)::Bind(this, OutFunc);
 	}
 	else if (BindingInfo.Name == StopSimulationName)
@@ -457,30 +519,39 @@ void UNiagaraDataInterfaceGalaxySimulation::GetVMExternalFunction(
 	}
 	else if (BindingInfo.Name == ScheduleSimulationStepsName)
 	{
-		check(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 0);
+		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 0);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, ScheduleSimulationSteps)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == CacheTimeClampName)
+	{
+		check(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 3);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeClamp)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == CacheTimeSetToFrontName)
+	{
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 2);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeSetToFront)::Bind(this, OutFunc);
+	}
+	else if (BindingInfo.Name == CacheTimeSetToBackName)
+	{
+		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 2);
+		NDI_FUNC_BINDER(UNiagaraDataInterfaceGalaxySimulation, CacheTimeSetToBack)::Bind(this, OutFunc);
 	}
 }
 
 void UNiagaraDataInterfaceGalaxySimulation::GetNumPoints(FVectorVMContext& Context)
 {
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
-	// FFastMultipoleCacheTime
 	FNDIInputParam<int32> InCacheStep(Context);
-	FNDIInputParam<float> InAnimationTime(Context);
 	FNDIOutputParam<int32> OutNumPoints(Context);
 
-	check(InCacheStep.Data.IsConstant());
-	check(InAnimationTime.Data.IsConstant());
-	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
-
-	int32 NumPoints;
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
 	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
 	{
-		CacheTime.GetCacheFrames(SimCache, StartFrame, EndFrame);
+		FFastMultipoleCachePlayer::GetCacheFrames(SimCache, InCacheStep.GetAndAdvance(), StartFrame, EndFrame);
 	}
 
+	int32 NumPoints;
 	if (StartFrame)
 	{
 		if (EndFrame)
@@ -509,22 +580,18 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointState(FVectorVMContext& Cont
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
 	// FFastMultipoleCacheTime
 	FNDIInputParam<int32> InCacheStep(Context);
-	FNDIInputParam<float> InAnimationTime(Context);
+	FNDIInputParam<float> InCacheInterp(Context);
 	FNDIInputParam<int32> InIndex(Context);
 	FNDIOutputParam<FVector> OutPosition(Context);
 	FNDIOutputParam<FVector> OutVelocity(Context);
 
-	check(InCacheStep.Data.IsConstant());
-	check(InAnimationTime.Data.IsConstant());
-	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
-
 	FFastMultipoleSimulationFrame::ConstPtr StartFrame, EndFrame;
 	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
 	{
-		CacheTime.GetCacheFrames(SimCache, StartFrame, EndFrame);
+		FFastMultipoleCachePlayer::GetCacheFrames(SimCache, InCacheStep.GetAndAdvance(), StartFrame, EndFrame);
 	}
-	const float Alpha = CacheTime.AnimationTime;
 
+	const float Alpha = InCacheInterp.GetAndAdvance();
 	if (StartFrame)
 	{
 		const TArray<FVector>& StartPositions = StartFrame->GetPositions();
@@ -590,6 +657,13 @@ void UNiagaraDataInterfaceGalaxySimulation::GetPointState(FVectorVMContext& Cont
 
 void UNiagaraDataInterfaceGalaxySimulation::ResetCache(FVectorVMContext& Context)
 {
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+
+	UFastMultipoleSimulationCache* SimCache = GetSimulationCache();
+	if (SimCache)
+	{
+		SimCache->Reset();
+	}
 }
 
 void UNiagaraDataInterfaceGalaxySimulation::AddPoint(FVectorVMContext& Context)
@@ -620,9 +694,6 @@ void UNiagaraDataInterfaceGalaxySimulation::StartSimulation(FVectorVMContext& Co
 {
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
 	FNDIOutputParam<bool> OutSuccess(Context);
-	// FFastMultipoleCacheTime
-	FNDIOutputParam<int32> OutCacheStep(Context);
-	FNDIOutputParam<float> OutAnimationTime(Context);
 
 	UFastMultipoleSimulationCache* SimCache = GetSimulationCache();
 	if (!SimCache || !InstanceData->HasExportedParticles())
@@ -656,13 +727,9 @@ void UNiagaraDataInterfaceGalaxySimulation::StartSimulation(FVectorVMContext& Co
 	// Schedule additional frames for simulation
 	FFastMultipoleSimulationModule::Get().ScheduleSteps(NumStepsPrecompute + 1);
 
-	FFastMultipoleCacheTime CacheTime;
-	CacheTime.SetToFront();
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		OutSuccess.SetAndAdvance(true);
-		OutCacheStep.SetAndAdvance(CacheTime.CacheStep);
-		OutAnimationTime.SetAndAdvance(CacheTime.AnimationTime);
 	}
 }
 
@@ -674,27 +741,97 @@ void UNiagaraDataInterfaceGalaxySimulation::StopSimulation(FVectorVMContext& Con
 void UNiagaraDataInterfaceGalaxySimulation::ScheduleSimulationSteps(FVectorVMContext& Context)
 {
 	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
-	// FFastMultipoleCacheTime
 	FNDIInputParam<int32> InCacheStep(Context);
-	FNDIInputParam<float> InAnimationTime(Context);
 
-	check(InCacheStep.Data.IsConstant());
-	check(InAnimationTime.Data.IsConstant());
-	FFastMultipoleCacheTime CacheTime(InCacheStep.GetAndAdvance(), InAnimationTime.GetAndAdvance());
-
+	const int32 CacheStep = InCacheStep.GetAndAdvance();
 	if (UFastMultipoleSimulationCache* SimCache = GetSimulationCache())
 	{
 		FFastMultipoleSimulationModule& SimulationModule = FFastMultipoleSimulationModule::Get();
 
 		const int32 LastValidStep = FMath::Max(SimCache->GetNumFrames() - 1, 0);
 		// Player interpolates between current cache step and the next, so have to add one frame
-		const int32 LastStepUsed = FMath::Clamp(CacheTime.CacheStep, 0, LastValidStep) + 1;
+		const int32 LastStepUsed = FMath::Clamp(CacheStep, 0, LastValidStep) + 1;
 		// RemainingCacheFrames is between -1 (i.e. stopped on last frame) and NumFrames-2 (i.e. start of the cache)
 		const int32 RemainingCacheFrames = LastValidStep - LastStepUsed;
 		const int32 MaxStepsSchedule = NumStepsPrecompute - RemainingCacheFrames;
 		// At most one frame more shall be precomputed, when reaching the end of the cache
 		check(MaxStepsSchedule <= NumStepsPrecompute + 1);
 		SimulationModule.ScheduleSteps(MaxStepsSchedule);
+	}
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::CacheTimeClamp(FVectorVMContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	FNDIInputParam<int32> InCacheStep(Context);
+	FNDIInputParam<float> InCacheInterp(Context);
+	FNDIOutputParam<int32> OutCacheStep(Context);
+	FNDIOutputParam<float> OutCacheInterp(Context);
+	FNDIOutputParam<bool> OutClamped(Context);
+
+	UFastMultipoleSimulationCache* SimCache = GetSimulationCache();
+	if (SimCache)
+	{
+		const int32 NumCacheSteps = SimCache->GetNumFrames();
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			int32 NewCacheStep;
+			float NewCacheInterp;
+			bool bClamped =
+				FFastMultipoleCachePlayer::Clamp(InCacheStep.GetAndAdvance(), InCacheInterp.GetAndAdvance(), NumCacheSteps, NewCacheStep, NewCacheInterp);
+			OutCacheStep.SetAndAdvance(NewCacheStep);
+			OutCacheInterp.SetAndAdvance(NewCacheInterp);
+			OutClamped.SetAndAdvance(bClamped);
+		}
+	}
+	else
+	{
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			// Noop
+			OutCacheStep.SetAndAdvance(InCacheStep.GetAndAdvance());
+			OutCacheInterp.SetAndAdvance(InCacheInterp.GetAndAdvance());
+			OutClamped.SetAndAdvance(false);
+		}
+	}
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::CacheTimeSetToFront(FVectorVMContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	FNDIOutputParam<int32> OutCacheStep(Context);
+	FNDIOutputParam<float> OutCacheInterp(Context);
+
+	for (int32 i = 0; i < Context.NumInstances; ++i)
+	{
+		OutCacheStep.SetAndAdvance(0);
+		OutCacheInterp.SetAndAdvance(0.0f);
+	}
+}
+
+void UNiagaraDataInterfaceGalaxySimulation::CacheTimeSetToBack(FVectorVMContext& Context)
+{
+	VectorVM::FUserPtrHandler<FNDIGalaxySimulationInstanceData_GameThread> InstanceData(Context);
+	FNDIOutputParam<int32> OutCacheStep(Context);
+	FNDIOutputParam<float> OutCacheInterp(Context);
+
+	UFastMultipoleSimulationCache* SimCache = GetSimulationCache();
+	if (SimCache)
+	{
+		const int32 NumCacheSteps = SimCache->GetNumFrames();
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			OutCacheStep.SetAndAdvance(NumCacheSteps - 1);
+			OutCacheInterp.SetAndAdvance(0.0f);
+		}
+	}
+	else
+	{
+		for (int32 i = 0; i < Context.NumInstances; ++i)
+		{
+			OutCacheStep.SetAndAdvance(0);
+			OutCacheInterp.SetAndAdvance(0.0f);
+		}
 	}
 }
 

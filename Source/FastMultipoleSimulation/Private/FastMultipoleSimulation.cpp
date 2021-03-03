@@ -261,7 +261,20 @@ void FFastMultipoleSimulationUtils::ComputeStableForceFactor(
 	ensure(PotentialEnergy <= 0.0f);
 	ensure(KineticEnergy >= 0.0f);
 	OutKineticEnergyAverage = KineticEnergy / NumPoints;
-	OutStableForceFactor = FMath::IsNearlyZero(PotentialEnergy) ? 1.0f : -2.0f * KineticEnergy / PotentialEnergy;
+	if (FMath::IsNearlyZero(PotentialEnergy))
+	{
+		UE_LOG(LogFastMultipole, Warning, TEXT("Not enough potential energy to compute stable force factor, setting force factor to 1"));
+		OutStableForceFactor = 1.0f;
+	}
+	else if (FMath::IsNearlyZero(KineticEnergy))
+	{
+		UE_LOG(LogFastMultipole, Warning, TEXT("Not enough kinetic energy to compute stable force factor, setting force factor to 1"));
+		OutStableForceFactor = 1.0f;
+	}
+	else
+	{
+		OutStableForceFactor = -2.0f * KineticEnergy / PotentialEnergy;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
