@@ -35,9 +35,21 @@
 			"AdditionalDependencies": [
 				"Engine"
 			]
+		},
+		{
+			"Name": "RemoteSimulationRendering",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit",
+			"AdditionalDependencies": [
+				"Engine"
+			]
 		}
 	],
 	"Plugins": [
+		{
+			"Name": "RemoteSimulation",
+			"Enabled": true
+		},
 		{
 			"Name": "GLTFImporter",
 			"Enabled": true
