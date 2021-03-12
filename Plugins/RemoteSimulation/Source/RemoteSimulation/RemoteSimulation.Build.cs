@@ -15,7 +15,9 @@ public class RemoteSimulation : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] {
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"RenderCore",
+			"RHI",
 		});
 	}
 }

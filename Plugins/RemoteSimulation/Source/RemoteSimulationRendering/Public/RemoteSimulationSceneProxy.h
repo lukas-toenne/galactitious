@@ -6,29 +6,20 @@
 
 //#include "RemoteSimulationVertexFactory.h"
 
+class FRemoteSimulationIndexBuffer;
+class FRemoteSimulationRenderBuffer;
 class URemoteSimulationComponent;
 
 /** Used to pass data to RT to update the proxy's render data */
-struct FRemoteSimulationProxyUpdateData
+struct REMOTESIMULATIONRENDERING_API FRemoteSimulationRenderData
 {
-//	TWeakPtr<FLidarPointCloudSceneProxyWrapper, ESPMode::ThreadSafe> SceneProxyWrapper;
-//
-//	/** Number of elements within the structured buffer related to this proxy */
-//	int32 NumElements;
-//
-//	TArray<FRemoteSimulationProxyUpdateDataNode> SelectedNodes;
-//
-//	float VDMultiplier;
-//	float RootCellSize;
-//
-//#if !(UE_BUILD_SHIPPING)
-//	/** Stores bounds of selected nodes, used for debugging */
-//	TArray<FBox> Bounds;
-//#endif
-//
-//	TArray<const class ALidarClippingVolume*> ClippingVolumes;
+	FRemoteSimulationRenderData();
 
-	FRemoteSimulationProxyUpdateData();
+	int32 NumPoints;
+	FRemoteSimulationIndexBuffer* IndexBuffer;
+	FRemoteSimulationRenderBuffer* RenderBuffer;
+
+	float PointSize;
 };
 
 class REMOTESIMULATIONRENDERING_API FRemoteSimulationSceneProxy : public FPrimitiveSceneProxy
@@ -49,26 +40,16 @@ public:
 
 	virtual SIZE_T GetTypeHash() const override;
 
-	void UpdateRenderData(FRemoteSimulationProxyUpdateData InRenderData);
-
-public:
-	//TSharedPtr<FRemoteSimulationSceneProxyWrapper, ESPMode::ThreadSafe> ProxyWrapper;
+	void UpdateRenderData_RenderThread(const FRemoteSimulationRenderData& InRenderData);
 
 private:
-	FRemoteSimulationProxyUpdateData RenderData;
+	struct FRemoteSimulationBatchElementUserData BuildUserDataElement(const FSceneView* InView) const;
 
-	URemoteSimulationComponent* Component;
+private:
+	FRemoteSimulationRenderData RenderData;
+
+	UMaterialInterface* Material;
 	FMaterialRelevance MaterialRelevance;
-	AActor* Owner;
-};
 
-//FPrimitiveSceneProxy* URemoteSimulationComponent::CreateSceneProxy()
-//{
-//	FRemoteSimulationSceneProxy* Proxy = nullptr;
-//	if (PointCloud)
-//	{
-//		Proxy = new FRemoteSimulationSceneProxy(this);
-//		FLidarPointCloudLODManager::RegisterProxy(this, Proxy->ProxyWrapper);
-//	}
-//	return Proxy;
-//}
+	bool bEditorView;
+};

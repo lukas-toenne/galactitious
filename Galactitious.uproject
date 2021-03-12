@@ -48,7 +48,12 @@
 	"Plugins": [
 		{
 			"Name": "RemoteSimulation",
-			"Enabled": true
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"Win64",
+				"Mac",
+				"Linux"
+			]
 		},
 		{
 			"Name": "GLTFImporter",
@@ -68,6 +73,19 @@
 		},
 		{
 			"Name": "RuntimeTests",
+			"Enabled": true
+		},
+		{
+			"Name": "SteamVR",
+			"Enabled": false,
+			"SupportedTargetPlatforms": [
+				"Win32",
+				"Win64",
+				"Linux"
+			]
+		},
+		{
+			"Name": "RenderDocPlugin",
 			"Enabled": true
 		}
 	]

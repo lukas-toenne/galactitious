@@ -4,46 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "MeshMaterialShader.h"
-#include "RenderResource.h"
+#include "RemoteSimulationRenderBuffers.h"
 #include "VertexFactory.h"
 
 #include "HAL/ThreadSafeBool.h"
-
-/**
- * This class creates an IndexBuffer shared between all assets and all instances.
- */
-class FRemoteSimulationIndexBuffer : public FIndexBuffer
-{
-public:
-	FRemoteSimulationIndexBuffer() : Capacity(100000) {}
-
-	void Resize(const uint32& RequestedCapacity);
-
-	virtual void InitRHI() override;
-
-	uint32 Capacity;
-	uint32 PointOffset;
-};
-
-/**
- * Encapsulates a GPU read buffer with its SRV.
- */
-class FRemoteSimulationRenderBuffer : public FRenderResource
-{
-public:
-	FRemoteSimulationRenderBuffer() : Capacity(100000) {}
-
-	void Resize(const uint32& RequestedCapacity);
-
-	virtual void InitRHI() override;
-	virtual void ReleaseRHI() override;
-
-	FVertexBufferRHIRef Buffer;
-	FShaderResourceViewRHIRef SRV;
-
-	uint32 Capacity;
-	int32 PointCount;
-};
 
 /**
  * Holds all data to be passed to the FLidarPointCloudVertexFactoryShaderParameters as UserData
@@ -51,17 +15,16 @@ public:
 struct FRemoteSimulationBatchElementUserData
 {
 	FRHIShaderResourceView* DataBuffer;
-	// int32 bEditorView;
+	int32 bEditorView;
+	float SpriteSize;
+	FVector ViewRightVector;
+	FVector ViewUpVector;
+	int32 bUseCameraFacing;
 	// FVector SelectionColor;
 	// int32 IndexDivisor;
 	// FVector LocationOffset;
 	// float VirtualDepth;
-	// float SpriteSize;
 	// int32 bUseLODColoration;
-	// float SpriteSizeMultiplier;
-	// FVector ViewRightVector;
-	// FVector ViewUpVector;
-	// int32 bUseCameraFacing;
 	// FVector BoundsSize;
 	// FVector ElevationColorBottom;
 	// FVector ElevationColorTop;
@@ -99,17 +62,16 @@ public:
 		FVertexInputStreamArray& VertexStreams) const;
 
 	LAYOUT_FIELD(FShaderResourceParameter, DataBuffer);
-	// LAYOUT_FIELD(FShaderParameter, bEditorView);
+	LAYOUT_FIELD(FShaderParameter, bEditorView);
+	LAYOUT_FIELD(FShaderParameter, SpriteSize);
+	LAYOUT_FIELD(FShaderParameter, ViewRightVector);
+	LAYOUT_FIELD(FShaderParameter, ViewUpVector);
+	LAYOUT_FIELD(FShaderParameter, bUseCameraFacing);
 	// LAYOUT_FIELD(FShaderParameter, SelectionColor);
 	// LAYOUT_FIELD(FShaderParameter, IndexDivisor);
 	// LAYOUT_FIELD(FShaderParameter, LocationOffset);
 	// LAYOUT_FIELD(FShaderParameter, VirtualDepth);
-	// LAYOUT_FIELD(FShaderParameter, SpriteSize);
 	// LAYOUT_FIELD(FShaderParameter, bUseLODColoration);
-	// LAYOUT_FIELD(FShaderParameter, SpriteSizeMultiplier);
-	// LAYOUT_FIELD(FShaderParameter, ViewRightVector);
-	// LAYOUT_FIELD(FShaderParameter, ViewUpVector);
-	// LAYOUT_FIELD(FShaderParameter, bUseCameraFacing);
 	// LAYOUT_FIELD(FShaderParameter, BoundsSize);
 	// LAYOUT_FIELD(FShaderParameter, ElevationColorBottom);
 	// LAYOUT_FIELD(FShaderParameter, ElevationColorTop);
@@ -137,10 +99,6 @@ class FRemoteSimulationVertexFactory : public FVertexFactory
 	DECLARE_VERTEX_FACTORY_TYPE(FRemoteSimulationVertexFactory);
 
 public:
-	static bool ShouldCache(const FVertexFactoryShaderPermutationParameters& Parameters)
-	{
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
-	}
 	static bool ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters);
 
 	FRemoteSimulationVertexFactory() : FVertexFactory(ERHIFeatureLevel::SM5) {}
@@ -167,6 +125,5 @@ private:
 	virtual void ReleaseRHI() override;
 };
 
-/** A set of global render resources shared between all Remote Simulation proxies */
-extern TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationIndexBuffer;
+/** Global vertex factory shared between all proxies */
 extern TGlobalResource<FRemoteSimulationVertexFactory> GRemoteSimulationVertexFactory;

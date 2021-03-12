@@ -4,20 +4,13 @@
 #include "/Engine/Private/VertexFactoryCommon.ush"
 
 // First half is normal, second half has inverted V
-static float2 PrecomputedUV_Quad[8] = { float2(-0.5, -0.5), float2(0.5, -0.5), float2(0.5, 0.5), float2(-0.5, 0.5), float2(0, 1), float2(1, 1), float2(1, 0), float2(0, 0) };
+static float2 QuadUVHalf[4] = { float2(-0.5, -0.5), float2(0.5, -0.5), float2(0.5, 0.5), float2(-0.5, 0.5) };
+static float2 QuadUVFull[4] = { float2(0, 1), float2(1, 1), float2(1, 0), float2(0, 0) };
 
 // Used to detect if the instance is rendered inside the editor viewport
 uint bEditorView;
 
-// Used for instance handling
-uint IndexDivisor;
-
-// Alignment
-float3 LocationOffset;
-
-// Used for Sprite Size
 float SpriteSize;
-float SpriteSizeMultiplier;
 
 // Needed for WPO calculations
 float3 ViewRightVector;
@@ -89,28 +82,29 @@ FSimPointData GetSimPointData(uint VertexId)
 {
 	FSimPointData InstanceData = (FSimPointData)0;
 
-	uint PointId = VertexId / IndexDivisor;
-	uint Idx = PointId * 5;
-	InstanceData.Position = float3(DataBuffer[Idx], DataBuffer[Idx + 1], DataBuffer[Idx + 2]) + LocationOffset;
-	InstanceData.Color = asuint(DataBuffer[Idx + 3]);
+	// 4 vertices per point
+	uint PointId = VertexId >> 2;
+	uint Idx = PointId * 3;
+	InstanceData.Position = float3(DataBuffer[Idx], DataBuffer[Idx + 1], DataBuffer[Idx + 2]);
+	InstanceData.Color = /*asuint(DataBuffer[Idx + 3])*/ 255;
 
 	/**
 	 */
-	uint MetaData = 0x000000FF & (asuint(DataBuffer[Idx + 4]) >> 24);
+	//uint MetaData = 0x000000FF & (asuint(DataBuffer[Idx + 4]) >> 24);
 
-	InstanceData.bSelected = bEditorView && (0x00000040 & MetaData);
+	InstanceData.bSelected = /*bEditorView && (0x00000040 & MetaData)*/ false;
 
-	if (bUseCameraFacing)
+	//if (bUseCameraFacing)
 	{
 		InstanceData.Normal = half3(0, 0, 0);
 	}
-	else
-	{
-		uint Normal = asuint(DataBuffer[Idx + 4]);
-		InstanceData.Normal = half3((0x000000FF & Normal) / 127.5f - 1, (0x000000FF & (Normal >> 8)) / 127.5f - 1, (0x000000FF & (Normal >> 16)) / 127.5f - 1);
-	}
+	//else
+	//{
+	//	uint Normal = asuint(DataBuffer[Idx + 4]);
+	//	InstanceData.Normal = half3((0x000000FF & Normal) / 127.5f - 1, (0x000000FF & (Normal >> 8)) / 127.5f - 1, (0x000000FF & (Normal >> 16)) / 127.5f - 1);
+	//}
 
-	InstanceData.Scale = SpriteSize * PrecomputedUV_Quad[VertexId % 4];
+	InstanceData.Scale = QuadUVHalf[VertexId % 4];
 	
 	return InstanceData;
 }
@@ -129,7 +123,7 @@ float3 ProcessPosition(float3 Position, half3 Normal, half2 Scale)
 {
 	if (dot(Normal, Normal) < 0.1f || bUseCameraFacing)
 	{
-		return Position + (ViewRightVector * Scale.x + ViewUpVector * Scale.y) * SpriteSizeMultiplier;
+		return Position + (ViewRightVector * Scale.x + ViewUpVector * Scale.y) * SpriteSize;
 	}
 	else
 	{
@@ -152,7 +146,7 @@ float3 ProcessPosition(float3 Position, half3 Normal, half2 Scale)
 
 		half3 Axis2 = cross(Axis1, Normal);
 
-		return Position + (Axis1 * Scale.x + Axis2 * Scale.y) * SpriteSizeMultiplier;
+		return Position + (Axis1 * Scale.x + Axis2 * Scale.y) * SpriteSize;
 	}
 }
 
@@ -180,7 +174,7 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	Interpolants.TangentToWorld0 = float4(Intermediates.TangentToWorld[0], 0);
 	Interpolants.TangentToWorld2 = float4(Intermediates.TangentToWorld[2], Intermediates.TangentToWorldSign);
 	Interpolants.Color = VertexParameters.VertexColor;
-	Interpolants.TexCoords = PrecomputedUV_Quad[Input.VertexId % 4 + 4];    // Using inverted V
+	Interpolants.TexCoords = QuadUVFull[Input.VertexId % 4]; // Using inverted V
 
 #if INSTANCED_STEREO
 	Interpolants.EyeIndex = 0;
@@ -242,7 +236,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
     Result.VertexColor = Intermediates.Color;
 
 #if NUM_MATERIAL_TEXCOORDS_VERTEX
-	Result.TexCoords[0] = PrecomputedUV_Quad[Input.VertexId % 4];
+	Result.TexCoords[0] = QuadUVHalf[Input.VertexId % 4];
 	#if NUM_MATERIAL_TEXCOORDS_VERTEX > 1
 		Result.TexCoords[1] = Intermediates.Scale;
 	#endif

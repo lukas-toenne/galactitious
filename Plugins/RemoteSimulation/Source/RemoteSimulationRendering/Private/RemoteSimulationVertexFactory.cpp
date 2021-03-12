@@ -13,99 +13,7 @@
 
 //////////////////////////////////////////////////////////// Base Buffer
 
-TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationIndexBuffer;
 TGlobalResource<FRemoteSimulationVertexFactory> GRemoteSimulationVertexFactory;
-
-//////////////////////////////////////////////////////////// Index Buffer
-
-void FRemoteSimulationIndexBuffer::Resize(const uint32& RequestedCapacity)
-{
-	// This must be called from Rendering thread
-	check(IsInRenderingThread());
-
-	if (Capacity != RequestedCapacity)
-	{
-		ReleaseResource();
-		Capacity = RequestedCapacity;
-		InitResource();
-	}
-}
-
-void FRemoteSimulationIndexBuffer::InitRHI()
-{
-	FRHIResourceCreateInfo CreateInfo;
-	void* Buffer = nullptr;
-	uint32 Size = Capacity * 7 * sizeof(uint32);
-	PointOffset = Capacity * 6;
-
-	IndexBufferRHI = RHICreateAndLockIndexBuffer(sizeof(uint32), Size, BUF_Dynamic, CreateInfo, Buffer);
-
-	uint32* Data = (uint32*)Buffer;
-	for (uint32 i = 0; i < Capacity; i++)
-	{
-		// Full quads
-		{
-			uint32 idx = i * 6;
-			uint32 v = i * 4;
-
-			Data[idx] = v;
-			Data[idx + 1] = v + 1;
-			Data[idx + 2] = v + 2;
-			Data[idx + 3] = v;
-			Data[idx + 4] = v + 2;
-			Data[idx + 5] = v + 3;
-		}
-
-		// Points
-		Data[PointOffset + i] = i;
-	}
-
-	RHIUnlockIndexBuffer(IndexBufferRHI);
-	Buffer = nullptr;
-}
-
-//////////////////////////////////////////////////////////// Structured Buffer
-
-void FRemoteSimulationRenderBuffer::Resize(const uint32& RequestedCapacity)
-{
-	// This must be called from Rendering thread
-	check(IsInRenderingThread());
-
-	if (Capacity != RequestedCapacity)
-	{
-		ReleaseResource();
-		Capacity = RequestedCapacity;
-		InitResource();
-	}
-	else if (!IsInitialized())
-	{
-		InitResource();
-	}
-}
-
-void FRemoteSimulationRenderBuffer::InitRHI()
-{
-	// This must be called from Rendering thread
-	check(IsInRenderingThread());
-
-	FRHIResourceCreateInfo CreateInfo;
-	Buffer = RHICreateVertexBuffer(sizeof(uint32) * Capacity, BUF_ShaderResource | BUF_Dynamic, CreateInfo);
-	SRV = RHICreateShaderResourceView(Buffer, sizeof(uint32), PF_R32_FLOAT);
-}
-
-void FRemoteSimulationRenderBuffer::ReleaseRHI()
-{
-	// This must be called from Rendering thread
-	check(IsInRenderingThread());
-
-	if (Buffer)
-	{
-		RHIDiscardTransientResource(Buffer);
-		Buffer.SafeRelease();
-	}
-
-	SRV.SafeRelease();
-}
 
 //////////////////////////////////////////////////////////// User Data
 
@@ -129,17 +37,16 @@ FRemoteSimulationBatchElementUserData::FRemoteSimulationBatchElementUserData()
 void FRemoteSimulationVertexFactoryShaderParameters::Bind(const FShaderParameterMap& ParameterMap)
 {
 	BINDPARAM(DataBuffer);
-	//BINDPARAM(bEditorView);
-	//BINDPARAM(SelectionColor);
+	BINDPARAM(bEditorView);
+	BINDPARAM(SpriteSize);
+	BINDPARAM(ViewRightVector);
+	BINDPARAM(ViewUpVector);
+	BINDPARAM(bUseCameraFacing);
+	// BINDPARAM(SelectionColor);
 	//BINDPARAM(IndexDivisor);
 	//BINDPARAM(LocationOffset);
 	//BINDPARAM(VirtualDepth);
-	//BINDPARAM(SpriteSize);
 	//BINDPARAM(bUseLODColoration);
-	//BINDPARAM(SpriteSizeMultiplier);
-	//BINDPARAM(ViewRightVector);
-	//BINDPARAM(ViewUpVector);
-	//BINDPARAM(bUseCameraFacing);
 	//BINDPARAM(BoundsSize);
 	//BINDPARAM(ElevationColorBottom);
 	//BINDPARAM(ElevationColorTop);
@@ -167,17 +74,16 @@ void FRemoteSimulationVertexFactoryShaderParameters::GetElementShaderBindings(
 	FRemoteSimulationBatchElementUserData* UserData = (FRemoteSimulationBatchElementUserData*)BatchElement.UserData;
 
 	SETSRVPARAM(DataBuffer);
-	//SETPARAM(bEditorView);
-	//SETPARAM(SelectionColor);
+	SETPARAM(bEditorView);
+	SETPARAM(SpriteSize);
+	SETPARAM(ViewRightVector);
+	SETPARAM(ViewUpVector);
+	SETPARAM(bUseCameraFacing);
+	// SETPARAM(SelectionColor);
 	//SETPARAM(IndexDivisor);
 	//SETPARAM(LocationOffset);
 	//SETPARAM(VirtualDepth);
-	//SETPARAM(SpriteSize);
 	//SETPARAM(bUseLODColoration);
-	//SETPARAM(SpriteSizeMultiplier);
-	//SETPARAM(ViewRightVector);
-	//SETPARAM(ViewUpVector);
-	//SETPARAM(bUseCameraFacing);
 	//SETPARAM(BoundsSize);
 	//SETPARAM(ElevationColorBottom);
 	//SETPARAM(ElevationColorTop);
@@ -199,8 +105,7 @@ void FRemoteSimulationVertexFactoryShaderParameters::GetElementShaderBindings(
 
 bool FRemoteSimulationVertexFactory::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
-	return (IsPCPlatform(Parameters.Platform) && IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) &&
-		Parameters.MaterialParameters.MaterialDomain == MD_Surface && Parameters.MaterialParameters.bIsUsedWithLidarPointCloud) || Parameters.MaterialParameters.bIsSpecialEngineMaterial;
+	return (IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5) || Parameters.MaterialParameters.bIsSpecialEngineMaterial);
 }
 
 void FRemoteSimulationVertexFactory::InitRHI()

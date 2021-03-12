@@ -6,6 +6,7 @@
 #include "Components/MeshComponent.h"
 #include "RemoteSimulationComponent.generated.h"
 
+struct FRemoteSimulationRenderData;
 class UBodySetup;
 
 /** Component for rendering remote simulation results. */
@@ -17,11 +18,14 @@ class REMOTESIMULATION_API URemoteSimulationComponent : public UMeshComponent
 public:
 	URemoteSimulationComponent();
 
-public:
 	// Begin UObject Interface.
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	virtual void PostLoad() override;
 	// End UObject Interface.
+
+	// Begin UActorComponent Interface
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	// End UActorComponent Interface
 
 	// End UMeshComponent Interface
 	virtual int32 GetNumMaterials() const override { return 1; }
@@ -60,7 +64,13 @@ private:
 
 	void PostPointCloudSet();
 
+	bool BuildRenderData();
+	void ReleaseRenderData();
+
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))
 	UMaterialInterface* Material;
+
+	class FRemoteSimulationRenderBuffer* RenderBuffer;
+	bool bRenderDataDirty;
 };
