@@ -18,7 +18,6 @@ public:
 	virtual void InitRHI() override;
 
 	uint32 Capacity;
-	uint32 PointOffset;
 };
 
 /**

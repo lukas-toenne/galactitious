@@ -21,29 +21,23 @@ void FRemoteSimulationIndexBuffer::InitRHI()
 {
 	FRHIResourceCreateInfo CreateInfo;
 	void* Buffer = nullptr;
-	uint32 Size = Capacity * 7 * sizeof(uint32);
-	PointOffset = Capacity * 6;
+	uint32 Size = Capacity * 6 * sizeof(uint32);
 
 	IndexBufferRHI = RHICreateAndLockIndexBuffer(sizeof(uint32), Size, BUF_Dynamic, CreateInfo, Buffer);
 
 	uint32* Data = (uint32*)Buffer;
 	for (uint32 i = 0; i < Capacity; i++)
 	{
-		// Full quads
-		{
-			uint32 idx = i * 6;
-			uint32 v = i * 4;
+		// Quads
+		uint32 idx = i * 6;
+		uint32 v = i * 4;
 
-			Data[idx] = v;
-			Data[idx + 1] = v + 1;
-			Data[idx + 2] = v + 2;
-			Data[idx + 3] = v;
-			Data[idx + 4] = v + 2;
-			Data[idx + 5] = v + 3;
-		}
-
-		// Points
-		Data[PointOffset + i] = i;
+		Data[idx] = v;
+		Data[idx + 1] = v + 1;
+		Data[idx + 2] = v + 2;
+		Data[idx + 3] = v;
+		Data[idx + 4] = v + 2;
+		Data[idx + 5] = v + 3;
 	}
 
 	RHIUnlockIndexBuffer(IndexBufferRHI);
