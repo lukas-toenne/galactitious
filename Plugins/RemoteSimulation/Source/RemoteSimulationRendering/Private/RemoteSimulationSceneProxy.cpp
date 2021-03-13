@@ -9,9 +9,11 @@
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("Draw Calls"), STAT_DrawCallCount, STATGROUP_RemoteSimulation)
 
-static FRemoteSimulationBatchElementUserData BuildUserDataElement(const FSceneView* InView, const FRemoteSimulationRenderData& RenderData);
+FRemoteSimulationPointGroupRenderData::FRemoteSimulationPointGroupRenderData() : NumPoints(0), RenderBuffer(nullptr)
+{
+}
 
-FRemoteSimulationRenderData::FRemoteSimulationRenderData() : NumPoints(0), RenderBuffer(nullptr)
+FRemoteSimulationRenderData::FRemoteSimulationRenderData() : MaxPointsPerGroup(0)
 {
 }
 
@@ -50,35 +52,38 @@ void FRemoteSimulationSceneProxy::GetDynamicMeshElements(
 
 		if (IsShown(View) && (VisibilityMap & (1 << ViewIndex)))
 		{
-			if (RenderData.NumPoints)
+			for (const FRemoteSimulationPointGroupRenderData& PointGroup : RenderData.PointGroups)
 			{
-				check(RenderData.RenderBuffer);
+				if (PointGroup.NumPoints > 0)
+				{
+					check(PointGroup.RenderBuffer);
 
-				FRemoteSimulationBatchElementUserData& UserData =
-					Collector.AllocateOneFrameResource<FRemoteSimulationOneFrameResource>().Payload;
+					FRemoteSimulationBatchElementUserData& UserData =
+						Collector.AllocateOneFrameResource<FRemoteSimulationOneFrameResource>().Payload;
 
-				FMeshBatch& MeshBatch = Collector.AllocateMesh();
+					FMeshBatch& MeshBatch = Collector.AllocateMesh();
 
-				MeshBatch.Type = PT_TriangleList;
-				MeshBatch.LODIndex = 0;
-				MeshBatch.VertexFactory = &GRemoteSimulationVertexFactory;
-				MeshBatch.bWireframe = false;
-				MeshBatch.MaterialRenderProxy = Material->GetRenderProxy();
-				MeshBatch.ReverseCulling = IsLocalToWorldDeterminantNegative();
-				MeshBatch.DepthPriorityGroup = SDPG_World;
+					MeshBatch.Type = PT_TriangleList;
+					MeshBatch.LODIndex = 0;
+					MeshBatch.VertexFactory = &GRemoteSimulationVertexFactory;
+					MeshBatch.bWireframe = false;
+					MeshBatch.MaterialRenderProxy = Material->GetRenderProxy();
+					MeshBatch.ReverseCulling = IsLocalToWorldDeterminantNegative();
+					MeshBatch.DepthPriorityGroup = SDPG_World;
 
-				FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
-				BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
-				BatchElement.IndexBuffer = RenderData.IndexBuffer;
-				BatchElement.FirstIndex = 0;
-				BatchElement.MinVertexIndex = 0;
-				BatchElement.NumPrimitives = RenderData.NumPoints * 2;
-				UserData = BuildUserDataElement(View);
-				BatchElement.UserData = &UserData;
+					FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
+					BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
+					BatchElement.IndexBuffer = RenderData.IndexBuffer;
+					BatchElement.FirstIndex = 0;
+					BatchElement.MinVertexIndex = 0;
+					BatchElement.NumPrimitives = PointGroup.NumPoints * 2;
+					UserData = BuildUserDataElement(View, PointGroup);
+					BatchElement.UserData = &UserData;
 
-				Collector.AddMesh(ViewIndex, MeshBatch);
+					Collector.AddMesh(ViewIndex, MeshBatch);
 
-				INC_DWORD_STAT(STAT_DrawCallCount);
+					INC_DWORD_STAT(STAT_DrawCallCount);
+				}
 			}
 
 #if !(UE_BUILD_SHIPPING)
@@ -120,7 +125,8 @@ FPrimitiveViewRelevance FRemoteSimulationSceneProxy::GetViewRelevance(const FSce
 }
 
 /** UserData is used to pass rendering information to the VertexFactory */
-FRemoteSimulationBatchElementUserData FRemoteSimulationSceneProxy::BuildUserDataElement(const FSceneView* InView) const
+FRemoteSimulationBatchElementUserData FRemoteSimulationSceneProxy::BuildUserDataElement(
+	const FSceneView* InView, const FRemoteSimulationPointGroupRenderData& PointGroup) const
 {
 	FRemoteSimulationBatchElementUserData UserDataElement;
 
@@ -172,7 +178,7 @@ FRemoteSimulationBatchElementUserData FRemoteSimulationSceneProxy::BuildUserData
 	//	UserDataElement.bStartClipped = UserDataElement.bStartClipped || ClippingVolume->Mode == ELidarClippingVolumeMode::ClipOutside;
 	//}
 
-	UserDataElement.DataBuffer = RenderData.RenderBuffer->SRV;
+	UserDataElement.DataBuffer = PointGroup.RenderBuffer->SRV;
 
 	return UserDataElement;
 }

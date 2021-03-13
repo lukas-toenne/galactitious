@@ -46,27 +46,35 @@ void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick 
 			([This](FRHICommandListImmediate& RHICmdList) {
 				SCOPE_CYCLE_COUNTER(STAT_UpdateRenderData);
 
-				uint32 MaxPoints = 0;
+				int32 MaxPointsPerGroup = 0;
 				if (This->BuildRenderData())
 				{
-					MaxPoints = FMath::Max(MaxPoints, NumVisiblePoints);
+					// add one-off build stuff here
 				}
 
 				FRemoteSimulationSceneProxy* Proxy = static_cast<FRemoteSimulationSceneProxy*>(This->SceneProxy);
 				if (Proxy)
 				{
 					FRemoteSimulationRenderData RenderData;
-					RenderData.NumPoints = NumVisiblePoints;
 					RenderData.IndexBuffer = &GRemoteSimulationIndexBuffer;
-					RenderData.RenderBuffer = This->RenderBuffer;
 					RenderData.PointSize = 10.0f; // TODO
 
-					Proxy->UpdateRenderData_RenderThread(RenderData);
-				}
+					RenderData.PointGroups.Reserve(1);
+					// TODO: for each point group ...
+					{
+						FRemoteSimulationPointGroupRenderData& PointGroup = RenderData.PointGroups.AddDefaulted_GetRef();
+						PointGroup.NumPoints = NumVisiblePoints;
+						MaxPointsPerGroup = FMath::Max(MaxPointsPerGroup, PointGroup.NumPoints);
+						PointGroup.RenderBuffer = This->RenderBuffer;
+					}
+					RenderData.MaxPointsPerGroup = MaxPointsPerGroup;
 
-				if (MaxPoints > GRemoteSimulationIndexBuffer.Capacity)
-				{
-					GRemoteSimulationIndexBuffer.Resize(MaxPoints);
+					if ((uint32)MaxPointsPerGroup > GRemoteSimulationIndexBuffer.Capacity)
+					{
+						GRemoteSimulationIndexBuffer.Resize(MaxPointsPerGroup);
+					}
+
+					Proxy->UpdateRenderData_RenderThread(RenderData);
 				}
 			});
 		}

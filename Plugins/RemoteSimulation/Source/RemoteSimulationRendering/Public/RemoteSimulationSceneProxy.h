@@ -10,14 +10,23 @@ class FRemoteSimulationIndexBuffer;
 class FRemoteSimulationRenderBuffer;
 class URemoteSimulationComponent;
 
+/** Group of points with a contiguous buffer */
+struct REMOTESIMULATIONRENDERING_API FRemoteSimulationPointGroupRenderData
+{
+	FRemoteSimulationPointGroupRenderData();
+
+	int32 NumPoints;
+	FRemoteSimulationRenderBuffer* RenderBuffer;
+};
+
 /** Used to pass data to RT to update the proxy's render data */
 struct REMOTESIMULATIONRENDERING_API FRemoteSimulationRenderData
 {
 	FRemoteSimulationRenderData();
 
-	int32 NumPoints;
+	int32 MaxPointsPerGroup;
 	FRemoteSimulationIndexBuffer* IndexBuffer;
-	FRemoteSimulationRenderBuffer* RenderBuffer;
+	TArray<FRemoteSimulationPointGroupRenderData> PointGroups;
 
 	float PointSize;
 };
@@ -43,7 +52,8 @@ public:
 	void UpdateRenderData_RenderThread(const FRemoteSimulationRenderData& InRenderData);
 
 private:
-	struct FRemoteSimulationBatchElementUserData BuildUserDataElement(const FSceneView* InView) const;
+	struct FRemoteSimulationBatchElementUserData BuildUserDataElement(
+		const FSceneView* InView, const struct FRemoteSimulationPointGroupRenderData& PointGroup) const;
 
 private:
 	FRemoteSimulationRenderData RenderData;
