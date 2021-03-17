@@ -8,6 +8,7 @@
 
 struct FRemoteSimulationRenderData;
 class UBodySetup;
+class URemoteSimulationCache;
 
 /** Component for rendering remote simulation results. */
 UCLASS(ClassGroup=Rendering, ShowCategories = (Rendering), HideCategories = (Object, LOD, Physics, Activation, Materials, Cooking, Input, HLOD, Mobile), meta = (BlueprintSpawnableComponent))
@@ -21,17 +22,6 @@ public:
 	// Begin UObject Interface.
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 	virtual void PostLoad() override;
-	// End UObject Interface.
-
-	// Begin UActorComponent Interface
-	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
-	// End UActorComponent Interface
-
-	// End UMeshComponent Interface
-	virtual int32 GetNumMaterials() const override { return 1; }
-	virtual UMaterialInterface* GetMaterial(int32 ElementIndex) const override { return Material; }
-	virtual void SetMaterial(int32 ElementIndex, UMaterialInterface* InMaterial) override;
-	// End UMeshComponent Interface
 
 #if WITH_EDITOR
 	virtual void PreEditChange(FProperty* PropertyThatWillChange) override;
@@ -44,18 +34,31 @@ public:
 		UpdateMaterial();
 	}
 #endif
+	// End UObject Interface.
 
-	virtual UBodySetup* GetBodySetup() override;
-
-private:
-	// Begin UPrimitiveComponent Interface
-	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
-	// End UMeshComponent Interface
+	// Begin UActorComponent Interface
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	// End UActorComponent Interface
 
 	// Begin USceneComponent Interface
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	// End USceneComponent Interface
 
+	// Begin UPrimitiveComponent Interface
+	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
+	virtual UBodySetup* GetBodySetup() override;
+	// End UMeshComponent Interface
+
+	// End UMeshComponent Interface
+	virtual int32 GetNumMaterials() const override { return 1; }
+	virtual UMaterialInterface* GetMaterial(int32 ElementIndex) const override { return Material; }
+	virtual void SetMaterial(int32 ElementIndex, UMaterialInterface* InMaterial) override;
+	// End UMeshComponent Interface
+
+	UFUNCTION(BlueprintGetter)
+	URemoteSimulationCache* GetSimulationCache() const { return SimulationCache; }
+
+private:
 	void UpdateMaterial();
 
 	void AttachPointCloudListener();
@@ -70,6 +73,9 @@ private:
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))
 	UMaterialInterface* Material;
+
+	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache)
+	URemoteSimulationCache* SimulationCache;
 
 	class FRemoteSimulationRenderBuffer* RenderBuffer;
 	bool bRenderDataDirty;

@@ -2,6 +2,7 @@
 
 #include "RemoteSimulationComponent.h"
 
+#include "RemoteSimulationCache.h"
 #include "RemoteSimulationCommon.h"
 #include "RemoteSimulationRenderBuffers.h"
 #include "RemoteSimulationSceneProxy.h"
@@ -29,7 +30,64 @@ URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), Re
 
 	CastShadow = false;
 	SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+
+	SimulationCache = CreateDefaultSubobject<URemoteSimulationCache>(TEXT("Remote Simulation Cache"), true);
+	SimulationCache->SetCapacity(100, ERemoteSimulationCacheResizeMode::PruneStart);
 }
+
+void URemoteSimulationComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	URemoteSimulationComponent* This = CastChecked<URemoteSimulationComponent>(InThis);
+	Super::AddReferencedObjects(This, Collector);
+}
+
+void URemoteSimulationComponent::PostLoad()
+{
+	Super::PostLoad();
+}
+
+#if WITH_EDITOR
+void URemoteSimulationComponent::PreEditChange(FProperty* PropertyThatWillChange)
+{
+	Super::PreEditChange(PropertyThatWillChange);
+
+	if (PropertyThatWillChange)
+	{
+		if (PropertyThatWillChange->GetName().Equals("PointCloud"))
+		{
+			RemovePointCloudListener();
+		}
+	}
+}
+
+void URemoteSimulationComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.MemberProperty)
+	{
+		if (IS_PROPERTY(PointCloud))
+		{
+			PostPointCloudSet();
+		}
+
+		if (IS_PROPERTY(Material))
+		{
+			SetMaterial(0, Material);
+		}
+
+		// if (IS_PROPERTY(Gain))
+		//{
+		//	ApplyRenderingParameters();
+		//}
+
+		// if (IS_PROPERTY(PointShape))
+		//{
+		//	UpdateMaterial();
+		//}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif // WITH_EDITOR
 
 void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
@@ -81,6 +139,11 @@ void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick 
 	}
 }
 
+FBoxSphereBounds URemoteSimulationComponent::CalcBounds(const FTransform& LocalToWorld) const
+{
+	return /*PointCloud ? PointCloud->GetBounds().TransformBy(LocalToWorld) :*/ USceneComponent::CalcBounds(LocalToWorld);
+}
+
 FPrimitiveSceneProxy* URemoteSimulationComponent::CreateSceneProxy()
 {
 	FRemoteSimulationSceneProxy* Proxy = nullptr;
@@ -90,22 +153,6 @@ FPrimitiveSceneProxy* URemoteSimulationComponent::CreateSceneProxy()
 		// FLidarPointCloudLODManager::RegisterProxy(this, Proxy->ProxyWrapper);
 	}
 	return Proxy;
-}
-
-FBoxSphereBounds URemoteSimulationComponent::CalcBounds(const FTransform& LocalToWorld) const
-{
-	return /*PointCloud ? PointCloud->GetBounds().TransformBy(LocalToWorld) :*/ USceneComponent::CalcBounds(LocalToWorld);
-}
-
-void URemoteSimulationComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
-{
-	URemoteSimulationComponent* This = CastChecked<URemoteSimulationComponent>(InThis);
-	Super::AddReferencedObjects(This, Collector);
-}
-
-void URemoteSimulationComponent::PostLoad()
-{
-	Super::PostLoad();
 }
 
 UBodySetup* URemoteSimulationComponent::GetBodySetup()
@@ -205,46 +252,3 @@ void URemoteSimulationComponent::ReleaseRenderData()
 		RenderBuffer = nullptr;
 	}
 }
-
-#if WITH_EDITOR
-void URemoteSimulationComponent::PreEditChange(FProperty* PropertyThatWillChange)
-{
-	Super::PreEditChange(PropertyThatWillChange);
-
-	if (PropertyThatWillChange)
-	{
-		if (PropertyThatWillChange->GetName().Equals("PointCloud"))
-		{
-			RemovePointCloudListener();
-		}
-	}
-}
-
-void URemoteSimulationComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (PropertyChangedEvent.MemberProperty)
-	{
-		if (IS_PROPERTY(PointCloud))
-		{
-			PostPointCloudSet();
-		}
-
-		if (IS_PROPERTY(Material))
-		{
-			SetMaterial(0, Material);
-		}
-
-		// if (IS_PROPERTY(Gain))
-		//{
-		//	ApplyRenderingParameters();
-		//}
-
-		// if (IS_PROPERTY(PointShape))
-		//{
-		//	UpdateMaterial();
-		//}
-	}
-
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-#endif
