@@ -3,8 +3,3 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-struct REMOTESIMULATION_API FRemoteSimulationPoint
-{
-	FVector Location;
-};

@@ -71,9 +71,6 @@ private:
 
 	void PostPointCloudSet();
 
-	bool BuildRenderData();
-	void ReleaseRenderData();
-
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))
 	UMaterialInterface* Material;
@@ -81,6 +78,5 @@ private:
 	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache, Category = "Remote Simulation")
 	URemoteSimulationCache* SimulationCache;
 
-	class FRemoteSimulationRenderBuffer* RenderBuffer;
 	bool bRenderDataDirty;
 };

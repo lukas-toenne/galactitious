@@ -20,13 +20,18 @@ public:
 	uint32 Capacity;
 };
 
+struct REMOTESIMULATIONRENDERING_API FRemoteSimulationPointData
+{
+	FVector Location;
+};
+
 /**
  * Encapsulates a GPU read buffer with its SRV.
  */
-class REMOTESIMULATIONRENDERING_API FRemoteSimulationRenderBuffer : public FRenderResource
+class REMOTESIMULATIONRENDERING_API FRemoteSimulationPointDataBuffer : public FRenderResource
 {
 public:
-	FRemoteSimulationRenderBuffer() : Capacity(100000) {}
+	FRemoteSimulationPointDataBuffer() : Capacity(100000) {}
 
 	void Resize(const uint32& RequestedCapacity);
 

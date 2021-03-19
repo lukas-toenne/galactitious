@@ -8,6 +8,9 @@
 
 #include "RemoteSimulationFrame.generated.h"
 
+class FRemoteSimulationPointDataBuffer;
+class FRemoteSimulationIndexBuffer;
+
 USTRUCT(BlueprintType)
 struct REMOTESIMULATION_API FRemoteSimulationInvariants
 {
@@ -58,9 +61,9 @@ public:
 
 	FRemoteSimulationFrame();
 	FRemoteSimulationFrame(TArray<FVector>& Positions, TArray<FVector>& Velocities);
-	FRemoteSimulationFrame(const FRemoteSimulationFrame& Other) = default;
+	FRemoteSimulationFrame(const FRemoteSimulationFrame& Other);
 
-	FRemoteSimulationFrame& operator=(const FRemoteSimulationFrame& Other) = default;
+	FRemoteSimulationFrame& operator=(const FRemoteSimulationFrame& Other);
 
 	void ContinueFrom(const FRemoteSimulationFrame& Other);
 
@@ -84,8 +87,17 @@ public:
 	void SetForce(int32 Index, const FVector& InForce);
 	void AddForce(int32 Index, const FVector& InForce);
 
+	bool HasRenderData() const;
+	FRemoteSimulationPointDataBuffer* GetPointDataBuffer() const { return PointDataBuffer; }
+	static FRemoteSimulationIndexBuffer* GetPointIndexBuffer();
+	bool BuildRenderData() const;
+	void ReleaseRenderData() const;
+
 private:
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
 	TArray<FVector> Forces;
+
+	// TODO Consider using a separate map for render data to avoid mutable, and make Build/ReleaseRenderData non-const.
+	mutable FRemoteSimulationPointDataBuffer* PointDataBuffer;
 };

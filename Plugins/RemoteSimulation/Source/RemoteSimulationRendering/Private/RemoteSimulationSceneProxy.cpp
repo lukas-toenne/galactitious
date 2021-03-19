@@ -9,11 +9,11 @@
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("Draw Calls"), STAT_DrawCallCount, STATGROUP_RemoteSimulation)
 
-FRemoteSimulationPointGroupRenderData::FRemoteSimulationPointGroupRenderData() : NumPoints(0), RenderBuffer(nullptr)
+FRemoteSimulationPointGroupRenderData::FRemoteSimulationPointGroupRenderData() : NumPoints(0), PointDataBuffer(nullptr)
 {
 }
 
-FRemoteSimulationRenderData::FRemoteSimulationRenderData() : MaxPointsPerGroup(0)
+FRemoteSimulationRenderData::FRemoteSimulationRenderData() : IndexBuffer(nullptr), PointSize(0.0f)
 {
 }
 
@@ -56,7 +56,7 @@ void FRemoteSimulationSceneProxy::GetDynamicMeshElements(
 			{
 				if (PointGroup.NumPoints > 0)
 				{
-					check(PointGroup.RenderBuffer);
+					check(PointGroup.PointDataBuffer);
 
 					FRemoteSimulationBatchElementUserData& UserData =
 						Collector.AllocateOneFrameResource<FRemoteSimulationOneFrameResource>().Payload;
@@ -178,7 +178,7 @@ FRemoteSimulationBatchElementUserData FRemoteSimulationSceneProxy::BuildUserData
 	//	UserDataElement.bStartClipped = UserDataElement.bStartClipped || ClippingVolume->Mode == ELidarClippingVolumeMode::ClipOutside;
 	//}
 
-	UserDataElement.DataBuffer = PointGroup.RenderBuffer->SRV;
+	UserDataElement.DataBuffer = PointGroup.PointDataBuffer->SRV;
 
 	return UserDataElement;
 }

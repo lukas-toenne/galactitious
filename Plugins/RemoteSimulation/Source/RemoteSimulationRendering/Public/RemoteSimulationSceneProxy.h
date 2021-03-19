@@ -7,7 +7,7 @@
 //#include "RemoteSimulationVertexFactory.h"
 
 class FRemoteSimulationIndexBuffer;
-class FRemoteSimulationRenderBuffer;
+class FRemoteSimulationPointDataBuffer;
 class URemoteSimulationComponent;
 
 /** Group of points with a contiguous buffer */
@@ -16,7 +16,7 @@ struct REMOTESIMULATIONRENDERING_API FRemoteSimulationPointGroupRenderData
 	FRemoteSimulationPointGroupRenderData();
 
 	int32 NumPoints;
-	FRemoteSimulationRenderBuffer* RenderBuffer;
+	FRemoteSimulationPointDataBuffer* PointDataBuffer;
 };
 
 /** Used to pass data to RT to update the proxy's render data */
@@ -24,7 +24,6 @@ struct REMOTESIMULATIONRENDERING_API FRemoteSimulationRenderData
 {
 	FRemoteSimulationRenderData();
 
-	int32 MaxPointsPerGroup;
 	FRemoteSimulationIndexBuffer* IndexBuffer;
 	TArray<FRemoteSimulationPointGroupRenderData> PointGroups;
 

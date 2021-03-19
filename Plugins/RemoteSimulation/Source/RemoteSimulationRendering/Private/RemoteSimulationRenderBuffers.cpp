@@ -46,7 +46,7 @@ void FRemoteSimulationIndexBuffer::InitRHI()
 
 //////////////////////////////////////////////////////////// Structured Buffer
 
-void FRemoteSimulationRenderBuffer::Resize(const uint32& RequestedCapacity)
+void FRemoteSimulationPointDataBuffer::Resize(const uint32& RequestedCapacity)
 {
 	// This must be called from Rendering thread
 	check(IsInRenderingThread());
@@ -63,17 +63,17 @@ void FRemoteSimulationRenderBuffer::Resize(const uint32& RequestedCapacity)
 	}
 }
 
-void FRemoteSimulationRenderBuffer::InitRHI()
+void FRemoteSimulationPointDataBuffer::InitRHI()
 {
 	// This must be called from Rendering thread
 	check(IsInRenderingThread());
 
 	FRHIResourceCreateInfo CreateInfo;
-	Buffer = RHICreateVertexBuffer(Capacity * sizeof(FRemoteSimulationPoint), BUF_ShaderResource | BUF_Dynamic, CreateInfo);
+	Buffer = RHICreateVertexBuffer(Capacity * sizeof(FRemoteSimulationPointData), BUF_ShaderResource | BUF_Dynamic, CreateInfo);
 	SRV = RHICreateShaderResourceView(Buffer, sizeof(uint32), PF_R32_FLOAT);
 }
 
-void FRemoteSimulationRenderBuffer::ReleaseRHI()
+void FRemoteSimulationPointDataBuffer::ReleaseRHI()
 {
 	// This must be called from Rendering thread
 	check(IsInRenderingThread());

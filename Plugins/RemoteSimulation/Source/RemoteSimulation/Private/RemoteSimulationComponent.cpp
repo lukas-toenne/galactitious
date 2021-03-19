@@ -6,7 +6,6 @@
 #include "RemoteSimulationCache.h"
 #include "RemoteSimulationCommon.h"
 #include "RemoteSimulationFrame.h"
-#include "RemoteSimulationRenderBuffers.h"
 #include "RemoteSimulationSceneProxy.h"
 #include "RemoteSimulationTypes.h"
 #include "RenderingThread.h"
@@ -18,13 +17,7 @@ DECLARE_CYCLE_STAT(TEXT("Render Data Update"), STAT_UpdateRenderData, STATGROUP_
 
 #define IS_PROPERTY(Name) PropertyChangedEvent.MemberProperty->GetName().Equals(#Name)
 
-/** Global index buffer shared between all proxies */
-static TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationIndexBuffer;
-
-static const TArray<FRemoteSimulationPoint> Points({{FVector(0, 0, 0)}, {FVector(40, 0, -20)}, {FVector(30, 10, 20)}, {FVector(-40, -10, 0)}});
-static const uint32 NumVisiblePoints = Points.Num();
-
-URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), RenderBuffer(nullptr), bRenderDataDirty(true)
+URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), bRenderDataDirty(true)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
@@ -100,41 +93,34 @@ void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick 
 	{
 		if (SceneProxy)
 		{
+			FRemoteSimulationFrame::ConstPtr Frame = SimulationCache ? SimulationCache->GetLastFrame() : nullptr;
+
 			// Graphics update
 			URemoteSimulationComponent* This = this;
 			ENQUEUE_RENDER_COMMAND(FUpdateRemoteSimulationRenderData)
-			([This](FRHICommandListImmediate& RHICmdList) {
+			([This, Frame](FRHICommandListImmediate& RHICmdList) {
 				SCOPE_CYCLE_COUNTER(STAT_UpdateRenderData);
-
-				int32 MaxPointsPerGroup = 0;
-				if (This->BuildRenderData())
-				{
-					// add one-off build stuff here
-				}
 
 				FRemoteSimulationSceneProxy* Proxy = static_cast<FRemoteSimulationSceneProxy*>(This->SceneProxy);
 				if (Proxy)
 				{
 					FRemoteSimulationRenderData RenderData;
-					RenderData.IndexBuffer = &GRemoteSimulationIndexBuffer;
 					RenderData.PointSize = 10.0f; // TODO
 
-					RenderData.PointGroups.Reserve(1);
-					// TODO: for each point group ...
+					if (Frame && Frame->BuildRenderData())
 					{
-						FRemoteSimulationPointGroupRenderData& PointGroup = RenderData.PointGroups.AddDefaulted_GetRef();
-						PointGroup.NumPoints = NumVisiblePoints;
-						MaxPointsPerGroup = FMath::Max(MaxPointsPerGroup, PointGroup.NumPoints);
-						PointGroup.RenderBuffer = This->RenderBuffer;
-					}
-					RenderData.MaxPointsPerGroup = MaxPointsPerGroup;
+						RenderData.IndexBuffer = Frame->GetPointIndexBuffer();
 
-					if ((uint32)MaxPointsPerGroup > GRemoteSimulationIndexBuffer.Capacity)
-					{
-						GRemoteSimulationIndexBuffer.Resize(MaxPointsPerGroup);
-					}
+						RenderData.PointGroups.Reserve(1);
+						// TODO: for each point group ...
+						{
+							FRemoteSimulationPointGroupRenderData& PointGroup = RenderData.PointGroups.AddDefaulted_GetRef();
+							PointGroup.NumPoints = Frame->GetNumPoints();
+							PointGroup.PointDataBuffer = Frame->GetPointDataBuffer();
+						}
 
-					Proxy->UpdateRenderData_RenderThread(RenderData);
+						Proxy->UpdateRenderData_RenderThread(RenderData);
+					}
 				}
 			});
 		}
@@ -230,53 +216,4 @@ void URemoteSimulationComponent::OnPointCloudRebuilt()
 	MarkRenderStateDirty();
 	UpdateBounds();
 	UpdateMaterial();
-}
-
-bool URemoteSimulationComponent::BuildRenderData()
-{
-	check(IsInRenderingThread());
-
-	if (NumVisiblePoints > 0)
-	{
-		if (!RenderBuffer)
-		{
-			RenderBuffer = new FRemoteSimulationRenderBuffer();
-			bRenderDataDirty = true;
-		}
-
-		if (bRenderDataDirty)
-		{
-			RenderBuffer->Resize(NumVisiblePoints);
-
-			const size_t DataStride = sizeof(FRemoteSimulationPoint);
-			uint8* StructuredBuffer = (uint8*)RHILockVertexBuffer(RenderBuffer->Buffer, 0, NumVisiblePoints * DataStride, RLM_WriteOnly);
-			for (const FRemoteSimulationPoint *Data = Points.GetData(), *DataEnd = Data + NumVisiblePoints; Data != DataEnd; ++Data)
-			{
-				FMemory::Memcpy(StructuredBuffer, Data, DataStride);
-				StructuredBuffer += DataStride;
-			}
-			RHIUnlockVertexBuffer(RenderBuffer->Buffer);
-
-			bRenderDataDirty = false;
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
-void URemoteSimulationComponent::ReleaseRenderData()
-{
-	if (RenderBuffer)
-	{
-		FRemoteSimulationRenderBuffer* Tmp = RenderBuffer;
-		ENQUEUE_RENDER_COMMAND(RemoteSimulationComponent_ReleaseRenderData)
-		([Tmp](FRHICommandListImmediate& RHICmdList) {
-			Tmp->ReleaseResource();
-			delete Tmp;
-		});
-
-		RenderBuffer = nullptr;
-	}
 }
