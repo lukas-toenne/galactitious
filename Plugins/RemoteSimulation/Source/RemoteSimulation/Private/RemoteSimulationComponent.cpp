@@ -2,8 +2,10 @@
 
 #include "RemoteSimulationComponent.h"
 
+#include "IRemoteSimulationPointGenerator.h"
 #include "RemoteSimulationCache.h"
 #include "RemoteSimulationCommon.h"
+#include "RemoteSimulationFrame.h"
 #include "RemoteSimulationRenderBuffers.h"
 #include "RemoteSimulationSceneProxy.h"
 #include "RemoteSimulationTypes.h"
@@ -166,6 +168,32 @@ void URemoteSimulationComponent::SetMaterial(int32 ElementIndex, UMaterialInterf
 	Material = InMaterial;
 	PostPointCloudSet();
 	OnPointCloudRebuilt();
+}
+
+void URemoteSimulationComponent::InitializeCache(int32 NumPoints, const TScriptInterface<IRemoteSimulationPointGenerator>& Generator)
+{
+	SimulationCache->Reset();
+
+	TArray<float> Masses;
+	TArray<FVector> Positions, Velocities;
+	Masses.SetNumUninitialized(NumPoints);
+	Positions.SetNumUninitialized(NumPoints);
+	Velocities.SetNumUninitialized(NumPoints);
+
+	FRemoteSimulationPointResult PointResult;
+	for (int32 i = 0; i < NumPoints; ++i)
+	{
+		IRemoteSimulationPointGenerator::Execute_GeneratePoint(Generator.GetObject(), i, PointResult);
+		Masses[i] = PointResult.Mass;
+		Positions[i] = PointResult.Position;
+		Velocities[i] = PointResult.Velocity;
+	}
+
+	FRemoteSimulationInvariants::Ptr Invariants = MakeShared<FRemoteSimulationInvariants, ESPMode::ThreadSafe>(Masses, true);
+	SimulationCache->SetInvariants(Invariants);
+
+	FRemoteSimulationFrame::Ptr CacheFrame = MakeShared<FRemoteSimulationFrame, ESPMode::ThreadSafe>(Positions, Velocities);
+	SimulationCache->AddFrame(CacheFrame);
 }
 
 void URemoteSimulationComponent::PostPointCloudSet()

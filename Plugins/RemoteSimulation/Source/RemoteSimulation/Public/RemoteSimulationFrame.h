@@ -9,10 +9,50 @@
 #include "RemoteSimulationFrame.generated.h"
 
 USTRUCT(BlueprintType)
+struct REMOTESIMULATION_API FRemoteSimulationInvariants
+{
+	GENERATED_BODY()
+
+public:
+	using Ptr = TSharedPtr<FRemoteSimulationInvariants, ESPMode::ThreadSafe>;
+	using ConstPtr = TSharedPtr<FRemoteSimulationInvariants const, ESPMode::ThreadSafe>;
+
+	FRemoteSimulationInvariants();
+	FRemoteSimulationInvariants(TArray<float>& Masses, bool bComputeInverseMasses = true);
+	FRemoteSimulationInvariants(const FRemoteSimulationInvariants& Other) = default;
+
+	FRemoteSimulationInvariants& operator=(const FRemoteSimulationInvariants& Other) = default;
+
+	int32 GetNumPoints() const;
+	void SetNumPoints(int32 NumPoints);
+	void Empty();
+
+	bool IsValid() const;
+
+	const TArray<float>& GetMasses() const { return Masses; }
+	const TArray<float>& GetInverseMasses() const { return InvMasses; }
+
+	TArray<float>& GetMasses() { return Masses; }
+	TArray<float>& GetInverseMasses() { return InvMasses; }
+
+	void ComputeInverseMasses();
+
+private:
+	// Proportionality factor A of forces to inverse-square distance:
+	// F = A * m1 * m2 / r^2
+	float ForceFactor;
+
+	// Mass of particles
+	TArray<float> Masses;
+	TArray<float> InvMasses;
+};
+
+USTRUCT(BlueprintType)
 struct REMOTESIMULATION_API FRemoteSimulationFrame
 {
 	GENERATED_BODY()
 
+public:
 	using Ptr = TSharedPtr<FRemoteSimulationFrame, ESPMode::ThreadSafe>;
 	using ConstPtr = TSharedPtr<FRemoteSimulationFrame const, ESPMode::ThreadSafe>;
 
@@ -48,21 +88,4 @@ private:
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
 	TArray<FVector> Forces;
-};
-
-USTRUCT(BlueprintType)
-struct REMOTESIMULATION_API FRemoteSimulationInvariants
-{
-	GENERATED_BODY()
-
-	using Ptr = TSharedPtr<FRemoteSimulationInvariants, ESPMode::ThreadSafe>;
-	using ConstPtr = TSharedPtr<FRemoteSimulationInvariants const, ESPMode::ThreadSafe>;
-
-	// Proportionality factor A of forces to inverse-square distance:
-	// F = A * m1 * m2 / r^2
-	float ForceFactor;
-
-	// Mass of particles
-	TArray<float> Masses;
-	TArray<float> InvMasses;
 };

@@ -83,6 +83,11 @@ void URemoteSimulationCache::Reset()
 		FFunctionGraphTask::CreateAndDispatchWhenReady([&]() { OnReset.Broadcast(this); }, TStatId(), nullptr, ENamedThreads::GameThread);
 }
 
+void URemoteSimulationCache::SetInvariants(const FRemoteSimulationInvariants::ConstPtr& InInvariants)
+{
+	Invariants = InInvariants;
+}
+
 bool URemoteSimulationCache::AddFrame(const FRemoteSimulationFrame::ConstPtr& InFrame)
 {
 	FRWScopeLock Lock(FramesMutex, SLT_Write);

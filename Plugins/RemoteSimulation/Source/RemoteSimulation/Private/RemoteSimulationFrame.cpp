@@ -4,6 +4,53 @@
 
 #define LOCTEXT_NAMESPACE "RemoteSimulation"
 
+FRemoteSimulationInvariants::FRemoteSimulationInvariants()
+{
+}
+
+FRemoteSimulationInvariants::FRemoteSimulationInvariants(TArray<float>& InMasses, bool bComputeInverseMasses)
+{
+	Masses = MoveTemp(InMasses);
+
+	if (bComputeInverseMasses)
+	{
+		ComputeInverseMasses();
+	}
+}
+
+int32 FRemoteSimulationInvariants::GetNumPoints() const
+{
+	return Masses.Num();
+}
+
+void FRemoteSimulationInvariants::SetNumPoints(int32 NumPoints)
+{
+	Masses.SetNumUninitialized(NumPoints);
+	InvMasses.Empty();
+}
+
+void FRemoteSimulationInvariants::Empty()
+{
+	Masses.Empty();
+	InvMasses.Empty();
+}
+
+bool FRemoteSimulationInvariants::IsValid() const
+{
+	const int32 NumPoints = Masses.Num();
+	return InvMasses.Num() == NumPoints;
+}
+
+void FRemoteSimulationInvariants::ComputeInverseMasses()
+{
+	InvMasses.SetNumUninitialized(Masses.Num());
+	for (int32 i = 0; i < Masses.Num(); ++i)
+	{
+		const float Mass = Masses[i];
+		InvMasses[i] = FMath::IsNearlyZero(Mass) ? 0.0f : 1.0f / Mass;
+	}
+}
+
 FRemoteSimulationFrame::FRemoteSimulationFrame()
 {
 }

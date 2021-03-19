@@ -7,6 +7,7 @@
 #include "RemoteSimulationComponent.generated.h"
 
 struct FRemoteSimulationRenderData;
+class IRemoteSimulationPointGenerator;
 class UBodySetup;
 class URemoteSimulationCache;
 
@@ -58,6 +59,9 @@ public:
 	UFUNCTION(BlueprintGetter)
 	URemoteSimulationCache* GetSimulationCache() const { return SimulationCache; }
 
+	UFUNCTION(BlueprintCallable, Category = "Remote Simulation")
+	void InitializeCache(int32 NumPoints, const TScriptInterface<IRemoteSimulationPointGenerator>& Generator);
+
 private:
 	void UpdateMaterial();
 
@@ -74,7 +78,7 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))
 	UMaterialInterface* Material;
 
-	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache)
+	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache, Category = "Remote Simulation")
 	URemoteSimulationCache* SimulationCache;
 
 	class FRemoteSimulationRenderBuffer* RenderBuffer;

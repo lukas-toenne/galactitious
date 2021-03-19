@@ -37,6 +37,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Remote Simulation")
 	void SetCapacity(int32 Capacity, ERemoteSimulationCacheResizeMode ResizeMode);
 
+	FRemoteSimulationInvariants::ConstPtr GetInvariants() const { return Invariants; }
+
 	UFUNCTION(BlueprintCallable, Category = "Remote Simulation")
 	int32 GetNumFrames() const;
 
@@ -46,6 +48,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Remote Simulation")
 	void Reset();
 
+	void SetInvariants(const FRemoteSimulationInvariants::ConstPtr& InInvariants);
 	bool AddFrame(const FRemoteSimulationFrame::ConstPtr& InFrame);
 
 public:
@@ -56,6 +59,7 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintGetter = GetCapacity)
 	int32 Capacity = 32;
 
+	FRemoteSimulationInvariants::ConstPtr Invariants;
 	TArray<FRemoteSimulationFrame::ConstPtr> Frames;
 
 	mutable FRWLock FramesMutex;
