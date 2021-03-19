@@ -65,11 +65,11 @@ public:
 private:
 	void UpdateMaterial();
 
-	void AttachPointCloudListener();
-	void RemovePointCloudListener();
-	void OnPointCloudRebuilt();
+	void AttachCacheListener();
+	void RemoveCacheListener();
+	void OnCacheUpdated();
 
-	void PostPointCloudSet();
+	void PostCacheSet();
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))

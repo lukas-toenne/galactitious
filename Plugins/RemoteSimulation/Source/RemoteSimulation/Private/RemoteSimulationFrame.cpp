@@ -56,11 +56,17 @@ void FRemoteSimulationInvariants::ComputeInverseMasses()
 	}
 }
 
-FRemoteSimulationFrame::FRemoteSimulationFrame() : PointDataBuffer(nullptr)
+FRemoteSimulationFrame::FRemoteSimulationFrame()
+	: PositionBounds(EForceInit::ForceInitToZero)
+	, bBoundsDirty(true)
+	, PointDataBuffer(nullptr)
 {
 }
 
-FRemoteSimulationFrame::FRemoteSimulationFrame(TArray<FVector>& InPositions, TArray<FVector>& InVelocities) : PointDataBuffer(nullptr)
+FRemoteSimulationFrame::FRemoteSimulationFrame(TArray<FVector>& InPositions, TArray<FVector>& InVelocities)
+	: PositionBounds(EForceInit::ForceInitToZero)
+	, bBoundsDirty(true)
+	, PointDataBuffer(nullptr)
 {
 	if (InPositions.Num() != InVelocities.Num())
 	{
@@ -85,7 +91,12 @@ FRemoteSimulationFrame& FRemoteSimulationFrame::operator=(const FRemoteSimulatio
 	Positions = Other.Positions;
 	Velocities = Other.Velocities;
 	Forces = Other.Forces;
-	PointDataBuffer = nullptr;
+
+	PositionBounds = Other.PositionBounds;
+	bBoundsDirty = Other.bBoundsDirty;
+
+	ReleaseRenderData();
+
 	return *this;
 }
 
@@ -96,6 +107,11 @@ void FRemoteSimulationFrame::ContinueFrom(const FRemoteSimulationFrame& Other)
 	Positions = Other.Positions;
 	Velocities = Other.Velocities;
 	Forces.SetNumZeroed(NumPoints);
+
+	PositionBounds = Other.PositionBounds;
+	bBoundsDirty = Other.bBoundsDirty;
+
+	ReleaseRenderData();
 }
 
 int32 FRemoteSimulationFrame::GetNumPoints() const
@@ -108,6 +124,7 @@ void FRemoteSimulationFrame::SetNumPoints(int32 NumPoints)
 	Positions.SetNumUninitialized(NumPoints);
 	Velocities.SetNumUninitialized(NumPoints);
 	Forces.SetNumUninitialized(NumPoints);
+	bBoundsDirty = true;
 }
 
 void FRemoteSimulationFrame::Empty()
@@ -115,6 +132,8 @@ void FRemoteSimulationFrame::Empty()
 	Positions.Empty();
 	Velocities.Empty();
 	Forces.Empty();
+	PositionBounds = FBoxSphereBounds(EForceInit::ForceInitToZero);
+	bBoundsDirty = false;
 }
 
 bool FRemoteSimulationFrame::IsValid() const
@@ -129,11 +148,13 @@ void FRemoteSimulationFrame::SetPoint(int32 Index, const FVector& InPosition, co
 	Positions[Index] = InPosition;
 	Velocities[Index] = InVelocity;
 	Forces[Index] = InForce;
+	bBoundsDirty = true;
 }
 
 void FRemoteSimulationFrame::SetPostion(int32 Index, const FVector& InPosition)
 {
 	Positions[Index] = InPosition;
+	bBoundsDirty = true;
 }
 
 void FRemoteSimulationFrame::SetVelocity(int32 Index, const FVector& InVelocity)
@@ -154,6 +175,37 @@ void FRemoteSimulationFrame::AddForce(int32 Index, const FVector& InForce)
 bool FRemoteSimulationFrame::HasRenderData() const
 {
 	return PointDataBuffer != nullptr;
+}
+
+bool FRemoteSimulationFrame::UpdateBounds()
+{
+	if (bBoundsDirty)
+	{
+		PositionBounds = FBoxSphereBounds(FBox(Positions.GetData(), Positions.Num()), FSphere(Positions.GetData(), Positions.Num()));
+		bBoundsDirty = false;
+		return true;
+	}
+	return false;
+}
+
+FBoxSphereBounds FRemoteSimulationFrame::GetBounds(bool bUpdateBounds)
+{
+	if (bUpdateBounds)
+	{
+		UpdateBounds();
+	}
+
+	return PositionBounds;
+}
+
+FBoxSphereBounds FRemoteSimulationFrame::GetBounds() const
+{
+	return PositionBounds;
+}
+
+bool FRemoteSimulationFrame::IsBoundsDirty() const
+{
+	return bBoundsDirty;
 }
 
 FRemoteSimulationIndexBuffer* FRemoteSimulationFrame::GetPointIndexBuffer()

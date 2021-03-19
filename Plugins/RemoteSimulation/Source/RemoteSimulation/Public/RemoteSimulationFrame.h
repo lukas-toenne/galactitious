@@ -87,6 +87,11 @@ public:
 	void SetForce(int32 Index, const FVector& InForce);
 	void AddForce(int32 Index, const FVector& InForce);
 
+	bool UpdateBounds();
+	FBoxSphereBounds GetBounds(bool bUpdateBounds);
+	FBoxSphereBounds GetBounds() const;
+	bool IsBoundsDirty() const;
+
 	bool HasRenderData() const;
 	FRemoteSimulationPointDataBuffer* GetPointDataBuffer() const { return PointDataBuffer; }
 	static FRemoteSimulationIndexBuffer* GetPointIndexBuffer();
@@ -97,6 +102,9 @@ private:
 	TArray<FVector> Positions;
 	TArray<FVector> Velocities;
 	TArray<FVector> Forces;
+
+	FBoxSphereBounds PositionBounds;
+	bool bBoundsDirty;
 
 	// TODO Consider using a separate map for render data to avoid mutable, and make Build/ReleaseRenderData non-const.
 	mutable FRemoteSimulationPointDataBuffer* PointDataBuffer;

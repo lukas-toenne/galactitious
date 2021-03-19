@@ -48,9 +48,9 @@ void URemoteSimulationComponent::PreEditChange(FProperty* PropertyThatWillChange
 
 	if (PropertyThatWillChange)
 	{
-		if (PropertyThatWillChange->GetName().Equals("PointCloud"))
+		if (PropertyThatWillChange->GetName().Equals("SimulationCache"))
 		{
-			RemovePointCloudListener();
+			RemoveCacheListener();
 		}
 	}
 }
@@ -59,9 +59,9 @@ void URemoteSimulationComponent::PostEditChangeProperty(FPropertyChangedEvent& P
 {
 	if (PropertyChangedEvent.MemberProperty)
 	{
-		if (IS_PROPERTY(PointCloud))
+		if (IS_PROPERTY(SimulationCache))
 		{
-			PostPointCloudSet();
+			PostCacheSet();
 		}
 
 		if (IS_PROPERTY(Material))
@@ -129,7 +129,20 @@ void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick 
 
 FBoxSphereBounds URemoteSimulationComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	return /*PointCloud ? PointCloud->GetBounds().TransformBy(LocalToWorld) :*/ USceneComponent::CalcBounds(LocalToWorld);
+	if (SimulationCache)
+	{
+		FRemoteSimulationFrame::ConstPtr Frame = SimulationCache->GetLastFrame();
+		if (Frame)
+		{
+			if (Frame->IsBoundsDirty())
+			{
+				UE_LOG(LogRemoteSimulation, Warning, TEXT("Cache frame bounds are dirty"));
+			}
+			return Frame->GetBounds().TransformBy(LocalToWorld);
+		}
+	}
+
+	return USceneComponent::CalcBounds(LocalToWorld);
 }
 
 FPrimitiveSceneProxy* URemoteSimulationComponent::CreateSceneProxy()
@@ -150,10 +163,10 @@ UBodySetup* URemoteSimulationComponent::GetBodySetup()
 
 void URemoteSimulationComponent::SetMaterial(int32 ElementIndex, UMaterialInterface* InMaterial)
 {
-	RemovePointCloudListener();
+	RemoveCacheListener();
 	Material = InMaterial;
-	PostPointCloudSet();
-	OnPointCloudRebuilt();
+	PostCacheSet();
+	OnCacheUpdated();
 }
 
 void URemoteSimulationComponent::InitializeCache(int32 NumPoints, const TScriptInterface<IRemoteSimulationPointGenerator>& Generator)
@@ -179,15 +192,18 @@ void URemoteSimulationComponent::InitializeCache(int32 NumPoints, const TScriptI
 	SimulationCache->SetInvariants(Invariants);
 
 	FRemoteSimulationFrame::Ptr CacheFrame = MakeShared<FRemoteSimulationFrame, ESPMode::ThreadSafe>(Positions, Velocities);
+	CacheFrame->UpdateBounds();
 	SimulationCache->AddFrame(CacheFrame);
+
+	OnCacheUpdated();
 }
 
-void URemoteSimulationComponent::PostPointCloudSet()
+void URemoteSimulationComponent::PostCacheSet()
 {
-	AttachPointCloudListener();
+	AttachCacheListener();
 }
 
-void URemoteSimulationComponent::AttachPointCloudListener()
+void URemoteSimulationComponent::AttachCacheListener()
 {
 	// if (PointCloud)
 	//{
@@ -196,7 +212,7 @@ void URemoteSimulationComponent::AttachPointCloudListener()
 	//}
 }
 
-void URemoteSimulationComponent::RemovePointCloudListener()
+void URemoteSimulationComponent::RemoveCacheListener()
 {
 	// if (PointCloud)
 	//{
@@ -211,7 +227,7 @@ void URemoteSimulationComponent::UpdateMaterial()
 	// ApplyRenderingParameters();
 }
 
-void URemoteSimulationComponent::OnPointCloudRebuilt()
+void URemoteSimulationComponent::OnCacheUpdated()
 {
 	MarkRenderStateDirty();
 	UpdateBounds();
