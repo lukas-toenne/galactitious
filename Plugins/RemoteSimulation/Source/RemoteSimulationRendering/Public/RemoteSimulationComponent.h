@@ -6,6 +6,7 @@
 #include "Components/MeshComponent.h"
 #include "RemoteSimulationComponent.generated.h"
 
+struct FRemoteSimulationFrame;
 struct FRemoteSimulationRenderData;
 class IRemoteSimulationPointGenerator;
 class UBodySetup;
@@ -13,7 +14,7 @@ class URemoteSimulationCache;
 
 /** Component for rendering remote simulation results. */
 UCLASS(ClassGroup=Rendering, ShowCategories = (Rendering), HideCategories = (Object, LOD, Physics, Activation, Materials, Cooking, Input, HLOD, Mobile), meta = (BlueprintSpawnableComponent))
-class REMOTESIMULATION_API URemoteSimulationComponent : public UMeshComponent
+class REMOTESIMULATIONRENDERING_API URemoteSimulationComponent : public UMeshComponent
 {
 	GENERATED_BODY()
 		
@@ -70,6 +71,9 @@ private:
 	void OnCacheUpdated();
 
 	void PostCacheSet();
+
+	bool BuildFrameRenderData(const FRemoteSimulationFrame& Frame);
+	void ReleaseFrameRenderData(const FRemoteSimulationFrame& Frame);
 
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Material", meta = (AllowPrivateAccess = "true"))

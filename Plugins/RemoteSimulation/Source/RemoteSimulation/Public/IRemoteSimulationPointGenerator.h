@@ -27,7 +27,7 @@ class URemoteSimulationPointGenerator : public UInterface
 	GENERATED_BODY()
 };
 
-class IRemoteSimulationPointGenerator
+class REMOTESIMULATION_API IRemoteSimulationPointGenerator
 {
 	GENERATED_BODY()
 

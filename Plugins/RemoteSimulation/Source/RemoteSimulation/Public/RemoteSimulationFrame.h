@@ -9,7 +9,6 @@
 #include "RemoteSimulationFrame.generated.h"
 
 class FRemoteSimulationPointDataBuffer;
-class FRemoteSimulationIndexBuffer;
 
 USTRUCT(BlueprintType)
 struct REMOTESIMULATION_API FRemoteSimulationInvariants
@@ -34,9 +33,11 @@ public:
 
 	const TArray<float>& GetMasses() const { return Masses; }
 	const TArray<float>& GetInverseMasses() const { return InvMasses; }
+	float GetForceFactor() const { return ForceFactor; }
 
 	TArray<float>& GetMasses() { return Masses; }
 	TArray<float>& GetInverseMasses() { return InvMasses; }
+	void SetForceFactor(float InForceFactor);
 
 	void ComputeInverseMasses();
 
@@ -92,11 +93,8 @@ public:
 	FBoxSphereBounds GetBounds() const;
 	bool IsBoundsDirty() const;
 
-	bool HasRenderData() const;
 	FRemoteSimulationPointDataBuffer* GetPointDataBuffer() const { return PointDataBuffer; }
-	static FRemoteSimulationIndexBuffer* GetPointIndexBuffer();
-	bool BuildRenderData() const;
-	void ReleaseRenderData() const;
+	void SetPointDataBuffer(FRemoteSimulationPointDataBuffer* InPointDataBuffer) const { PointDataBuffer = InPointDataBuffer; }
 
 private:
 	TArray<FVector> Positions;

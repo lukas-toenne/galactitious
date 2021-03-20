@@ -6,6 +6,7 @@
 #include "RemoteSimulationCache.h"
 #include "RemoteSimulationCommon.h"
 #include "RemoteSimulationFrame.h"
+#include "RemoteSimulationRenderBuffers.h"
 #include "RemoteSimulationSceneProxy.h"
 #include "RemoteSimulationTypes.h"
 #include "RenderingThread.h"
@@ -13,9 +14,14 @@
 #include "Engine/CollisionProfile.h"
 #include "Materials/Material.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogRemoteSimulationComponent, Log, All);
+
 DECLARE_CYCLE_STAT(TEXT("Render Data Update"), STAT_UpdateRenderData, STATGROUP_RemoteSimulation)
 
 #define IS_PROPERTY(Name) PropertyChangedEvent.MemberProperty->GetName().Equals(#Name)
+
+/** Global index buffer for point sprites shared between all proxies */
+static TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationPointIndexBuffer;
 
 URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), bRenderDataDirty(true)
 {
@@ -107,9 +113,9 @@ void URemoteSimulationComponent::TickComponent(float DeltaTime, enum ELevelTick 
 					FRemoteSimulationRenderData RenderData;
 					RenderData.PointSize = 10.0f; // TODO
 
-					if (Frame && Frame->BuildRenderData())
+					if (Frame && This->BuildFrameRenderData(*Frame))
 					{
-						RenderData.IndexBuffer = Frame->GetPointIndexBuffer();
+						RenderData.IndexBuffer = &GRemoteSimulationPointIndexBuffer;
 
 						RenderData.PointGroups.Reserve(1);
 						// TODO: for each point group ...
@@ -136,7 +142,7 @@ FBoxSphereBounds URemoteSimulationComponent::CalcBounds(const FTransform& LocalT
 		{
 			if (Frame->IsBoundsDirty())
 			{
-				UE_LOG(LogRemoteSimulation, Warning, TEXT("Cache frame bounds are dirty"));
+				UE_LOG(LogRemoteSimulationComponent, Warning, TEXT("Cache frame bounds are dirty"));
 			}
 			return Frame->GetBounds().TransformBy(LocalToWorld);
 		}
@@ -232,4 +238,71 @@ void URemoteSimulationComponent::OnCacheUpdated()
 	MarkRenderStateDirty();
 	UpdateBounds();
 	UpdateMaterial();
+}
+
+bool URemoteSimulationComponent::BuildFrameRenderData(const FRemoteSimulationFrame& Frame)
+{
+	check(IsInRenderingThread());
+
+	// Build point data buffer
+	const TArray<FVector>& Positions = Frame.GetPositions();
+	const int32 NumPoints = Positions.Num();
+	if (NumPoints > 0)
+	{
+		FRemoteSimulationPointDataBuffer* PointDataBuffer = Frame.GetPointDataBuffer();
+		if (!PointDataBuffer)
+		{
+			PointDataBuffer = new FRemoteSimulationPointDataBuffer();
+			Frame.SetPointDataBuffer(PointDataBuffer);
+			// bRenderDataDirty = true;
+		}
+
+		int32 MaxPointsPerGroup = 0;
+		// if (bRenderDataDirty)
+		{
+			PointDataBuffer->Resize(NumPoints);
+
+			const size_t DataStride = sizeof(FRemoteSimulationPointData);
+			uint8* StructuredBuffer = (uint8*)RHILockVertexBuffer(PointDataBuffer->Buffer, 0, NumPoints * DataStride, RLM_WriteOnly);
+			const FVector* Pos = Positions.GetData();
+
+			for (int32 i = 0; i < NumPoints; ++i)
+			{
+				FRemoteSimulationPointData* PointData = (FRemoteSimulationPointData*)StructuredBuffer;
+				PointData->Location = *Pos;
+
+				StructuredBuffer += DataStride;
+				++Pos;
+			}
+			RHIUnlockVertexBuffer(PointDataBuffer->Buffer);
+
+			MaxPointsPerGroup = FMath::Max(MaxPointsPerGroup, NumPoints);
+
+			// bRenderDataDirty = false;
+		}
+
+		if ((uint32)MaxPointsPerGroup > GRemoteSimulationPointIndexBuffer.Capacity)
+		{
+			GRemoteSimulationPointIndexBuffer.Resize(MaxPointsPerGroup);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+void URemoteSimulationComponent::ReleaseFrameRenderData(const FRemoteSimulationFrame& Frame)
+{
+	FRemoteSimulationPointDataBuffer* PointDataBuffer = Frame.GetPointDataBuffer();
+	if (PointDataBuffer)
+	{
+		ENQUEUE_RENDER_COMMAND(RemoteSimulationComponent_ReleaseRenderData)
+		([PointDataBuffer](FRHICommandListImmediate& RHICmdList) {
+			PointDataBuffer->ReleaseResource();
+			delete PointDataBuffer;
+		});
+
+		Frame.SetPointDataBuffer(nullptr);
+	}
 }

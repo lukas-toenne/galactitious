@@ -2,12 +2,7 @@
 
 #include "RemoteSimulationFrame.h"
 
-#include "RemoteSimulationRenderBuffers.h"
-
 #define LOCTEXT_NAMESPACE "RemoteSimulation"
-
-/** Global index buffer for point sprites shared between all proxies */
-static TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationPointIndexBuffer;
 
 FRemoteSimulationInvariants::FRemoteSimulationInvariants()
 {
@@ -44,6 +39,11 @@ bool FRemoteSimulationInvariants::IsValid() const
 {
 	const int32 NumPoints = Masses.Num();
 	return InvMasses.Num() == NumPoints;
+}
+
+void FRemoteSimulationInvariants::SetForceFactor(float InForceFactor)
+{
+	ForceFactor = InForceFactor;
 }
 
 void FRemoteSimulationInvariants::ComputeInverseMasses()
@@ -95,8 +95,6 @@ FRemoteSimulationFrame& FRemoteSimulationFrame::operator=(const FRemoteSimulatio
 	PositionBounds = Other.PositionBounds;
 	bBoundsDirty = Other.bBoundsDirty;
 
-	ReleaseRenderData();
-
 	return *this;
 }
 
@@ -110,8 +108,6 @@ void FRemoteSimulationFrame::ContinueFrom(const FRemoteSimulationFrame& Other)
 
 	PositionBounds = Other.PositionBounds;
 	bBoundsDirty = Other.bBoundsDirty;
-
-	ReleaseRenderData();
 }
 
 int32 FRemoteSimulationFrame::GetNumPoints() const
@@ -172,11 +168,6 @@ void FRemoteSimulationFrame::AddForce(int32 Index, const FVector& InForce)
 	Forces[Index] += InForce;
 }
 
-bool FRemoteSimulationFrame::HasRenderData() const
-{
-	return PointDataBuffer != nullptr;
-}
-
 bool FRemoteSimulationFrame::UpdateBounds()
 {
 	if (bBoundsDirty)
@@ -206,74 +197,6 @@ FBoxSphereBounds FRemoteSimulationFrame::GetBounds() const
 bool FRemoteSimulationFrame::IsBoundsDirty() const
 {
 	return bBoundsDirty;
-}
-
-FRemoteSimulationIndexBuffer* FRemoteSimulationFrame::GetPointIndexBuffer()
-{
-	return &GRemoteSimulationPointIndexBuffer;
-}
-
-bool FRemoteSimulationFrame::BuildRenderData() const
-{
-	check(IsInRenderingThread());
-
-	// Build point data buffer
-	const int32 NumPoints = Positions.Num();
-	if (NumPoints > 0)
-	{
-		if (!PointDataBuffer)
-		{
-			PointDataBuffer = new FRemoteSimulationPointDataBuffer();
-			// bRenderDataDirty = true;
-		}
-
-		int32 MaxPointsPerGroup = 0;
-		// if (bRenderDataDirty)
-		{
-			PointDataBuffer->Resize(NumPoints);
-
-			const size_t DataStride = sizeof(FRemoteSimulationPointData);
-			uint8* StructuredBuffer = (uint8*)RHILockVertexBuffer(PointDataBuffer->Buffer, 0, NumPoints * DataStride, RLM_WriteOnly);
-			const FVector* Pos = Positions.GetData();
-
-			for (int32 i = 0; i < NumPoints; ++i)
-			{
-				FRemoteSimulationPointData* PointData = (FRemoteSimulationPointData*)StructuredBuffer;
-				PointData->Location = *Pos;
-
-				StructuredBuffer += DataStride;
-				++Pos;
-			}
-			RHIUnlockVertexBuffer(PointDataBuffer->Buffer);
-
-			MaxPointsPerGroup = FMath::Max(MaxPointsPerGroup, NumPoints);
-
-			// bRenderDataDirty = false;
-		}
-
-		if ((uint32)MaxPointsPerGroup > GRemoteSimulationPointIndexBuffer.Capacity)
-		{
-			GRemoteSimulationPointIndexBuffer.Resize(MaxPointsPerGroup);
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
-void FRemoteSimulationFrame::ReleaseRenderData() const
-{
-	if (PointDataBuffer)
-	{
-		ENQUEUE_RENDER_COMMAND(RemoteSimulationComponent_ReleaseRenderData)
-		([Buffer = PointDataBuffer](FRHICommandListImmediate& RHICmdList) {
-			Buffer->ReleaseResource();
-			delete Buffer;
-		});
-
-		PointDataBuffer = nullptr;
-	}
 }
 
 #undef LOCTEXT_NAMESPACE
