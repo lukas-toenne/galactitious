@@ -13,6 +13,7 @@
 
 #include "Engine/CollisionProfile.h"
 #include "Materials/Material.h"
+#include "UObject/ConstructorHelpers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRemoteSimulationComponent, Log, All);
 
@@ -31,6 +32,9 @@ URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), bR
 
 	CastShadow = false;
 	SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+
+	static ConstructorHelpers::FObjectFinder<UMaterial> MaterialFinder(TEXT("/RemoteSimulation/Materials/DefaultPoints"));
+	Material = MaterialFinder.Object;
 
 	SimulationCache = CreateDefaultSubobject<URemoteSimulationCache>(TEXT("Remote Simulation Cache"), true);
 	SimulationCache->SetCapacity(100, ERemoteSimulationCacheResizeMode::PruneStart);

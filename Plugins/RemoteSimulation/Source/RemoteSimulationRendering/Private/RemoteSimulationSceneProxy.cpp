@@ -46,6 +46,11 @@ void FRemoteSimulationSceneProxy::GetDynamicMeshElements(
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_PointCloudSceneProxy_GetDynamicMeshElements);
 
+	if (Material == nullptr)
+	{
+		return;
+	}
+
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		const FSceneView* View = Views[ViewIndex];
