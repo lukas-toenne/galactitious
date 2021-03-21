@@ -93,8 +93,10 @@ public:
 	FBoxSphereBounds GetBounds() const;
 	bool IsBoundsDirty() const;
 
+	bool IsRenderDataDirty() const { return bRenderDataDirty; }
+	void SetRenderDataDirty(bool InRenderDataDirty) const;
 	FRemoteSimulationPointDataBuffer* GetPointDataBuffer() const { return PointDataBuffer; }
-	void SetPointDataBuffer(FRemoteSimulationPointDataBuffer* InPointDataBuffer) const { PointDataBuffer = InPointDataBuffer; }
+	void SetPointDataBuffer(FRemoteSimulationPointDataBuffer* InPointDataBuffer) const;
 
 private:
 	TArray<FVector> Positions;
@@ -106,4 +108,5 @@ private:
 
 	// TODO Consider using a separate map for render data to avoid mutable, and make Build/ReleaseRenderData non-const.
 	mutable FRemoteSimulationPointDataBuffer* PointDataBuffer;
+	mutable bool bRenderDataDirty;
 };

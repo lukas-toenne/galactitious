@@ -60,6 +60,7 @@ FRemoteSimulationFrame::FRemoteSimulationFrame()
 	: PositionBounds(EForceInit::ForceInitToZero)
 	, bBoundsDirty(true)
 	, PointDataBuffer(nullptr)
+	, bRenderDataDirty(true)
 {
 }
 
@@ -67,6 +68,7 @@ FRemoteSimulationFrame::FRemoteSimulationFrame(TArray<FVector>& InPositions, TAr
 	: PositionBounds(EForceInit::ForceInitToZero)
 	, bBoundsDirty(true)
 	, PointDataBuffer(nullptr)
+	, bRenderDataDirty(true)
 {
 	if (InPositions.Num() != InVelocities.Num())
 	{
@@ -95,6 +97,8 @@ FRemoteSimulationFrame& FRemoteSimulationFrame::operator=(const FRemoteSimulatio
 	PositionBounds = Other.PositionBounds;
 	bBoundsDirty = Other.bBoundsDirty;
 
+	bRenderDataDirty = true;
+
 	return *this;
 }
 
@@ -108,6 +112,8 @@ void FRemoteSimulationFrame::ContinueFrom(const FRemoteSimulationFrame& Other)
 
 	PositionBounds = Other.PositionBounds;
 	bBoundsDirty = Other.bBoundsDirty;
+
+	bRenderDataDirty = true;
 }
 
 int32 FRemoteSimulationFrame::GetNumPoints() const
@@ -197,6 +203,17 @@ FBoxSphereBounds FRemoteSimulationFrame::GetBounds() const
 bool FRemoteSimulationFrame::IsBoundsDirty() const
 {
 	return bBoundsDirty;
+}
+
+void FRemoteSimulationFrame::SetRenderDataDirty(bool InRenderDataDirty) const
+{
+	bRenderDataDirty = InRenderDataDirty;
+}
+
+void FRemoteSimulationFrame::SetPointDataBuffer(FRemoteSimulationPointDataBuffer* InPointDataBuffer) const
+{
+	PointDataBuffer = InPointDataBuffer;
+	bRenderDataDirty = true;
 }
 
 #undef LOCTEXT_NAMESPACE

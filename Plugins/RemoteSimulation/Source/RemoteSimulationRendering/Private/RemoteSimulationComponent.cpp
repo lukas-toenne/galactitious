@@ -24,7 +24,7 @@ DECLARE_CYCLE_STAT(TEXT("Render Data Update"), STAT_UpdateRenderData, STATGROUP_
 /** Global index buffer for point sprites shared between all proxies */
 static TGlobalResource<FRemoteSimulationIndexBuffer> GRemoteSimulationPointIndexBuffer;
 
-URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr), bRenderDataDirty(true)
+URemoteSimulationComponent::URemoteSimulationComponent() : Material(nullptr)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
@@ -258,11 +258,10 @@ bool URemoteSimulationComponent::BuildFrameRenderData(const FRemoteSimulationFra
 		{
 			PointDataBuffer = new FRemoteSimulationPointDataBuffer();
 			Frame.SetPointDataBuffer(PointDataBuffer);
-			// bRenderDataDirty = true;
 		}
 
 		int32 MaxPointsPerGroup = 0;
-		// if (bRenderDataDirty)
+		if (Frame.IsRenderDataDirty())
 		{
 			PointDataBuffer->Resize(NumPoints);
 
@@ -282,7 +281,7 @@ bool URemoteSimulationComponent::BuildFrameRenderData(const FRemoteSimulationFra
 
 			MaxPointsPerGroup = FMath::Max(MaxPointsPerGroup, NumPoints);
 
-			// bRenderDataDirty = false;
+			Frame.SetRenderDataDirty(false);
 		}
 
 		if ((uint32)MaxPointsPerGroup > GRemoteSimulationPointIndexBuffer.Capacity)

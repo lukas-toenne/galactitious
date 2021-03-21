@@ -32,7 +32,6 @@ class REMOTESIMULATION_API IRemoteSimulationPointGenerator
 	GENERATED_BODY()
 
 public:
-	/**A version of React To Trigger that can be implemented in C++ or Blueprint. */
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Remote Simulation")
 	bool GeneratePoint(int32 PointID, FRemoteSimulationPointResult& OutPoint);
 };

@@ -81,6 +81,4 @@ private:
 
 	UPROPERTY(Transient, BlueprintGetter = GetSimulationCache, Category = "Remote Simulation")
 	URemoteSimulationCache* SimulationCache;
-
-	bool bRenderDataDirty;
 };
